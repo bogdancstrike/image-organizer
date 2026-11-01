@@ -405,3 +405,34 @@ THEMES: list[tuple[str, str]] = [
     ("Street fashion", "street style fashion outfits in the city"), ("Everyday", "everyday phone photos and selfies"),
     ("Event", "an event or party"), ("Nature", "nature and landscape photography"),
 ]
+
+
+# ------------------------------------------------------------ recipes (what the UI recommends)
+# One click sets everything up. The UI translates titles/descriptions by id.
+RECIPES: list[dict] = [
+    {"id": "camera-roll", "emoji": "📱", "strategy": "preset", "set_id": "lifestyle", "options": {}},
+    {"id": "photoshoot", "emoji": "📸", "strategy": "cull",
+     "options": {"quality": {"bursts": True, "picks_percent": 20, "smiles": True}}},
+    {"id": "wedding", "emoji": "💍", "strategy": "preset", "set_id": "wedding-day",
+     "options": {"quality": {"enabled": True, "action": "tag"}}},
+    {"id": "boudoir", "emoji": "🖤", "strategy": "preset", "set_id": "boudoir",
+     "options": {"quality": {"enabled": True, "action": "tag"}}},
+    {"id": "portraits", "emoji": "👗", "strategy": "preset", "set_id": "people-style", "options": {}},
+    {"id": "people", "emoji": "🧑‍🤝‍🧑", "strategy": "people", "options": {}},
+    {"id": "travel", "emoji": "✈️", "strategy": "preset", "set_id": "travel", "options": {}},
+    {"id": "documents", "emoji": "🧾", "strategy": "preset", "set_id": "documents", "options": {"ocr": True}},
+    {"id": "discover", "emoji": "✨", "strategy": "auto", "options": {"focus": "auto"}},
+    {"id": "by-date", "emoji": "📅", "strategy": "date", "options": {}},
+]
+RECIPES_BY_ID = {r["id"]: r for r in RECIPES}
+
+THEME_TO_RECIPE = {
+    "Wedding": "wedding", "Trash the dress": "wedding", "Engagement": "wedding",
+    "Boudoir": "boudoir", "Lingerie studio": "boudoir", "Glamour": "boudoir",
+    "Studio fashion": "portraits", "Street fashion": "portraits",
+    "Travel": "travel", "Nature": "travel",
+    "Everyday": "camera-roll", "Family": "camera-roll", "Event": "camera-roll", "Christmas": "camera-roll",
+    "Halloween": "camera-roll", "Moto": "camera-roll", "Pool & beach": "camera-roll", "Sport & fitness": "camera-roll",
+    "Product": "discover", "Real estate": "discover",
+}
+SHOOT_THEMES = {"Wedding", "Trash the dress", "Engagement", "Boudoir", "Lingerie studio", "Glamour", "Studio fashion"}

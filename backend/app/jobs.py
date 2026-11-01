@@ -1,6 +1,7 @@
 """Background sort jobs: scan → analyze → dedupe → categorize → plan, with a replayable event log."""
 from __future__ import annotations
 
+import hashlib
 import logging
 import random
 import threading
@@ -22,7 +23,9 @@ from .embedder import Embedder, normalize
 from .llm import LLMClient, contact_sheet, load_thumb
 from .media import Analysis, MediaError, decode, load_for_quality
 from .quality import REASONS, Quality, QualityRules, analyze_image, find_bursts, get_face_analyzer, score, stars, summary, verdict
+from .ocr import get_text_reader, text_category
 from .organizer import apply_plan
+from .people import cluster_people, face_crop_webp, FaceID, get_face_identifier
 from .planner import DUPLICATES, UNSORTED, destination
 from .presets import FOCUS_FACETS, FOCUS_HINT, VOCABULARY
 from .scanner import MediaFile, resolve_in_library, scan
@@ -108,9 +111,22 @@ class JobManager:
         self.embedder_factory = embedder_factory
         self.store = store
         self.llm_factory = llm_factory or (lambda: None)
-        self.cache = AnalysisCache(settings.data_dir / "cache.db")
+        self.cache = AnalysisCache(settings.data_dir / "cache.db")  # CLIP embeddings + model-agnostic tables
+        self._caches = {"clip": self.cache}
         self.jobs: dict[str, Job] = {}
         self._lock = threading.Lock()
+
+    def cache_for(self, model: str) -> AnalysisCache:
+        """Embeddings differ per model, so each model has its own cache file."""
+        if model not in self._caches:
+            self._caches[model] = AnalysisCache(self.s.data_dir / f"cache-{model}.db")
+        return self._caches[model]
+
+    def embedder_for(self, model: str):
+        try:
+            return self.embedder_factory(model)
+        except TypeError:  # simple factories (tests) take no argument
+            return self.embedder_factory()
 
     # ------------------------------------------------------------------ API
     def start(self, request: dict) -> Job:
@@ -245,10 +261,11 @@ class JobManager:
         job.phase = phase
         job.emit("phase", phase=phase)
 
-    def _analyze_one(self, f: MediaFile):
+    def _analyze_one(self, f: MediaFile, cache: AnalysisCache | None = None):
         key = str(f.path)
+        cache = cache or self.cache
         try:
-            cached = self.cache.get(key, f.size, f.mtime)
+            cached = cache.get(key, f.size, f.mtime)
             if cached:
                 analysis, emb = cached
                 tp = self.thumb_path(analysis.sha256)
@@ -289,7 +306,9 @@ class JobManager:
         # 2. analyze: photos first (they are the main subject), videos after
         files.sort(key=lambda f: (f.kind != "image", f.rel_path))
         self._phase(job, "analyzing")
-        embedder = self.embedder_factory() if files else None
+        model = opts.get("model", "clip")
+        cache = self.cache_for(model)
+        embedder = self.embedder_for(model) if files else None
         results: dict[str, tuple[MediaFile, Analysis, np.ndarray]] = {}
         with ThreadPoolExecutor(max_workers=self.s.workers) as ex:
             for start in range(0, len(files), CHUNK):
@@ -297,7 +316,7 @@ class JobManager:
                     return
                 chunk = files[start : start + CHUNK]
                 pending: list[tuple[MediaFile, Any]] = []
-                for kind, f, payload, emb in ex.map(self._analyze_one, chunk):
+                for kind, f, payload, emb in ex.map(lambda x: self._analyze_one(x, cache), chunk):
                     if kind == "error":
                         job.errors.append({"rel_path": f.rel_path, "error": payload})
                         job.stats["errors"] += 1
@@ -319,7 +338,7 @@ class JobManager:
                     owners_arr = np.array(owners)
                     for i, (f, d) in enumerate(pending):
                         emb = normalize(vecs[owners_arr == i].mean(axis=0))
-                        self.cache.put(str(f.path), f.size, f.mtime, d.analysis, emb)
+                        cache.put(str(f.path), f.size, f.mtime, d.analysis, emb)
                         results[f.id] = (f, d.analysis, emb)
                     job.stats["embedded"] += len(pending)
                 job.stats["analyzed"] = len(results) + job.stats["errors"]
@@ -332,6 +351,10 @@ class JobManager:
         rules = QualityRules(**{k: qopts[k] for k in QualityRules.__dataclass_fields__ if k in qopts})
         need_quality = req["strategy"] == "cull" or qopts.get("enabled", False)
         quality: dict[str, Quality] = self._quality(job, ordered) if need_quality else {}
+        if job.cancel_requested:
+            return
+        texts: dict[str, dict] = self._ocr(job, ordered) if opts.get("ocr") else {}
+        faces: dict[str, list[FaceID]] = self._faces(job, ordered) if req["strategy"] == "people" else {}
         if job.cancel_requested:
             return
         # best-of-burst: near-identical shots seconds apart -> keep the best, mark the rest as extras
@@ -366,7 +389,9 @@ class JobManager:
         # 4. categorize
         self._phase(job, "categorizing")
         keep = [(f, a, e) for f, a, e in ordered if f.id not in dup_map]
-        assignment, categories = self._categorize(job, keep, embedder, quality, rules, bursts)
+        assignment, categories = self._categorize(job, keep, embedder, quality, rules, bursts, faces)
+        if texts and req["strategy"] in ("preset", "custom"):
+            self._text_override(job, keep, assignment, categories, texts, embedder, opts)
         if job.cancel_requested:
             return
         # reject overlay: bad shots leave their category for _Rejects/<reason>
@@ -430,6 +455,7 @@ class JobManager:
                 "sidecars": list(f.sidecars),
                 "quality": summary(quality[f.id], rules) if f.id in quality else None,
                 "burst": bursts.get(f.id),
+                "text": (texts.get(f.id) or {}).get("text") or None,
                 "xmp": self._xmp_for(f.id, cid, quality, rules, bursts) if qopts.get("write_xmp") and f.kind == "image" else None,
             })
         counts: dict[str, dict[str, int]] = {}
@@ -486,13 +512,176 @@ class JobManager:
             job.emit("warning", message=job.warnings[-1])
         return out
 
-    def _categorize(self, job: Job, keep, embedder, quality=None, rules=None, bursts=None) -> tuple[dict, list[dict]]:
+    # ------------------------------------------------------------ OCR
+    def _ocr(self, job: Job, ordered) -> dict[str, dict]:
+        reader = get_text_reader()
+        if not reader.available:
+            job.warnings.append("OCR is not available in this build")
+            return {}
+        self._phase(job, "reading")
+        photos = [f for f, _, _ in ordered if f.kind == "image"]
+
+        def one(f: MediaFile):
+            cached = self.cache.get_json("ocr", str(f.path), f.size, f.mtime)
+            if cached is not None:
+                return f, cached
+            try:
+                r = reader.read(load_for_quality(f.path, 1024))
+            except Exception as exc:  # noqa: BLE001
+                log.warning("ocr failed for %s: %s", f.rel_path, exc)
+                return f, None
+            self.cache.put_json("ocr", str(f.path), f.size, f.mtime, r)
+            return f, r
+
+        out = {}
+        with ThreadPoolExecutor(max_workers=max(1, self.s.workers // 2)) as ex:
+            for n, (f, r) in enumerate(ex.map(one, photos), 1):
+                if r:
+                    out[f.id] = r
+                if n % 8 == 0 or n == len(photos):
+                    job.emit("progress", analyzed=n, total=len(photos), stage="ocr")
+        return out
+
+    def _text_override(self, job, keep, assignment, cats, texts, embedder, opts) -> None:
+        """Photos that are mostly text go to the set's text-like folder (documents, captions, screenshots…)."""
+        targets = text_category(cats)
+        if not targets:
+            return
+        min_chars, min_cov = int(opts.get("ocr_min_chars", 25)), float(opts.get("ocr_min_coverage", 0.03))
+        tm = classify.category_matrix(embedder, targets)
+        target_ids = {c["id"] for c in targets}
+        for f, _, e in keep:
+            t = texts.get(f.id)
+            if not t or t["chars"] < min_chars or t["coverage"] < min_cov or assignment[f.id][0] in target_ids:
+                continue
+            best = targets[int(np.argmax(tm @ e))]
+            assignment[f.id] = (best["id"], assignment[f.id][1], "ocr")
+
+    # ------------------------------------------------------------ people
+    def _faces(self, job: Job, ordered) -> dict[str, list[FaceID]]:
+        ident = get_face_identifier()
+        if not ident.available:
+            job.warnings.append("Face identity models are missing: everything goes to 'No people'")
+            return {}
+        self._phase(job, "faces")
+        photos = [f for f, _, _ in ordered if f.kind == "image"]
+
+        def one(f: MediaFile):
+            cached = self.cache.get_json("faceid", str(f.path), f.size, f.mtime)
+            if cached is not None:
+                return f, [FaceID.from_dict(d) for d in cached]
+            try:
+                found = ident.identify(load_for_quality(f.path, 1600))
+            except Exception as exc:  # noqa: BLE001
+                log.warning("face id failed for %s: %s", f.rel_path, exc)
+                return f, []
+            self.cache.put_json("faceid", str(f.path), f.size, f.mtime, [x.to_dict() for x in found])
+            return f, found
+
+        out = {}
+        with ThreadPoolExecutor(max_workers=self.s.workers) as ex:
+            for n, (f, found) in enumerate(ex.map(one, photos), 1):
+                out[f.id] = found
+                if n % 8 == 0 or n == len(photos):
+                    job.emit("progress", analyzed=n, total=len(photos), stage="faces")
+        return out
+
+    def _people(self, job, keep, faces, opts) -> tuple[dict, list[dict]]:
+        """One folder per recurring person (by the photo's main face); Groups, Other people, No people, Videos."""
+        min_photos = int(opts.get("people_min_photos", 3))
+        threshold = float(opts.get("people_similarity", 0.363))
+        group_size = int(opts.get("people_group_size", 3))
+        main: dict[str, FaceID] = {}
+        group_ids: set[str] = set()
+        for f, _, _ in keep:
+            fs = faces.get(f.id) or []
+            if not fs:
+                continue
+            biggest = max(fs, key=lambda x: x.area)
+            sizable = [x for x in fs if x.area >= biggest.area * 0.4]
+            if len(sizable) >= group_size:
+                group_ids.add(f.id)
+            else:
+                main[f.id] = biggest
+        ids = list(main)
+        labels = cluster_people(np.vstack([main[i].emb for i in ids]) if ids else np.zeros((0, 128)), threshold)
+        members: dict[int, list[str]] = {}
+        for fid, lab in zip(ids, labels):
+            members.setdefault(int(lab), []).append(fid)
+        people = sorted((m for m in members.values() if len(m) >= min_photos), key=len, reverse=True)
+        cats: list[dict] = []
+        assignment: dict[str, tuple[str | None, float, str]] = {}
+        by_id = {f.id: f for f, _, _ in keep}
+        for n, m in enumerate(people, 1):
+            cid = f"person-{n}"
+            best = max(m, key=lambda i: main[i].area)
+            cover = None
+            try:
+                img = load_for_quality(by_id[best].path, 1600)
+                data = face_crop_webp(img, main[best].box)
+                sha = hashlib.sha256(data).hexdigest()
+                tp = self.thumb_path(sha)
+                tp.parent.mkdir(parents=True, exist_ok=True)
+                tp.write_bytes(data)
+                cover = f"/api/thumbs/{sha}"
+            except Exception as exc:  # noqa: BLE001
+                log.warning("avatar failed: %s", exc)
+            cats.append({"id": cid, "name": f"Person {n}", "emoji": "🙂", "cover": cover})
+            for fid in m:
+                assignment[fid] = (cid, 1.0, "faces")
+        extra = [("groups", "Groups", "👥"), ("other-people", "Other people", "🧑‍🤝‍🧑"), ("no-people", "No people", "🏞️"),
+                 ("videos", "Videos", "🎬")]
+        for f, _, _ in keep:
+            if f.id in assignment:
+                continue
+            if f.kind == "video":
+                assignment[f.id] = ("videos", 1.0, "faces")
+            elif f.id in group_ids:
+                assignment[f.id] = ("groups", 1.0, "faces")
+            elif f.id in main:
+                assignment[f.id] = ("other-people", 1.0, "faces")
+            else:
+                assignment[f.id] = ("no-people", 1.0, "faces")
+        used = {a[0] for a in assignment.values()}
+        cats += [{"id": i, "name": n, "emoji": e} for i, n, e in extra if i in used]
+        return assignment, cats
+
+    def rename_category(self, job_id: str, category_id: str, name: str) -> dict:
+        """Rename a folder of a finished, unapplied job (e.g. Person 1 → Laura)."""
+        job = self.jobs.get(job_id)
+        if not job:
+            raise KeyError(job_id)
+        if job.status != "done":
+            raise BusyError("only a finished, unapplied plan can be renamed")
+        name = name.strip()
+        if not name or len(name) > 60 or any(ch in name for ch in '/\\:*?"<>|'):
+            raise ValueError("invalid folder name")
+        if any(c["name"].lower() == name.lower() and c["id"] != category_id for c in job.categories):
+            raise ValueError("another folder already has this name")
+        cat = next((c for c in job.categories if c["id"] == category_id), None)
+        if not cat:
+            raise ValueError("unknown category")
+        cat["name"] = name
+        opts = job.request.get("options", {})
+        out_dir = opts.get("output_dir")
+        out_dir = self.s.output_dir_name if out_dir is None else out_dir.strip()
+        source_rel = (job.request.get("source") or "").strip("/")
+        for p in job.plan:
+            if p["category_id"] == category_id:
+                p["category"] = name
+                p["destination"] = destination(source_rel, out_dir, p["kind"], cat, opts.get("split_media", True))
+        return {"categories": job.categories, "plan": [p for p in job.plan if p["category_id"] == category_id]}
+
+    def _categorize(self, job: Job, keep, embedder, quality=None, rules=None, bursts=None, faces=None) -> tuple[dict, list[dict]]:
         req, opts = job.request, job.request.get("options", {})
         strategy = req["strategy"]
         assignment: dict[str, tuple[str | None, float, str]] = {}
         if not keep:
             return assignment, []
         embs = np.vstack([e for _, _, e in keep]) if keep else np.zeros((0, 512), np.float32)
+
+        if strategy == "people":
+            return self._people(job, keep, faces or {}, opts)
 
         if strategy == "cull":
             qopts = opts.get("quality") or {}

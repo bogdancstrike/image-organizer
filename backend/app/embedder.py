@@ -10,6 +10,11 @@ from PIL import Image
 
 VISION_MODEL = "Qdrant/clip-ViT-B-32-vision"
 TEXT_MODEL = "Qdrant/clip-ViT-B-32-text"
+# selectable recognition models: (vision, text). SigLIP 2 is slower (~5x) but understands scenes and styles better.
+MODELS = {
+    "clip": (VISION_MODEL, TEXT_MODEL),
+    "siglip2": ("google/siglip2-base-patch16-224", "google/siglip2-base-patch16-224"),
+}
 
 
 def normalize(a: np.ndarray) -> np.ndarray:
@@ -31,11 +36,13 @@ class Embedder(Protocol):
 class ClipEmbedder:
     """Shared image/text CLIP space. Thread-safe; text embeddings are memoized."""
 
-    def __init__(self, cache_dir: str | None = None, threads: int | None = None):
+    def __init__(self, cache_dir: str | None = None, threads: int | None = None, model: str = "clip"):
         from fastembed import ImageEmbedding, TextEmbedding
 
-        self._img = ImageEmbedding(VISION_MODEL, cache_dir=cache_dir, threads=threads)
-        self._txt = TextEmbedding(TEXT_MODEL, cache_dir=cache_dir, threads=threads)
+        vision, text = MODELS.get(model, MODELS["clip"])
+        self.model = model
+        self._img = ImageEmbedding(vision, cache_dir=cache_dir, threads=threads)
+        self._txt = TextEmbedding(text, cache_dir=cache_dir, threads=threads)
         self._lock = threading.Lock()
         self._text_cache: dict[str, np.ndarray] = {}
 
@@ -56,14 +63,14 @@ class ClipEmbedder:
         return np.vstack([self._text_cache[t] for t in texts]) if texts else np.zeros((0, 512), np.float32)
 
 
-_singleton: ClipEmbedder | None = None
+_singletons: dict[str, ClipEmbedder] = {}
 ONNX_THREADS = min(8, os.cpu_count() or 4)
 _singleton_lock = threading.Lock()
 
 
-def get_clip_embedder(cache_dir: str | None = None) -> ClipEmbedder:
-    global _singleton
+def get_clip_embedder(cache_dir: str | None = None, model: str = "clip") -> ClipEmbedder:
+    model = model if model in MODELS else "clip"
     with _singleton_lock:
-        if _singleton is None:
-            _singleton = ClipEmbedder(cache_dir=cache_dir, threads=ONNX_THREADS)
-        return _singleton
+        if model not in _singletons:
+            _singletons[model] = ClipEmbedder(cache_dir=cache_dir, threads=ONNX_THREADS, model=model)
+        return _singletons[model]

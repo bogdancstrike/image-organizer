@@ -342,7 +342,10 @@ def test_ai_assist_all_files_custom_prompt_and_category_hint(settings, fake_embe
         d = c.get("/api/ai/defaults").json()
     assert "{folders}" in d["assist_prompt"] and "{theme}" in d["naming_prompt"]
     texts = [call["input"][0]["content"][0]["text"] for call in fr.calls]
-    assert len(fr.calls) == 3  # 10 photos / 4 per request
-    assert texts[0].startswith("MY PROMPT 4 images") and "Red things: anything mostly red" in texts[0]
-    assert "Green things: green" in texts[0] and texts[0].rstrip().endswith("in order.")
+    sent = sum(1 for p in job["plan"] if p["source"] != "duplicate")
+    assert len(fr.calls) == -(-sent // 4)  # batches of 4
+    counts = sorted(int(t.split(" images")[0].split()[-1]) for t in texts)  # parallel: any order
+    assert sum(counts) == sent and max(counts) == 4 and all(t.startswith("MY PROMPT") for t in texts)
+    assert all("Red things: anything mostly red" in t and "Green things: green" in t for t in texts)
+    assert all(t.rstrip().endswith("in order.") for t in texts)
     assert all(p["source"] == "ai" for p in job["plan"] if p["category"] == "Red things")

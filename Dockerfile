@@ -27,14 +27,20 @@ WORKDIR /app
 COPY backend/requirements.txt .
 RUN pip install -r requirements.txt
 
-# Bundle the CLIP models and the MediaPipe face model so the container works offline (REQ-ANL-2)
+# Bundle CLIP, SigLIP 2, MediaPipe (blink/smile), YuNet + SFace (identity) so the container works offline
 RUN python -c "from fastembed import ImageEmbedding, TextEmbedding; \
 ImageEmbedding('Qdrant/clip-ViT-B-32-vision', cache_dir='/models'); \
-TextEmbedding('Qdrant/clip-ViT-B-32-text', cache_dir='/models')" \
+TextEmbedding('Qdrant/clip-ViT-B-32-text', cache_dir='/models'); \
+ImageEmbedding('google/siglip2-base-patch16-224', cache_dir='/models'); \
+TextEmbedding('google/siglip2-base-patch16-224', cache_dir='/models')" \
+ && python -c "import urllib.request as u; \
+u.urlretrieve('https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx', '/models/face_detection_yunet_2023mar.onnx'); \
+u.urlretrieve('https://github.com/opencv/opencv_zoo/raw/main/models/face_recognition_sface/face_recognition_sface_2021dec.onnx', '/models/face_recognition_sface_2021dec.onnx')" \
  && python -c "import urllib.request; urllib.request.urlretrieve('https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task', '/models/face_landmarker.task')" \
  && chmod -R a+rX /models
 ENV HF_HUB_OFFLINE=1 \
     FACE_MODEL=/models/face_landmarker.task \
+    FACE_ID_DIR=/models \
     MPLCONFIGDIR=/tmp/matplotlib \
     GLOG_minloglevel=2 \
     MALLOC_ARENA_MAX=2

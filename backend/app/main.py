@@ -24,7 +24,10 @@ from .jobs import BusyError, JobManager
 from .llm import LLMClient
 from .organizer import empty_trash, list_runs, undo_run
 from .media import open_any
-from .scanner import PathError, list_folders, media_kind
+from .ocr import get_text_reader
+from .people import get_face_identifier
+from .presets import RECIPES, RECIPES_BY_ID, SHOOT_THEMES, THEME_TO_RECIPE
+from .scanner import PathError, list_folders, media_kind, resolve_in_library, scan
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 SHA_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -80,6 +83,13 @@ class JobOptions(BaseModel):
     ai_max_files: int = Field(200, ge=1, le=5000)
     date_granularity: Literal["year", "month", "day"] = "month"
     max_clusters: int = Field(12, ge=2, le=30)
+    model: Literal["clip", "siglip2"] = "clip"  # recognition model: CLIP (fast) or SigLIP 2 (more accurate)
+    ocr: bool = False  # read text in photos: text-heavy ones go to the set's text/documents folder
+    ocr_min_chars: int = Field(25, ge=1, le=2000)
+    ocr_min_coverage: float = Field(0.03, ge=0.0, le=1.0)
+    people_min_photos: int = Field(3, ge=1, le=100)  # by person: smaller groups go to "Other people"
+    people_similarity: float = Field(0.363, ge=0.2, le=0.8)  # SFace cosine: higher = stricter "same person"
+    people_group_size: int = Field(3, ge=2, le=20)  # this many sizable faces = "Groups"
     focus: Literal["auto", "scene", "framing", "outfit", "lighting", "subject"] = "auto"  # what auto groups by
     granularity: Literal["coarse", "normal", "fine"] = "normal"
     ai: AIOptions = Field(default_factory=AIOptions)
@@ -99,7 +109,7 @@ class JobOptions(BaseModel):
 
 class JobRequest(BaseModel):
     source: str = ""
-    strategy: Literal["preset", "custom", "auto", "date", "cull"] = "preset"
+    strategy: Literal["preset", "custom", "auto", "date", "cull", "people"] = "preset"
     set_id: str | None = "lifestyle"
     options: JobOptions = Field(default_factory=JobOptions)
 
@@ -107,6 +117,10 @@ class JobRequest(BaseModel):
 class ReassignRequest(BaseModel):
     file_ids: list[str] = Field(min_length=1, max_length=20000)
     category_id: str
+
+
+class RenameRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=60)
 
 
 class ApplyRequest(BaseModel):
@@ -119,8 +133,8 @@ def create_app(settings: Settings | None = None, embedder_factory=None, llm_fact
     store = CategoryStore(s.data_dir / "category_sets.json")
 
     if embedder_factory is None:
-        def embedder_factory():
-            return get_clip_embedder(str(s.model_dir) if s.model_dir else None)
+        def embedder_factory(model: str = "clip"):
+            return get_clip_embedder(str(s.model_dir) if s.model_dir else None, model)
 
     if llm_factory is None:
         def llm_factory():
@@ -145,6 +159,9 @@ def create_app(settings: Settings | None = None, embedder_factory=None, llm_fact
             "library_name": s.library_name,
             "library_host_path": s.library_host_path,
             "faces_available": Path(os.environ.get("FACE_MODEL", "/models/face_landmarker.task")).exists(),
+            "people_available": get_face_identifier().available,
+            "ocr_available": get_text_reader().available,
+            "models": ["clip", "siglip2"],
             "output_dir": s.output_dir_name,
         }
 
@@ -269,6 +286,79 @@ def create_app(settings: Settings | None = None, embedder_factory=None, llm_fact
             gen(), media_type="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
+
+    @app.patch("/api/jobs/{job_id}/categories/{category_id}")
+    def rename_category(job_id: str, category_id: str, body: RenameRequest):
+        _job(job_id)
+        try:
+            return manager.rename_category(job_id, category_id, body.name)
+        except BusyError as exc:
+            raise HTTPException(409, str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+    @app.get("/api/recipes")
+    def recipes():
+        return RECIPES
+
+    @app.get("/api/suggest")
+    def suggest(path: str = Query(""), recursive: bool = True, sample: int = Query(40, ge=8, le=120)):
+        """Look at a sample of the folder and recommend recipes, so users don't have to know the options."""
+        import numpy as np
+
+        from . import classify
+        from .embedder import normalize
+
+        try:
+            src = resolve_in_library(s.library_root, path)
+        except PathError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        files = scan(s.library_root, src, s.output_dir_name, recursive=recursive)
+        photos = [f for f in files if f.kind == "image"]
+        videos = len(files) - len(photos)
+        if not photos:
+            return {"total": len(files), "photos": 0, "videos": videos, "suggestions": [
+                {"recipe": "by-date" if videos else "camera-roll", "reason": {"key": "no_photos"}}]}
+        step = max(1, len(photos) // sample)
+        picked = photos[::step][:sample]
+        embs, shots = [], 0
+        emb = manager.embedder_for("clip")
+        for f in picked:
+            kind, _, payload, e = manager._analyze_one(f)
+            if kind == "error":
+                continue
+            if kind == "new":
+                e = normalize(emb.embed_images(payload.frames).mean(axis=0))
+                manager.cache.put(str(f.path), f.size, f.mtime, payload.analysis, e)
+                analysis = payload.analysis
+            else:
+                analysis = payload
+            embs.append(e)
+            shots += int(analysis.is_screenshot)
+        if not embs:
+            return {"total": len(files), "photos": len(photos), "videos": videos, "suggestions": []}
+        E = np.vstack(embs)
+        theme, conf = classify.collection_theme(E, emb)
+        probe = emb.embed_texts(["a photo of a person", "a screenshot or a document with text", "a landscape or object with no people"])
+        share = (np.argmax(E @ probe.T, axis=1)[:, None] == np.arange(3)).mean(axis=0)
+        people_share, text_share = float(share[0]), float(max(share[1], shots / len(embs)))
+        out: list[dict] = []
+        if text_share >= 0.35:
+            out.append({"recipe": "documents", "reason": {"key": "text", "pct": round(text_share * 100)}})
+        main = THEME_TO_RECIPE.get(theme, "camera-roll")
+        out.append({"recipe": main, "reason": {"key": "theme", "theme": theme, "pct": round(conf * 100)}})
+        if theme in SHOOT_THEMES:
+            out.append({"recipe": "photoshoot", "reason": {"key": "shoot", "theme": theme}})
+        if people_share >= 0.6:
+            out.append({"recipe": "people", "reason": {"key": "people", "pct": round(people_share * 100)}})
+        out.append({"recipe": "discover", "reason": {"key": "discover"}})
+        seen, uniq = set(), []
+        for x in out:
+            if x["recipe"] not in seen and x["recipe"] in RECIPES_BY_ID:
+                seen.add(x["recipe"])
+                uniq.append(x)
+        return {"total": len(files), "photos": len(photos), "videos": videos, "sampled": len(embs), "theme": theme,
+                "people_share": round(people_share, 2), "text_share": round(text_share, 2), "suggestions": uniq[:3]}
 
     @app.patch("/api/jobs/{job_id}/plan")
     def reassign(job_id: str, body: ReassignRequest):

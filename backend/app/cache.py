@@ -22,6 +22,21 @@ class AnalysisCache:
         self._db.execute("CREATE TABLE IF NOT EXISTS quality (path TEXT PRIMARY KEY, size INTEGER, mtime REAL, data TEXT)")
         self._lock = threading.Lock()
 
+    def get_json(self, table: str, path: str, size: int, mtime: float) -> dict | list | None:
+        with self._lock:
+            self._db.execute(f"CREATE TABLE IF NOT EXISTS {table} (path TEXT PRIMARY KEY, size INTEGER, mtime REAL, data TEXT)")
+            row = self._db.execute(f"SELECT size, mtime, data FROM {table} WHERE path=?", (path,)).fetchone()
+        if not row or row[0] != size or abs(row[1] - mtime) > 1e-6:
+            return None
+        return json.loads(row[2])
+
+    def put_json(self, table: str, path: str, size: int, mtime: float, data) -> None:
+        with self._lock:
+            self._db.execute(f"CREATE TABLE IF NOT EXISTS {table} (path TEXT PRIMARY KEY, size INTEGER, mtime REAL, data TEXT)")
+            self._db.execute(f"INSERT OR REPLACE INTO {table} (path, size, mtime, data) VALUES (?,?,?,?)",
+                             (path, size, mtime, json.dumps(data)))
+            self._db.commit()
+
     def get_quality(self, path: str, size: int, mtime: float) -> dict | None:
         with self._lock:
             row = self._db.execute("SELECT size, mtime, data FROM quality WHERE path=?", (path,)).fetchone()
