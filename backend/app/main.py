@@ -23,6 +23,7 @@ from .embedder import get_clip_embedder
 from .jobs import BusyError, JobManager
 from .llm import LLMClient
 from .db import AppDB, summarize
+from .library import Library
 from .organizer import empty_trash, list_runs, undo_run
 from .media import open_any
 from .ocr import get_text_reader
@@ -92,6 +93,10 @@ class JobOptions(BaseModel):
     people_similarity: float = Field(0.363, ge=0.2, le=0.8)  # SFace cosine: higher = stricter "same person"
     people_group_size: int = Field(3, ge=2, le=20)  # this many sizable faces = "Groups"
     people_multi: Literal["main", "copy"] = "main"
+    place_granularity: Literal["country", "city"] = "country"  # "places" strategy
+    trip_away_km: float = Field(80, ge=10, le=2000)  # "trips": farther than this from home = away
+    trip_gap_hours: float = Field(36, ge=6, le=240)  # a longer gap between away photos starts a new trip
+    trip_min_photos: int = Field(5, ge=1, le=200)
     people_reference: str | None = Field(None, pattern=r"^[a-f0-9]{12}$")  # only this uploaded face (GET /api/faces)  # several people in a photo: main face only, or a copy per person
     focus: Literal["auto", "scene", "framing", "outfit", "lighting", "subject"] = "auto"  # what auto groups by
     granularity: Literal["coarse", "normal", "fine"] = "normal"
@@ -112,7 +117,7 @@ class JobOptions(BaseModel):
 
 class JobRequest(BaseModel):
     source: str = ""
-    strategy: Literal["preset", "custom", "auto", "date", "cull", "people"] = "preset"
+    strategy: Literal["preset", "custom", "auto", "date", "cull", "people", "trips", "places"] = "preset"
     set_id: str | None = "lifestyle"
     options: JobOptions = Field(default_factory=JobOptions)
 
@@ -217,6 +222,47 @@ def create_app(settings: Settings | None = None, embedder_factory=None, llm_fact
             return list_folders(s.library_root, path, s.output_dir_name)
         except PathError as exc:
             raise HTTPException(400, str(exc)) from exc
+
+    # ---------------------------------------------------------- library: search, similar, map, trips
+    lib = Library(manager, s.library_root)
+
+    def _model(model: str) -> str:
+        if model not in ("clip", "siglip2"):
+            raise HTTPException(400, "unknown model")
+        return model
+
+    @app.get("/api/library/status")
+    def library_status(folder: str = "", model: str = "clip"):
+        return lib.status(_folder(folder), _model(model))
+
+    @app.get("/api/library/search")
+    async def library_search(q: str = Query(..., min_length=1, max_length=200), folder: str = "", model: str = "clip",
+                             limit: int = Query(60, ge=1, le=300)):
+        try:
+            return await run_in_threadpool(lib.search, q, _folder(folder), _model(model), limit)
+        except RuntimeError as exc:  # model not available
+            raise HTTPException(503, str(exc)) from exc
+
+    @app.get("/api/library/similar")
+    async def library_similar(path: str = Query(..., min_length=1), folder: str = "", model: str = "clip",
+                              limit: int = Query(60, ge=1, le=300), min_sim: float = Query(0.8, ge=0.5, le=0.99)):
+        return await run_in_threadpool(lib.similar, path, _folder(folder), _model(model), limit, min_sim)
+
+    @app.get("/api/library/places")
+    async def library_places(folder: str = ""):
+        return await run_in_threadpool(lib.places, _folder(folder))
+
+    @app.get("/api/library/trips")
+    async def library_trips(folder: str = "", away_km: float = Query(80, ge=10, le=2000), gap_hours: float = Query(36, ge=6, le=240),
+                            min_photos: int = Query(5, ge=1, le=200)):
+        return await run_in_threadpool(lib.trips, _folder(folder), away_km, gap_hours, min_photos)
+
+    def _folder(folder: str) -> str:
+        try:
+            p = resolve_in_library(s.library_root, folder)
+        except PathError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        return "" if p == s.library_root.resolve() else p.relative_to(s.library_root.resolve()).as_posix()
 
     @app.get("/api/places")
     def places():

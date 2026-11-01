@@ -27,6 +27,8 @@ from .ocr import get_text_reader, text_category
 from .organizer import apply_plan
 from PIL import Image, ImageOps
 
+from .library import add_places, locate_files, trips_for
+
 from .people import cluster_people, face_crop_webp, FaceID, get_face_identifier
 from .planner import DUPLICATES, UNSORTED, destination
 from .presets import FOCUS_FACETS, FOCUS_HINT, VOCABULARY
@@ -819,6 +821,44 @@ class JobManager:
                     assignment[fid] = ("picks", 1.0, "quality")
                     used.add("picks")
             return assignment, [c for c in cats if c["id"] in used]
+
+        if strategy in ("trips", "places"):
+            self._phase(job, "locating")
+            files = [f for f, _, _ in keep]
+            geo = locate_files(self.cache, files)
+            add_places(geo)
+            if strategy == "places":
+                by_city = opts.get("place_granularity", "country") == "city"
+                names: dict[str, str] = {}
+                for f in files:
+                    pl = (geo.get(f.id) or {}).get("place")
+                    if not pl or not pl.get("country"):
+                        names[f.id] = "No location"
+                    elif by_city and pl.get("city"):
+                        names[f.id] = f"{pl['city']}, {pl['country']}"
+                    else:
+                        names[f.id] = pl["country"]
+                uniq = sorted(set(names.values()) - {"No location"}) + (["No location"] if "No location" in names.values() else [])
+                cats = [{"id": "p-" + slugify(n), "name": n, "emoji": "📍" if n != "No location" else "❔"} for n in uniq]
+                ids = {c["name"]: c["id"] for c in cats}
+                for f in files:
+                    assignment[f.id] = (ids[names[f.id]], 1.0, "gps")
+                return assignment, cats
+            trips, _home = trips_for(files, geo, captured={f.id: a.captured_at for f, a, _ in keep},
+                                     away_km=float(opts.get("trip_away_km", 80)), gap_hours=float(opts.get("trip_gap_hours", 36)),
+                                     min_photos=int(opts.get("trip_min_photos", 5)))
+            cats = []
+            for n, t in enumerate(sorted(trips, key=lambda t: t.start), 1):
+                cid = f"trip-{n}"
+                cats.append({"id": cid, "name": t.name(), "emoji": "✈️"})
+                for i in t.ids:
+                    assignment[i] = (cid, 1.0, "gps")
+            rest = [f for f in files if f.id not in assignment]
+            if rest:
+                cats.append({"id": "everyday", "name": "Everyday", "emoji": "🏠"})
+                for f in rest:
+                    assignment[f.id] = ("everyday", 1.0, "gps")
+            return assignment, cats
 
         if strategy == "date":
             gran = opts.get("date_granularity", "month")
