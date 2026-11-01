@@ -103,9 +103,36 @@ def is_screenshot_like(name: str, fmt: str | None, has_camera: bool, width: int,
     return False
 
 
+RAW_EXT = {".cr2", ".cr3", ".nef", ".nrw", ".arw", ".dng", ".raf", ".orf", ".rw2", ".pef", ".srw"}
+
+
+def open_any(path: Path) -> Image.Image:
+    """Image.open, plus camera RAW via the embedded JPEG preview (fast) or a half-size demosaic."""
+    if path.suffix.lower() not in RAW_EXT:
+        return Image.open(path)
+    import rawpy
+
+    with rawpy.imread(str(path)) as raw:
+        try:
+            th = raw.extract_thumb()
+            if th.format == rawpy.ThumbFormat.JPEG:
+                return Image.open(io.BytesIO(th.data))
+            return Image.fromarray(th.data)
+        except (rawpy.LibRawNoThumbnailError, rawpy.LibRawUnsupportedThumbnailError):
+            return Image.fromarray(raw.postprocess(half_size=True, use_camera_wb=True))
+
+
+def load_for_quality(path: Path, size: int = 2048) -> Image.Image:
+    with open_any(path) as im:
+        if im.format == "JPEG":
+            im.draft("RGB", (size, size))
+        im = ImageOps.exif_transpose(im)
+        return im.convert("RGB")
+
+
 def decode_image(path: Path, mtime: float) -> Decoded:
     try:
-        with Image.open(path) as im:
+        with open_any(path) as im:
             fmt = im.format
             exif = im.getexif()
             orig_w, orig_h = im.size

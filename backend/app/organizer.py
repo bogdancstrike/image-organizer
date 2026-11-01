@@ -23,6 +23,21 @@ def _unique(dst: Path) -> Path:
         n += 1
 
 
+def _group_names(dst_dir: Path, primary: str, sidecars: list[str]) -> list[str]:
+    """Names for a photo + its sidecars in dst_dir, all free, all sharing the primary's (possibly suffixed) stem."""
+    stem = Path(primary).stem
+    rests = [Path(primary).suffix]
+    for sc in sidecars:
+        rests.append(sc[len(stem):] if sc.lower().startswith(stem.lower()) else f"_{sc}")
+    n = 0
+    while True:
+        cand = stem if n == 0 else f"{stem} ({n})"
+        names = [cand + r for r in rests]
+        if not any((dst_dir / nm).exists() for nm in names):
+            return names
+        n += 1
+
+
 def _write_journal(path: Path, data: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".tmp")
@@ -84,15 +99,21 @@ def apply_plan(
                 d = d.parent
             dst_dir.mkdir(parents=True, exist_ok=True)
             created_dirs.extend(p.relative_to(root).as_posix() for p in reversed(missing))
-            dst = _unique(dst_dir / src.name)
-            op = {"src": it["rel_path"], "dst": dst.relative_to(root).as_posix()}
-            if mode == "move":
-                shutil.move(str(src), str(dst))
-            else:
-                shutil.copy2(str(src), str(dst))
-                st = dst.stat()
-                op["size"], op["mtime"] = st.st_size, st.st_mtime
-            journal["ops"].append(op)
+            # the photo and its sidecars (RAW twin, .xmp, …) share one collision-free stem
+            sides = [root / sp for sp in it.get("sidecars") or [] if (root / sp).exists() and _inside(root, root / sp)]
+            names = _group_names(dst_dir, src.name, [sp.name for sp in sides])
+            for s_path, new_name, rel in [(src, names[0], it["rel_path"])] + [
+                (sp, nm, sp.relative_to(root).as_posix()) for sp, nm in zip(sides, names[1:])
+            ]:
+                dst = dst_dir / new_name
+                op = {"src": rel, "dst": dst.relative_to(root).as_posix()}
+                if mode == "move":
+                    shutil.move(str(s_path), str(dst))
+                else:
+                    shutil.copy2(str(s_path), str(dst))
+                    st = dst.stat()
+                    op["size"], op["mtime"] = st.st_size, st.st_mtime
+                journal["ops"].append(op)
         except Exception as exc:  # noqa: BLE001 - record and continue (REQ-ORG-4)
             journal["failed"].append({"src": it["rel_path"], "error": str(exc)})
         if n % FLUSH_EVERY == 0:

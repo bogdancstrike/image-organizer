@@ -19,7 +19,21 @@ class AnalysisCache:
         self._db.execute(
             "CREATE TABLE IF NOT EXISTS files (path TEXT PRIMARY KEY, size INTEGER, mtime REAL, meta TEXT, emb BLOB)"
         )
+        self._db.execute("CREATE TABLE IF NOT EXISTS quality (path TEXT PRIMARY KEY, size INTEGER, mtime REAL, data TEXT)")
         self._lock = threading.Lock()
+
+    def get_quality(self, path: str, size: int, mtime: float) -> dict | None:
+        with self._lock:
+            row = self._db.execute("SELECT size, mtime, data FROM quality WHERE path=?", (path,)).fetchone()
+        if not row or row[0] != size or abs(row[1] - mtime) > 1e-6:
+            return None
+        return json.loads(row[2])
+
+    def put_quality(self, path: str, size: int, mtime: float, data: dict) -> None:
+        with self._lock:
+            self._db.execute("INSERT OR REPLACE INTO quality (path, size, mtime, data) VALUES (?,?,?,?)",
+                             (path, size, mtime, json.dumps(data)))
+            self._db.commit()
 
     def get(self, path: str, size: int, mtime: float) -> tuple[Analysis, np.ndarray] | None:
         with self._lock:

@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
+from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -25,6 +27,18 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 SHA_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
+class QualityOptions(BaseModel):
+    enabled: bool = False  # run checks with any strategy (always on for "cull")
+    blur: bool = True
+    eyes_closed: bool = True
+    exposure: bool = True
+    smiles: bool = True
+    blur_threshold: float = Field(0.5, ge=0.0, le=1.0)
+    blink_threshold: float = Field(0.5, ge=0.05, le=1.0)
+    smile_threshold: float = Field(0.5, ge=0.05, le=1.0)
+    action: Literal["reject", "tag"] = "reject"  # reject = move to _Rejects/<reason>
+
+
 class JobOptions(BaseModel):
     min_confidence: float = Field(0.30, ge=0.0, le=1.0)
     near_duplicates: bool = True
@@ -37,6 +51,8 @@ class JobOptions(BaseModel):
     # where the category folders go: None = server default (OUTPUT_DIR_NAME), "" = directly in the chosen folder
     output_dir: str | None = Field(None, max_length=60, pattern=r'^[^/\\:*?"<>|]*$')
     recursive: bool = True
+    pair_sidecars: bool = True  # keep RAW+JPEG pairs and .xmp sidecars together
+    quality: QualityOptions = Field(default_factory=QualityOptions)
 
     @field_validator("output_dir")
     @classmethod
@@ -48,7 +64,7 @@ class JobOptions(BaseModel):
 
 class JobRequest(BaseModel):
     source: str = ""
-    strategy: Literal["preset", "custom", "auto", "date"] = "preset"
+    strategy: Literal["preset", "custom", "auto", "date", "cull"] = "preset"
     set_id: str | None = "lifestyle"
     options: JobOptions = Field(default_factory=JobOptions)
 
@@ -88,6 +104,7 @@ def create_app(settings: Settings | None = None, embedder_factory=None, llm_fact
             "library_ok": s.library_root.is_dir(),
             "library_name": s.library_name,
             "library_host_path": s.library_host_path,
+            "faces_available": Path(os.environ.get("FACE_MODEL", "/models/face_landmarker.task")).exists(),
             "output_dir": s.output_dir_name,
         }
 

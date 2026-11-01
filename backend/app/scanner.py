@@ -6,7 +6,13 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-IMAGE_EXT = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tif", ".tiff", ".heic", ".heif", ".avif"}
+RAW_EXT = {".cr2", ".cr3", ".nef", ".nrw", ".arw", ".dng", ".raf", ".orf", ".rw2", ".pef", ".srw"}
+IMAGE_EXT = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tif", ".tiff", ".heic", ".heif", ".avif"} | RAW_EXT
+SIDECAR_EXT = {".xmp", ".aae", ".thm", ".pp3", ".dop"}
+
+
+def is_raw(name: str) -> bool:
+    return os.path.splitext(name)[1].lower() in RAW_EXT
 VIDEO_EXT = {".mp4", ".mov", ".m4v", ".webm", ".mkv", ".avi", ".3gp"}
 
 
@@ -22,6 +28,7 @@ class MediaFile:
     kind: str  # "image" | "video"
     size: int
     mtime: float
+    sidecars: tuple[str, ...] = ()  # rel paths that travel with this file (RAW of a RAW+JPEG pair, .xmp, …)
 
     @property
     def name(self) -> str:
@@ -61,21 +68,63 @@ def _skip_dir(name: str, output_dir_name: str) -> bool:
     return (
         name.startswith(".")
         or (bool(output_dir_name) and name == output_dir_name)
-        or name in ("@eaDir", "_Duplicates")
+        or name in ("@eaDir", "_Duplicates", "_Rejects")
     )
 
 
-def scan(root: Path, source: Path, output_dir_name: str = "Organized", recursive: bool = True) -> list[MediaFile]:
+def _stem(name: str) -> str:
+    """'IMG_1.CR2.xmp' -> 'img_1', 'IMG_1.jpg' -> 'img_1'."""
+    base = name.lower()
+    for _ in range(2):
+        b, ext = os.path.splitext(base)
+        if ext in IMAGE_EXT or ext in VIDEO_EXT or ext in SIDECAR_EXT:
+            base = b
+    return base
+
+
+def _pair(files: list[MediaFile], sidecar_paths: list[str]) -> list[MediaFile]:
+    """Within one folder: a RAW with a same-named JPEG/HEIC rides along with it; sidecar files attach to their photo."""
+    groups: dict[str, list[MediaFile]] = {}
+    for f in files:
+        groups.setdefault(_stem(f.name), []).append(f)
+    side_by_stem: dict[str, list[str]] = {}
+    for sp in sidecar_paths:
+        side_by_stem.setdefault(_stem(Path(sp).name), []).append(sp)
+    out: list[MediaFile] = []
+    for stem, members in groups.items():
+        raws = [m for m in members if is_raw(m.name)]
+        others = [m for m in members if not is_raw(m.name)]
+        if raws and others:
+            primary = sorted(others, key=lambda m: (m.kind != "image", m.name))[0]
+            rest = [m for m in others if m is not primary]
+            extra = tuple(m.rel_path for m in raws) + tuple(side_by_stem.pop(stem, []))
+            out.append(MediaFile(primary.id, primary.path, primary.rel_path, primary.kind, primary.size, primary.mtime, extra))
+            out.extend(rest)
+        else:
+            first, *rest = members
+            extra = tuple(side_by_stem.pop(stem, []))
+            out.append(MediaFile(first.id, first.path, first.rel_path, first.kind, first.size, first.mtime, extra) if extra else first)
+            out.extend(rest)
+    return out
+
+
+def scan(
+    root: Path, source: Path, output_dir_name: str = "Organized", recursive: bool = True, pair_sidecars: bool = True
+) -> list[MediaFile]:
     """Recursively list supported media under `source` (REQ-SCAN-1, REQ-SCAN-2)."""
     root = root.resolve()
     out: list[MediaFile] = []
     for dirpath, dirnames, filenames in os.walk(source, followlinks=False):
         dirnames[:] = sorted(d for d in dirnames if not _skip_dir(d, output_dir_name)) if recursive else []
+        here: list[MediaFile] = []
+        sidecars: list[str] = []
         for fn in filenames:
             if fn.startswith("."):
                 continue
             kind = media_kind(fn)
             if kind is None:
+                if pair_sidecars and os.path.splitext(fn)[1].lower() in SIDECAR_EXT:
+                    sidecars.append((Path(dirpath) / fn).relative_to(root).as_posix())
                 continue
             p = Path(dirpath) / fn
             try:
@@ -86,7 +135,8 @@ def scan(root: Path, source: Path, output_dir_name: str = "Organized", recursive
             except OSError:
                 continue
             rel = p.relative_to(root).as_posix()
-            out.append(MediaFile(file_id(rel), p, rel, kind, st.st_size, st.st_mtime))
+            here.append(MediaFile(file_id(rel), p, rel, kind, st.st_size, st.st_mtime))
+        out.extend(_pair(here, sidecars) if pair_sidecars else here)
     out.sort(key=lambda f: f.rel_path)
     return out
 

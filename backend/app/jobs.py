@@ -20,7 +20,8 @@ from .config import Settings
 from .dedupe import DupItem, find_duplicates
 from .embedder import Embedder, normalize
 from .llm import LLMClient, contact_sheet, load_thumb
-from .media import Analysis, MediaError, decode
+from .media import Analysis, MediaError, decode, load_for_quality
+from .quality import REASONS, Quality, QualityRules, analyze_image, get_face_analyzer, summary, verdict
 from .organizer import apply_plan
 from .planner import DUPLICATES, UNSORTED, destination
 from .presets import VOCABULARY
@@ -147,7 +148,8 @@ class JobManager:
         try:
             journal = apply_plan(
                 self.s.library_root,
-                [{"rel_path": p["rel_path"], "destination": p["destination"]} for p in job.plan],
+                [{"rel_path": p["rel_path"], "destination": p["destination"], "sidecars": p.get("sidecars") or []}
+                 for p in job.plan],
                 mode,
                 self.s.journals_dir,
                 job.id,
@@ -221,7 +223,8 @@ class JobManager:
         self._phase(job, "scanning")
         out_dir = opts.get("output_dir")
         out_dir = self.s.output_dir_name if out_dir is None else out_dir.strip()
-        files = scan(root, source, out_dir, recursive=opts.get("recursive", True))
+        files = scan(root, source, out_dir, recursive=opts.get("recursive", True),
+                     pair_sidecars=opts.get("pair_sidecars", True))
         n_img = sum(f.kind == "image" for f in files)
         job.stats = {"total": len(files), "photos": n_img, "videos": len(files) - n_img,
                      "analyzed": 0, "folders": 0, "duplicates": 0, "errors": 0, "embedded": 0}
@@ -268,6 +271,14 @@ class JobManager:
 
         ordered = [results[f.id] for f in files if f.id in results]
 
+        # 2b. quality signals (culling): only when asked for
+        qopts = opts.get("quality") or {}
+        rules = QualityRules(**{k: qopts[k] for k in QualityRules.__dataclass_fields__ if k in qopts})
+        need_quality = req["strategy"] == "cull" or qopts.get("enabled", False)
+        quality: dict[str, Quality] = self._quality(job, ordered) if need_quality else {}
+        if job.cancel_requested:
+            return
+
         # 3. duplicates
         self._phase(job, "deduplicating")
         dup_items = [
@@ -283,9 +294,23 @@ class JobManager:
         # 4. categorize
         self._phase(job, "categorizing")
         keep = [(f, a, e) for f, a, e in ordered if f.id not in dup_map]
-        assignment, categories = self._categorize(job, keep, embedder)
+        assignment, categories = self._categorize(job, keep, embedder, quality, rules)
         if job.cancel_requested:
             return
+        # reject overlay: bad shots leave their category for _Rejects/<reason>
+        if need_quality and req["strategy"] != "cull" and qopts.get("action", "reject") == "reject":
+            used: set[str] = set()
+            for f, _, _ in keep:
+                q = quality.get(f.id)
+                reason = verdict(q, rules)[0] if q else None
+                if reason:
+                    assignment[f.id] = (f"_reject-{reason}", 1.0, "quality")
+                    used.add(reason)
+            for reason in REASONS:
+                if reason in used:
+                    name, emoji = REASONS[reason]
+                    categories.append({"id": f"_reject-{reason}", "name": f"Rejects · {name}", "emoji": emoji,
+                                       "path": f"_Rejects/{name}"})
 
         # 5. plan
         cats_by_id = {c["id"]: c for c in categories}
@@ -308,12 +333,14 @@ class JobManager:
                 "confidence": round(float(conf), 4), "source": src,
                 "destination": destination(source_rel, out_dir, f.kind, cat, split),
                 "duplicate_of": dup_map.get(f.id),
+                "sidecars": list(f.sidecars),
+                "quality": summary(quality[f.id], rules) if f.id in quality else None,
             })
         counts: dict[str, dict[str, int]] = {}
         for p in plan:
             c = counts.setdefault(p["category_id"], {"photos": 0, "videos": 0})
             c["photos" if p["kind"] == "image" else "videos"] += 1
-        order = [c["id"] for c in categories] + [UNSORTED["id"], DUPLICATES["id"]]
+        order = list(dict.fromkeys([c["id"] for c in categories] + [UNSORTED["id"], DUPLICATES["id"]]))
         job.categories = [
             {**cats_by_id[cid], **counts[cid]} for cid in order if cid in counts and cid in cats_by_id
         ]
@@ -327,13 +354,66 @@ class JobManager:
         job.emit("stats", **job.stats)
 
     # --------------------------------------------------------- strategies
-    def _categorize(self, job: Job, keep, embedder) -> tuple[dict, list[dict]]:
+    def _quality(self, job: Job, ordered) -> dict[str, Quality]:
+        """Compute (or load cached) quality signals for photos. Videos are skipped."""
+        self._phase(job, "checking")
+        fa = get_face_analyzer()
+        if not fa.available:
+            job.warnings.append("Face model not available: eyes/smile checks skipped")
+            job.emit("warning", message=job.warnings[-1])
+        photos = [f for f, _, _ in ordered if f.kind == "image"]
+        out: dict[str, Quality] = {}
+
+        def one(f: MediaFile):
+            if job.cancel_requested:
+                return f, None
+            cached = self.cache.get_quality(str(f.path), f.size, f.mtime)
+            if cached and (cached.get("faces_checked") or not fa.available):
+                return f, Quality.from_dict(cached)
+            try:
+                q = analyze_image(load_for_quality(f.path), fa)
+            except Exception as exc:  # noqa: BLE001
+                log.warning("quality check failed for %s: %s", f.rel_path, exc)
+                return f, None
+            self.cache.put_quality(str(f.path), f.size, f.mtime, q.to_dict())
+            return f, q
+
+        with ThreadPoolExecutor(max_workers=self.s.workers) as ex:
+            for n, (f, q) in enumerate(ex.map(one, photos), 1):
+                if q is not None:
+                    out[f.id] = q
+                if n % 8 == 0 or n == len(photos):
+                    job.emit("progress", analyzed=n, total=len(photos), stage="quality")
+        return out
+
+    def _categorize(self, job: Job, keep, embedder, quality=None, rules=None) -> tuple[dict, list[dict]]:
         req, opts = job.request, job.request.get("options", {})
         strategy = req["strategy"]
         assignment: dict[str, tuple[str | None, float, str]] = {}
         if not keep:
             return assignment, []
         embs = np.vstack([e for _, _, e in keep]) if keep else np.zeros((0, 512), np.float32)
+
+        if strategy == "cull":
+            qopts = opts.get("quality") or {}
+            smiles = qopts.get("smiles", True)
+            cats = [{"id": "keepers", "name": "Keepers", "emoji": "✅"}]
+            if smiles:
+                cats.append({"id": "smiling", "name": "Smiling", "emoji": "😄"})
+            for reason, (name, emoji) in REASONS.items():
+                cats.append({"id": reason, "name": name, "emoji": emoji})
+            cats.append({"id": "videos", "name": "Videos", "emoji": "🎬", "media": "video"})
+            used: set[str] = set()
+            for f, _, _ in keep:
+                if f.kind == "video":
+                    cid = "videos"
+                else:
+                    q = (quality or {}).get(f.id)
+                    reason, _, smiling = verdict(q, rules) if q else (None, [], False)
+                    cid = reason or ("smiling" if smiles and smiling else "keepers")
+                assignment[f.id] = (cid, 1.0, "quality")
+                used.add(cid)
+            return assignment, [c for c in cats if c["id"] in used]
 
         if strategy == "date":
             gran = opts.get("date_granularity", "month")

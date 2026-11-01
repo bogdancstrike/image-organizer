@@ -31,6 +31,8 @@ def destination(source_rel: str, output_dir: str, kind: str, category: dict, spl
     root = [p for p in (source_rel.strip("/"), out) if p]
     if category["id"] == DUPLICATES["id"]:
         return "/".join(root + ["_Duplicates"])
+    if category.get("path"):  # fixed location, e.g. _Rejects/Blurry
+        return "/".join(root + [safe_folder(category["path"])])
     folder = safe_folder(category["name"])
     if split_media:
         return "/".join(root + ["Photos" if kind == "image" else "Videos", folder])
