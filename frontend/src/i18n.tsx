@@ -231,7 +231,10 @@ const fr: Dict = {
   "footer": "fonctionne en local · rien ne bouge avant que tu appuies sur Appliquer",
 };
 
-const DICTS: Record<Lang, Dict> = { en, ro, es, de, fr };
+import { MORE } from "./i18n-more";
+const DICTS: Record<Lang, Dict> = {
+  en: { ...en, ...MORE.en }, ro: { ...ro, ...MORE.ro }, es: { ...es, ...MORE.es }, de: { ...de, ...MORE.de }, fr: { ...fr, ...MORE.fr },
+};
 const KEY = "aio.lang";
 
 function initialLang(): Lang {

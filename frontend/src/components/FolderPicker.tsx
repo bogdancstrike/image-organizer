@@ -3,6 +3,7 @@ import { App, Breadcrumb, Button, Empty, Modal, Spin } from "antd";
 import { ChevronRight, FolderClosed, FolderOpen, HardDrive, Images } from "lucide-react";
 import { api, type Folder, type Health } from "@/api";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/i18n";
 
 interface Props {
   open: boolean;
@@ -21,6 +22,7 @@ export function displayPath(health: Health | null, rel: string) {
 /** Browse the mounted library and pick the working folder (REQ-SCAN-5, REQ-UI-3). */
 export function FolderPicker({ open, value, health, onClose, onChoose }: Props) {
   const { message } = App.useApp();
+  const { t } = useI18n();
   const [path, setPath] = useState(value);
   const [data, setData] = useState<{ path: string; name: string; media_count: number; folders: Folder[] } | null>(null);
   const [loading, setLoading] = useState(false);
@@ -56,7 +58,7 @@ export function FolderPicker({ open, value, health, onClose, onChoose }: Props) 
       onCancel={onClose}
       title={
         <span className="inline-flex items-center gap-2">
-          <FolderOpen size={18} /> Choose the folder to organize
+          <FolderOpen size={18} /> {t("fp.title")}
         </span>
       }
       width={640}
@@ -73,7 +75,7 @@ export function FolderPicker({ open, value, health, onClose, onChoose }: Props) 
           <div className="flex gap-2">
             <Button onClick={onClose}>Cancel</Button>
             <Button type="primary" onClick={() => onChoose(path)}>
-              Use this folder
+              {t("fp.use")}
             </Button>
           </div>
         </div>

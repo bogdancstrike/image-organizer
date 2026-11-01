@@ -159,7 +159,7 @@ export function ReviewTab({ jobId, editable, plan, categories, onChanged }: Prop
   ];
 
   if (!plan.length) {
-    return <Empty className="py-20" description="Run a sort first. Every file of the plan will be listed here." />;
+    return <Empty className="py-20" description={t("rv.empty")} />;
   }
 
   return (
@@ -196,17 +196,17 @@ export function ReviewTab({ jobId, editable, plan, categories, onChanged }: Prop
           value={filter}
           onChange={(v) => setFilter(v as Filter)}
           options={[
-            { value: "all", label: "Everything" },
-            { value: "unsure", label: "Unsure" },
-            { value: "rejects", label: "Rejects" },
-            { value: "smiling", label: "Smiling" },
+            { value: "all", label: t("rv.everything") },
+            { value: "unsure", label: t("rv.unsure") },
+            { value: "rejects", label: t("rv.rejects") },
+            { value: "smiling", label: t("rv.smiling") },
             { value: "ai", label: "AI" },
-            { value: "bursts", label: "Bursts" },
-            { value: "manual", label: "Edited" },
+            { value: "bursts", label: t("rv.bursts") },
+            { value: "manual", label: t("rv.edited") },
           ]}
         />
         <span className="ml-auto text-xs text-plum/55">
-          {fmt(rows.length)} of {fmt(plan.length)} files
+          {t("rv.count", { n: fmt(rows.length), total: fmt(plan.length) })}
         </span>
       </div>
 
@@ -214,7 +214,7 @@ export function ReviewTab({ jobId, editable, plan, categories, onChanged }: Prop
         <div className="pop-in mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface/80 px-3 py-2 text-[13px]">
           <b>{selected.length}</b> selected
           <MoveRight size={14} className="text-plum/50" />
-          <Select size="small" className="w-60" placeholder="Move to category…" value={target} onChange={setTarget} options={catOptions} />
+          <Select size="small" className="w-60" placeholder={t("rv.moveto")} value={target} onChange={setTarget} options={catOptions} />
           <Button size="small" type="primary" disabled={!target} loading={busy} onClick={() => target && move(selected, target)}>
             Move
           </Button>

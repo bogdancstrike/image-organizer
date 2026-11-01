@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { App, Button, Drawer, Empty, Popconfirm, Tag } from "antd";
 import { RotateCcw } from "lucide-react";
 import { api, type Run } from "@/api";
+import { useI18n } from "@/i18n";
 
 export function HistoryDrawer({ open, onClose, onUndone }: { open: boolean; onClose: () => void; onUndone: (runId: string) => void }) {
   return (
@@ -13,6 +14,7 @@ export function HistoryDrawer({ open, onClose, onUndone }: { open: boolean; onCl
 
 export function HistoryList({ active, onUndone }: { active: boolean; onUndone: (runId: string) => void }) {
   const { message } = App.useApp();
+  const { t } = useI18n();
   const [runs, setRuns] = useState<Run[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -40,14 +42,14 @@ export function HistoryList({ active, onUndone }: { active: boolean; onUndone: (
 
   return (
     <>
-      {runs.length === 0 && <Empty description="Nothing applied yet" />}
+      {runs.length === 0 && <Empty description={t("hi.empty")} />}
       <div className="space-y-2">
         {runs.map((r) => (
           <div key={r.run_id} className="rounded-xl border border-line bg-surface/80 p-3">
             <div className="flex items-center justify-between gap-2">
               <div className="min-w-0">
                 <div className="text-[13px] font-medium text-plum">
-                  {r.mode === "copy" ? "Copied" : "Moved"} {r.moved} files
+                  {t(r.mode === "copy" ? "hi.copied" : "hi.moved", { n: r.moved })}
                   {r.source ? <span className="text-plum/50"> · {r.source}</span> : null}
                 </div>
                 <div className="text-[11px] text-plum/50">{new Date(r.created_at).toLocaleString()}</div>

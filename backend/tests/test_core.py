@@ -189,3 +189,20 @@ def test_sampled_hash_for_big_files(tmp_path, monkeypatch):
     assert m.sha256_file(a) == m.sha256_file(b)
     b.write_bytes(a.read_bytes()[:-1] + b"\x00")  # tail differs
     assert m.sha256_file(a) != m.sha256_file(b)
+
+
+def test_store_seeds_presets_with_ai_hints_and_migrates(tmp_path):
+    import json as _json
+    legacy = tmp_path / "category_sets.json"
+    legacy.write_text(_json.dumps({"custom-x": {"id": "custom-x", "name": "X", "categories": [{"id": "a", "name": "A"}], "custom": True}}))
+    store = CategoryStore(legacy)
+    assert (tmp_path / "app.db").exists() and not legacy.exists()
+    assert [s["id"] for s in store.list()] == ["custom-x"]
+    presets = store.presets()
+    assert all(c.get("ai_hint") for p in presets for c in p["categories"]) and not any(p["modified"] for p in presets)
+    edited = store.upsert("lifestyle", CategorySetIn(name="Lifestyle", categories=[{"name": "Coffee", "ai_hint": "only coffee"}]))
+    assert next(p for p in store.presets() if p["id"] == "lifestyle")["modified"] and edited["categories"][0]["ai_hint"] == "only coffee"
+    assert store.delete("lifestyle")  # reset to the seeded default, still in the database
+    life = next(p for p in store.presets() if p["id"] == "lifestyle")
+    assert not life["modified"] and len(life["categories"]) == 12 and store.get("lifestyle")["seeded"]
+    assert CategoryStore(legacy).seed() == 0  # second start: nothing to seed

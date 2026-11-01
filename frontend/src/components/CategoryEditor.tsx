@@ -3,6 +3,7 @@ import { App, Button, Input, Modal, Popconfirm, Segmented, Select, Tag } from "a
 import { ArrowDown, ArrowUp, Plus, RotateCcw, Sparkles, Trash2 } from "lucide-react";
 import { api, type Category, type CategorySet } from "@/api";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/i18n";
 
 interface Props {
   open: boolean;
@@ -58,6 +59,7 @@ function problems(d: Draft): Record<string, string> {
 /** Create / edit category sets (built-in presets included) in a calm master-detail layout. */
 export function CategoryEditor({ open, onClose, presets, customSets, onSaved, initial }: Props) {
   const { message } = App.useApp();
+  const { t } = useI18n();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft>({ name: "My folders", description: "", folders: [blankFolder()] });
   const [sel, setSel] = useState(0);
@@ -192,9 +194,9 @@ export function CategoryEditor({ open, onClose, presets, customSets, onSaved, in
             )}
           </div>
           <div className="flex gap-2">
-            <Button onClick={onClose}>Cancel</Button>
+            <Button onClick={onClose}>{t("ed.cancel")}</Button>
             <Button type="primary" loading={saving} onClick={save}>
-              Save
+              {t("ed.save")}
             </Button>
           </div>
         </div>
@@ -247,7 +249,7 @@ export function CategoryEditor({ open, onClose, presets, customSets, onSaved, in
           </div>
           <div className="border-t border-line p-2">
             <Button type="text" block icon={<Plus size={14} />} onClick={add} className="!justify-start">
-              Add folder
+              {t("ed.add")}
             </Button>
           </div>
         </aside>
@@ -279,12 +281,12 @@ export function CategoryEditor({ open, onClose, presets, customSets, onSaved, in
               </div>
             </div>
 
-            <Field label="Accepts">
+            <Field label={t("ed.accepts")}>
               <Segmented
                 value={cur.media}
                 onChange={(v) => patch({ media: v as Media })}
                 options={[
-                  { value: "any", label: "Photos & videos" },
+                  { value: "any", label: t("ed.any") },
                   { value: "image", label: "Photos" },
                   { value: "video", label: "Videos" },
                 ]}
@@ -292,7 +294,7 @@ export function CategoryEditor({ open, onClose, presets, customSets, onSaved, in
               <p className="mt-1.5 text-[11px] text-plum/45">If any folder takes only videos, every video goes to those folders.</p>
             </Field>
 
-            <Field label="What do its photos look like?">
+            <Field label={t("ed.look")}>
               <Select
                 mode="tags"
                 className="w-full"
@@ -312,7 +314,7 @@ export function CategoryEditor({ open, onClose, presets, customSets, onSaved, in
             <Field
               label={
                 <span className="inline-flex items-center gap-1.5">
-                  <Sparkles size={13} /> AI hint <span className="font-normal text-plum/45">(optional)</span>
+                  <Sparkles size={13} /> {t("ed.hint")} <span className="font-normal text-plum/45">(optional)</span>
                 </span>
               }
             >
@@ -341,7 +343,7 @@ export function CategoryEditor({ open, onClose, presets, customSets, onSaved, in
                 disabled={draft.folders.length <= 1}
                 onClick={remove}
               >
-                Remove folder
+                {t("ed.remove")}
               </Button>
             </div>
           </section>

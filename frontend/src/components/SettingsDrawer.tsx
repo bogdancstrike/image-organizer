@@ -86,13 +86,13 @@ function Row({ label, hint, children, inline }: { label: string; hint?: ReactNod
 }
 
 const SECTIONS = [
-  { id: "folder", title: "Folder", icon: FolderOpen, desc: "What to sort and where the sorted folders go." },
-  { id: "organize", title: "Organizing", icon: Shapes, desc: "How files are grouped into folders." },
-  { id: "pro", title: "Pro · culling & quality", icon: Aperture, desc: "Sharpness, eyes closed, smiles and exposure, for photographers." },
-  { id: "files", title: "Files & duplicates", icon: FolderTree, desc: "Duplicates, RAW pairs and how files are moved." },
-  { id: "ai", title: "AI", icon: Sparkles, desc: "Optional help from OpenAI. Everything else runs locally." },
-  { id: "appearance", title: "Appearance", icon: Palette, desc: "Pick a theme. It is remembered on this device." },
-  { id: "system", title: "System", icon: Cpu, desc: "What is running, and resetting settings." },
+  { id: "folder", key: "st.folder", title: "Folder", icon: FolderOpen, desc: "What to sort and where the sorted folders go." },
+  { id: "organize", key: "st.organize", title: "Organizing", icon: Shapes, desc: "How files are grouped into folders." },
+  { id: "pro", key: "st.pro", title: "Pro · culling & quality", icon: Aperture, desc: "Sharpness, eyes closed, smiles and exposure, for photographers." },
+  { id: "files", key: "st.files", title: "Files & duplicates", icon: FolderTree, desc: "Duplicates, RAW pairs and how files are moved." },
+  { id: "ai", key: "st.ai", title: "AI", icon: Sparkles, desc: "Optional help from OpenAI. Everything else runs locally." },
+  { id: "appearance", key: "st.appearance", title: "Appearance", icon: Palette, desc: "Pick a theme. It is remembered on this device." },
+  { id: "system", key: "st.system", title: "System", icon: Cpu, desc: "What is running, and resetting settings." },
 ] as const;
 
 type SectionId = (typeof SECTIONS)[number]["id"];
@@ -101,6 +101,7 @@ const OnlyCtx = createContext<SectionId[] | null>(null);
 
 function Section({ id, page, children }: { id: SectionId; page: boolean; children: ReactNode }) {
   const only = useContext(OnlyCtx);
+  const { t } = useI18n();
   if (only && !only.includes(id)) return null;
   const meta = SECTIONS.find((s) => s.id === id)!;
   const Icon = meta.icon;
@@ -108,7 +109,7 @@ function Section({ id, page, children }: { id: SectionId; page: boolean; childre
     return (
       <section className="border-b border-line py-4 last:border-0">
         <div className="mb-1 flex items-center gap-2 label-caps">
-          <Icon size={13} /> {meta.title}
+          <Icon size={13} /> {t(meta.key)}
         </div>
         <div className="divide-y divide-line/60">{children}</div>
       </section>
@@ -121,7 +122,7 @@ function Section({ id, page, children }: { id: SectionId; page: boolean; childre
           <Icon size={18} />
         </span>
         <div>
-          <h3 className="text-[16px] font-semibold text-plum">{meta.title}</h3>
+          <h3 className="text-[16px] font-semibold text-plum">{t(meta.key)}</h3>
           <p className="text-xs text-plum/55">{meta.desc}</p>
         </div>
       </header>
@@ -238,6 +239,7 @@ export function SettingsPanel({
     if (health?.ai_available) api.aiModels().then((r) => setModels(r.models)).catch(() => {});
   }, [health?.ai_available]);
   const { theme, setTheme } = useTheme();
+  const { t } = useI18n();
   const ai = !!health?.ai_available;
   const page = layout === "page";
   const folderName = settings.source ? settings.source.split("/").pop() + "/" : "";
@@ -772,11 +774,11 @@ export function SettingsPanel({
                 onClick={() => document.getElementById(`settings-${s.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" })}
                 className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[13px] text-plum/75 hover:bg-tint hover:text-plum"
               >
-                <Icon size={14} /> {s.title}
+                <Icon size={14} /> {t(s.key)}
               </button>
             );
           })}
-          <p className="px-2.5 pt-3 text-[11px] text-plum/45">Changes are saved automatically.</p>
+          <p className="px-2.5 pt-3 text-[11px] text-plum/45">{t("st.saved")}</p>
         </div>
       </nav>
       <div className="max-w-3xl space-y-5">{body}</div>

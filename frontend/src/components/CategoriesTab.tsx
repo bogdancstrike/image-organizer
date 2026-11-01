@@ -4,6 +4,7 @@ import { Search, Check, Copy, PencilLine, Plus } from "lucide-react";
 import type { CategorySet } from "@/api";
 import { Card } from "./ui/card";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/i18n";
 
 interface Props {
   presets: CategorySet[];
@@ -28,19 +29,20 @@ function SetCard({
   onUse: () => void;
   onEdit: (mode: "edit" | "copy") => void;
 }) {
+  const { t } = useI18n();
   return (
     <Card className={cn("flex flex-col gap-3 p-4", active && "ring-2 ring-petal")}>
       <div className="flex items-start justify-between gap-2">
         <div>
           <div className="flex items-center gap-2 text-[15px] font-semibold text-plum">
             {set.name}
-            {custom && <Tag className="m-0" color="purple">mine</Tag>}
-            {set.modified && <Tag className="m-0" color="gold">edited</Tag>}
-            {active && <Tag className="m-0" color="green">in use</Tag>}
+            {custom && <Tag className="m-0" color="purple">{t("cat.tag.mine")}</Tag>}
+            {set.modified && <Tag className="m-0" color="gold">{t("cat.tag.edited")}</Tag>}
+            {active && <Tag className="m-0" color="green">{t("cat.tag.inuse")}</Tag>}
           </div>
           {set.description && <p className="mt-0.5 text-xs text-plum/60">{set.description}</p>}
         </div>
-        <span className="shrink-0 text-xs text-plum/45">{set.categories.length} folders</span>
+        <span className="shrink-0 text-xs text-plum/45">{t("cat.folders", { n: set.categories.length })}</span>
       </div>
       <div className="flex flex-wrap gap-1">
         {set.categories.map((c) => (
@@ -52,13 +54,13 @@ function SetCard({
       </div>
       <div className="mt-auto flex gap-2">
         <Button size="small" type={active ? "default" : "primary"} icon={<Check size={13} />} onClick={onUse} disabled={active}>
-          {active ? "Selected" : "Use"}
+          {active ? t("cat.selected") : t("cat.use")}
         </Button>
         <Button size="small" icon={<PencilLine size={13} />} onClick={() => onEdit("edit")}>
-          Edit
+          {t("cat.edit")}
         </Button>
         <Button size="small" type="text" icon={<Copy size={13} />} onClick={() => onEdit("copy")}>
-          Copy
+          {t("cat.copy")}
         </Button>
       </div>
     </Card>
@@ -67,6 +69,7 @@ function SetCard({
 
 /** Browse every preset and your own sets. */
 export function CategoriesTab({ presets, customSets, activeId, onUse, onEdit }: Props) {
+  const { t } = useI18n();
   const [q, setQ] = useState("");
   const match = (s: CategorySet) => {
     const n = q.trim().toLowerCase();
@@ -81,21 +84,21 @@ export function CategoriesTab({ presets, customSets, activeId, onUse, onEdit }: 
         <Input
           allowClear
           prefix={<Search size={14} className="text-plum/40" />}
-          placeholder="Find a preset or folder (e.g. wedding, outfit, kitchen)"
+          placeholder={t("cat.find")}
           className="max-w-md"
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
         <Button icon={<Plus size={14} />} onClick={() => onEdit(null, "new")}>
-          New category set
+          {t("cat.new")}
         </Button>
       </div>
 
       <section>
-        <h2 className="mb-3 font-serif text-[22px] italic text-plum/80">My category sets</h2>
+        <h2 className="mb-3 font-serif text-[22px] italic text-plum/80">{t("cat.mine")}</h2>
         {c.length === 0 ? (
           <p className="text-sm text-plum/55">
-            None yet. Press <b>Copy</b> on any preset, or create a new set, e.g. your Instagram folders.
+            {t("cat.none")}
           </p>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -107,8 +110,8 @@ export function CategoriesTab({ presets, customSets, activeId, onUse, onEdit }: 
       </section>
 
       <section>
-        <h2 className="mb-1 font-serif text-[22px] italic text-plum/80">Presets</h2>
-        <p className="mb-3 text-xs text-plum/55">Every preset is editable: rename folders, add or remove them, change descriptions. Reset restores the default.</p>
+        <h2 className="mb-1 font-serif text-[22px] italic text-plum/80">{t("cat.presets")}</h2>
+        <p className="mb-3 text-xs text-plum/55">{t("cat.presets.d")}</p>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {p.map((s) => (
             <SetCard key={s.id} set={s} custom={false} active={activeId === s.id} onUse={() => onUse(s, false)} onEdit={(m) => onEdit(s, m)} />
