@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { App, Button, Empty, Input, Progress, Segmented, Select, Table, Tag, Tooltip } from "antd";
+import { App, Button, Empty, Input, Progress, Rate, Segmented, Select, Table, Tag, Tooltip } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { Search, MoveRight } from "lucide-react";
 import { api, type JobCategory, type PlanItem } from "@/api";
@@ -15,7 +15,7 @@ interface Props {
   onChanged: (changed: PlanItem[], categories: JobCategory[]) => void;
 }
 
-type Filter = "all" | "rejects" | "smiling" | "unsure" | "ai" | "manual";
+type Filter = "all" | "rejects" | "smiling" | "unsure" | "ai" | "manual" | "bursts";
 
 /** The whole plan as a table: filter, inspect, and reassign files before Apply. */
 export function ReviewTab({ jobId, editable, plan, categories, onChanged }: Props) {
@@ -39,6 +39,7 @@ export function ReviewTab({ jobId, editable, plan, categories, onChanged }: Prop
       if (filter === "unsure" && !(p.category_id === "_unsorted" || (p.source === "clip" && p.confidence < 0.45))) return false;
       if (filter === "ai" && p.source !== "ai") return false;
       if (filter === "manual" && p.source !== "manual") return false;
+      if (filter === "bursts" && !p.burst) return false;
       return true;
     });
   }, [plan, q, kind, cats, filter]);
@@ -131,6 +132,23 @@ export function ReviewTab({ jobId, editable, plan, categories, onChanged }: Prop
         ),
     },
     {
+      title: "Rating",
+      key: "stars",
+      width: 120,
+      sorter: (a, b) => (a.quality?.score ?? 0) - (b.quality?.score ?? 0),
+      render: (_, p) =>
+        p.quality ? (
+          <Tooltip title={`keeper score ${Math.round(p.quality.score * 100)}/100${p.burst ? ` · burst of ${p.burst.size}${p.burst.best ? " · best" : ""}` : ""}`}>
+            <span className="inline-flex items-center gap-1">
+              <Rate disabled value={p.quality.stars} className="!text-[11px]" />
+              {p.burst && <span className="text-[11px]">{p.burst.best ? "🏆" : "🎞️"}</span>}
+            </span>
+          </Tooltip>
+        ) : (
+          <span className="text-plum/30">–</span>
+        ),
+    },
+    {
       title: "Goes to",
       key: "destination",
       ellipsis: true,
@@ -181,6 +199,7 @@ export function ReviewTab({ jobId, editable, plan, categories, onChanged }: Prop
             { value: "rejects", label: "Rejects" },
             { value: "smiling", label: "Smiling" },
             { value: "ai", label: "AI" },
+            { value: "bursts", label: "Bursts" },
             { value: "manual", label: "Edited" },
           ]}
         />

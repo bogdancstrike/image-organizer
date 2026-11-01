@@ -1,4 +1,4 @@
-import type { QualityOptions, Strategy } from "./api";
+import type { AIOptions, QualityOptions, Strategy } from "./api";
 
 export interface UiSettings {
   source: string;
@@ -17,6 +17,9 @@ export interface UiSettings {
   recursive: boolean;
   pairSidecars: boolean;
   quality: QualityOptions;
+  focus: "auto" | "scene" | "framing" | "outfit" | "lighting" | "subject";
+  granularity: "coarse" | "normal" | "fine";
+  ai: AIOptions;
 }
 
 export const DEFAULT_SETTINGS: UiSettings = {
@@ -45,7 +48,17 @@ export const DEFAULT_SETTINGS: UiSettings = {
     blink_threshold: 0.5,
     smile_threshold: 0.5,
     action: "reject",
+    faces_rule: "any",
+    dark_threshold: 0.18,
+    bright_threshold: 0.85,
+    bursts: true,
+    burst_seconds: 2,
+    burst_similarity: 0.9,
+    keeper_min_stars: 0,
   },
+  focus: "auto",
+  granularity: "normal",
+  ai: { model: null, reasoning_effort: null, naming_instructions: "", assist_instructions: "", assist_batch: 12 },
 };
 
 const KEY = "aio.settings.v1";
@@ -55,7 +68,12 @@ export function loadSettings(): UiSettings {
     const raw = localStorage.getItem(KEY);
     if (raw) {
       const saved = JSON.parse(raw);
-      return { ...DEFAULT_SETTINGS, ...saved, quality: { ...DEFAULT_SETTINGS.quality, ...(saved.quality ?? {}) } };
+      return {
+        ...DEFAULT_SETTINGS,
+        ...saved,
+        quality: { ...DEFAULT_SETTINGS.quality, ...(saved.quality ?? {}) },
+        ai: { ...DEFAULT_SETTINGS.ai, ...(saved.ai ?? {}) },
+      };
     }
   } catch {
     /* storage unavailable */

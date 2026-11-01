@@ -36,7 +36,8 @@ TextEmbedding('Qdrant/clip-ViT-B-32-text', cache_dir='/models')" \
 ENV HF_HUB_OFFLINE=1 \
     FACE_MODEL=/models/face_landmarker.task \
     MPLCONFIGDIR=/tmp/matplotlib \
-    GLOG_minloglevel=2
+    GLOG_minloglevel=2 \
+    MALLOC_ARENA_MAX=2
 
 COPY backend/ ./
 COPY --from=ui /ui/dist /app/static

@@ -1,5 +1,5 @@
-import type { ReactNode } from "react";
-import { Button, Checkbox, Drawer, Input, InputNumber, Popconfirm, Radio, Segmented, Select, Slider, Switch, Tag, Tooltip } from "antd";
+import { useEffect, useState, type ReactNode } from "react";
+import { Button, Checkbox, Drawer, Input, InputNumber, Popconfirm, Radio, Rate, Segmented, Select, Slider, Switch, Tag, Tooltip } from "antd";
 import {
   Aperture,
   CalendarDays,
@@ -15,7 +15,7 @@ import {
   Wand2,
   Workflow,
 } from "lucide-react";
-import type { CategorySet, Health, QualityOptions } from "@/api";
+import { api, type AIOptions, type CategorySet, type Health, type QualityOptions } from "@/api";
 import { DEFAULT_SETTINGS, type UiSettings } from "@/settings";
 import { THEMES, useTheme } from "@/theme";
 import { cn } from "@/lib/utils";
@@ -121,6 +121,11 @@ export function SettingsPanel({
 }: PanelProps & { layout?: "drawer" | "page" }) {
   const set = <K extends keyof UiSettings>(k: K, v: UiSettings[K]) => onChange({ ...settings, [k]: v });
   const setQ = (patch: Partial<QualityOptions>) => onChange({ ...settings, quality: { ...settings.quality, ...patch } });
+  const setAI = (patch: Partial<AIOptions>) => onChange({ ...settings, ai: { ...settings.ai, ...patch } });
+  const [models, setModels] = useState<string[]>([]);
+  useEffect(() => {
+    if (health?.ai_available) api.aiModels().then((r) => setModels(r.models)).catch(() => {});
+  }, [health?.ai_available]);
   const { theme, setTheme } = useTheme();
   const ai = !!health?.ai_available;
   const page = layout === "page";
@@ -266,9 +271,37 @@ export function SettingsPanel({
         )}
 
         {settings.strategy === "auto" && (
-          <Row label="Max folders" hint="the best number is chosen automatically" inline>
-            <InputNumber min={2} max={30} value={settings.maxClusters} onChange={(v) => set("maxClusters", v ?? 12)} />
-          </Row>
+          <>
+            <Row label="Group by" hint="what should separate the folders?">
+              <Select
+                className="w-full"
+                value={settings.focus}
+                onChange={(v) => set("focus", v)}
+                options={[
+                  { value: "auto", label: "✨ Whatever separates them best" },
+                  { value: "scene", label: "🏞️ Scene & location (studio, mountains, beach, city…)" },
+                  { value: "framing", label: "🧍 Framing & pose (close-up, full-body, sitting, details…)" },
+                  { value: "outfit", label: "👗 Outfit (dress, suit, swimwear, costume…)" },
+                  { value: "lighting", label: "💡 Lighting (golden hour, low-key, studio flash, B&W…)" },
+                  { value: "subject", label: "🔎 Subject (portraits, couple, food, pets, cars…)" },
+                ]}
+              />
+            </Row>
+            <Row label="Granularity" hint={settings.granularity === "fine" ? "more, smaller folders" : settings.granularity === "coarse" ? "a few big folders" : "balanced"}>
+              <Segmented
+                value={settings.granularity}
+                onChange={(v) => set("granularity", v as UiSettings["granularity"])}
+                options={[
+                  { value: "coarse", label: "Coarse" },
+                  { value: "normal", label: "Normal" },
+                  { value: "fine", label: "Fine" },
+                ]}
+              />
+            </Row>
+            <Row label="Max folders" hint="upper bound; the best number is chosen automatically" inline>
+              <InputNumber min={2} max={30} value={settings.maxClusters} onChange={(v) => set("maxClusters", v ?? 12)} />
+            </Row>
+          </>
         )}
 
         {(settings.strategy === "preset" || settings.strategy === "custom") && (
@@ -319,6 +352,45 @@ export function SettingsPanel({
             <Row label="Smile needed" hint={`≥ ${Math.round(settings.quality.smile_threshold * 100)}%`}>
               <Slider min={0.2} max={0.9} step={0.05} value={settings.quality.smile_threshold} onChange={(v) => setQ({ smile_threshold: v })} />
             </Row>
+            <Row label="Whose eyes & smile count">
+              <Radio.Group
+                value={settings.quality.faces_rule}
+                onChange={(e) => setQ({ faces_rule: e.target.value })}
+                optionType="button"
+                options={[
+                  { value: "any", label: "Any face (group shots)" },
+                  { value: "main", label: "Main subject only" },
+                ]}
+              />
+            </Row>
+            <Row label="Exposure limits" hint={`dark < ${Math.round(settings.quality.dark_threshold * 100)}% · bright > ${Math.round(settings.quality.bright_threshold * 100)}%`}>
+              <Slider
+                range
+                min={0}
+                max={1}
+                step={0.01}
+                value={[settings.quality.dark_threshold, settings.quality.bright_threshold]}
+                onChange={(v) => setQ({ dark_threshold: Math.min(0.5, v[0]), bright_threshold: Math.max(0.5, v[1]) })}
+              />
+            </Row>
+            <Row label="Best of burst" hint="near-identical frames seconds apart: keep the best" inline>
+              <Switch checked={settings.quality.bursts} onChange={(v) => setQ({ bursts: v })} />
+            </Row>
+            {settings.quality.bursts && (
+              <div className="grid gap-x-6 sm:grid-cols-2">
+                <Row label="Burst window" hint={`${settings.quality.burst_seconds}s`}>
+                  <Slider min={0.5} max={10} step={0.5} value={settings.quality.burst_seconds} onChange={(v) => setQ({ burst_seconds: v })} />
+                </Row>
+                <Row label="Burst similarity" hint={`${Math.round(settings.quality.burst_similarity * 100)}%`}>
+                  <Slider min={0.8} max={0.98} step={0.01} value={settings.quality.burst_similarity} onChange={(v) => setQ({ burst_similarity: v })} />
+                </Row>
+              </div>
+            )}
+            {settings.strategy === "cull" && (
+              <Row label="Keepers need at least" hint={settings.quality.keeper_min_stars ? "others go to Maybe" : "off"} inline>
+                <Rate value={settings.quality.keeper_min_stars} onChange={(v) => setQ({ keeper_min_stars: v })} allowClear />
+              </Row>
+            )}
             {settings.strategy !== "cull" && (
               <Row label="Bad shots">
                 <Radio.Group
@@ -367,6 +439,57 @@ export function SettingsPanel({
           <Tooltip title={ai ? "Only unsure files are sent, as small thumbnails, 12 per request" : "Set OPENAI_API_KEY in .env to enable"}>
             <Switch checked={settings.aiAssist && ai} disabled={!ai} onChange={(v) => set("aiAssist", v)} />
           </Tooltip>
+        </Row>
+        <Row label="Model" hint={`server default: ${health?.model ?? "–"}`}>
+          <Select
+            className="w-full"
+            disabled={!ai}
+            allowClear
+            placeholder={health?.model ?? "default"}
+            value={settings.ai.model ?? undefined}
+            onChange={(v) => setAI({ model: v ?? null })}
+            options={(models.length ? models : health?.model ? [health.model] : []).map((m) => ({ value: m, label: m }))}
+            showSearch
+          />
+        </Row>
+        <Row label="Reasoning effort" hint="low = fast & cheap">
+          <Segmented
+            disabled={!ai}
+            value={settings.ai.reasoning_effort ?? "default"}
+            onChange={(v) => setAI({ reasoning_effort: v === "default" ? null : (v as AIOptions["reasoning_effort"]) })}
+            options={[
+              { value: "default", label: "Default" },
+              { value: "minimal", label: "Minimal" },
+              { value: "low", label: "Low" },
+              { value: "medium", label: "Medium" },
+              { value: "high", label: "High" },
+            ]}
+          />
+        </Row>
+        <Row label="Naming instructions" hint="added to the auto-naming prompt">
+          <Input.TextArea
+            disabled={!ai}
+            autoSize={{ minRows: 2, maxRows: 6 }}
+            maxLength={1500}
+            showCount
+            value={settings.ai.naming_instructions}
+            onChange={(e) => setAI({ naming_instructions: e.target.value })}
+            placeholder="e.g. Use short lowercase names like my Instagram folders. Separate indoor and outdoor. Name in Romanian."
+          />
+        </Row>
+        <Row label="Assist instructions" hint="added to the AI-assist prompt">
+          <Input.TextArea
+            disabled={!ai}
+            autoSize={{ minRows: 2, maxRows: 6 }}
+            maxLength={1500}
+            showCount
+            value={settings.ai.assist_instructions}
+            onChange={(e) => setAI({ assist_instructions: e.target.value })}
+            placeholder="e.g. Motorbikes always go to “moto”, even with people on them."
+          />
+        </Row>
+        <Row label="Photos per assist request" hint="fewer = more accurate, more requests" inline>
+          <InputNumber disabled={!ai} min={1} max={24} value={settings.ai.assist_batch} onChange={(v) => setAI({ assist_batch: v ?? 12 })} />
         </Row>
         <p className="py-2 text-[11px] text-plum/50">
           Auto mode names its groups with a single request. Images are sent at low detail, and reasoning effort is low. Nothing is sent

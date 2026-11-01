@@ -1,29 +1,25 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Auto Image Organizer">
   <defs>
-    <linearGradient id="petal" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#ffc2da"/>
-      <stop offset="1" stop-color="#e5679b"/>
-    </linearGradient>
-    <linearGradient id="core" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#7a3260"/>
-      <stop offset="1" stop-color="#4a1d3b"/>
-    </linearGradient>
+    <linearGradient id="ap-blade" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f4f4f5"/><stop offset="1" stop-color="#71717a"/></linearGradient>
+    <radialGradient id="ap-glass" cx="0.38" cy="0.35" r="0.75"><stop offset="0" stop-color="#52525b"/><stop offset="1" stop-color="#09090b"/></radialGradient>
   </defs>
   <g transform="translate(32 32)">
-    <g stroke="#fff" stroke-width="2">
-      <rect x="-8" y="-30" width="16" height="21" rx="5" fill="url(#petal)" transform="rotate(0)"/>
-      <rect x="-8" y="-30" width="16" height="21" rx="5" fill="url(#petal)" transform="rotate(60)"/>
-      <rect x="-8" y="-30" width="16" height="21" rx="5" fill="url(#petal)" transform="rotate(120)"/>
-      <rect x="-8" y="-30" width="16" height="21" rx="5" fill="url(#petal)" transform="rotate(180)"/>
-      <rect x="-8" y="-30" width="16" height="21" rx="5" fill="url(#petal)" transform="rotate(240)"/>
-      <rect x="-8" y="-30" width="16" height="21" rx="5" fill="url(#petal)" transform="rotate(300)"/>
-    </g>
-    <g fill="#fff" opacity=".85">
-      <path d="M-5 -13 l3 -4 l2 2.5 l1.5 -1.5 l3.5 3z" transform="rotate(0)"/>
-      <path d="M-5 -13 l3 -4 l2 2.5 l1.5 -1.5 l3.5 3z" transform="rotate(120)"/>
-      <path d="M-5 -13 l3 -4 l2 2.5 l1.5 -1.5 l3.5 3z" transform="rotate(240)"/>
-    </g>
-    <circle r="10" fill="url(#core)" stroke="#fff" stroke-width="2"/>
-    <circle cx="3" cy="-3" r="3.4" fill="#fff"/>
+    <circle r="31" fill="#09090b"/>
+    <path d="M0.0,-29.0 A29.0,29.0 0 0,1 25.11,-14.5 L10.89,1.53 L6.77,-8.67 Q6.41,-16.8 0.0,-29.0Z" fill="url(#ap-blade)" stroke="#09090b" stroke-width="1.3" stroke-linejoin="round"/>
+    <path d="M25.11,-14.5 A29.0,29.0 0 0,1 25.11,14.5 L4.12,10.2 L10.89,1.53 Q17.75,-2.84 25.11,-14.5Z" fill="url(#ap-blade)" stroke="#09090b" stroke-width="1.3" stroke-linejoin="round"/>
+    <path d="M25.11,-14.5 A29.0,29.0 0 0,1 25.11,14.5 L4.12,10.2 L10.89,1.53 Q17.75,-2.84 25.11,-14.5Z" fill="#000" fill-opacity="0.06"/>
+    <path d="M25.11,14.5 A29.0,29.0 0 0,1 0.0,29.0 L-6.77,8.67 L4.12,10.2 Q11.34,13.95 25.11,14.5Z" fill="url(#ap-blade)" stroke="#09090b" stroke-width="1.3" stroke-linejoin="round"/>
+    <path d="M25.11,14.5 A29.0,29.0 0 0,1 0.0,29.0 L-6.77,8.67 L4.12,10.2 Q11.34,13.95 25.11,14.5Z" fill="#000" fill-opacity="0.12"/>
+    <path d="M0.0,29.0 A29.0,29.0 0 0,1 -25.11,14.5 L-10.89,-1.53 L-6.77,8.67 Q-6.41,16.8 0.0,29.0Z" fill="url(#ap-blade)" stroke="#09090b" stroke-width="1.3" stroke-linejoin="round"/>
+    <path d="M0.0,29.0 A29.0,29.0 0 0,1 -25.11,14.5 L-10.89,-1.53 L-6.77,8.67 Q-6.41,16.8 0.0,29.0Z" fill="#000" fill-opacity="0.18"/>
+    <path d="M-25.11,14.5 A29.0,29.0 0 0,1 -25.11,-14.5 L-4.12,-10.2 L-10.89,-1.53 Q-17.75,2.84 -25.11,14.5Z" fill="url(#ap-blade)" stroke="#09090b" stroke-width="1.3" stroke-linejoin="round"/>
+    <path d="M-25.11,14.5 A29.0,29.0 0 0,1 -25.11,-14.5 L-4.12,-10.2 L-10.89,-1.53 Q-17.75,2.84 -25.11,14.5Z" fill="#000" fill-opacity="0.1"/>
+    <path d="M-25.11,-14.5 A29.0,29.0 0 0,1 -0.0,-29.0 L6.77,-8.67 L-4.12,-10.2 Q-11.34,-13.95 -25.11,-14.5Z" fill="url(#ap-blade)" stroke="#09090b" stroke-width="1.3" stroke-linejoin="round"/>
+    <path d="M-25.11,-14.5 A29.0,29.0 0 0,1 -0.0,-29.0 L6.77,-8.67 L-4.12,-10.2 Q-11.34,-13.95 -25.11,-14.5Z" fill="#000" fill-opacity="0.03"/>
+    <polygon points="6.77,-8.67 10.89,1.53 4.12,10.2 -6.77,8.67 -10.89,-1.53 -4.12,-10.2" fill="url(#ap-glass)" stroke="#09090b" stroke-width="1.3" stroke-linejoin="round"/>
+    <circle cx="-3" cy="-3.4" r="2.6" fill="#fff" fill-opacity=".9"/>
+    <circle cx="2.6" cy="2.8" r="1" fill="#fff" fill-opacity=".45"/>
+    <circle r="30.4" fill="none" stroke="#09090b" stroke-width="1.2"/>
+    <circle r="31.4" fill="none" stroke="#71717a" stroke-opacity=".55" stroke-width="0.8"/>
   </g>
 </svg>

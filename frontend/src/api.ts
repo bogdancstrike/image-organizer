@@ -48,9 +48,12 @@ export interface PlanItem {
   duplicate_of: string | null;
   sidecars: string[];
   quality: QualitySummary | null;
+  burst: { group: number; size: number; best: boolean } | null;
 }
 
 export interface QualitySummary {
+  score: number;
+  stars: number;
   sharpness: number;
   brightness: number;
   faces: number;
@@ -71,6 +74,21 @@ export interface QualityOptions {
   blink_threshold: number;
   smile_threshold: number;
   action: "reject" | "tag";
+  faces_rule: "any" | "main";
+  dark_threshold: number;
+  bright_threshold: number;
+  bursts: boolean;
+  burst_seconds: number;
+  burst_similarity: number;
+  keeper_min_stars: number;
+}
+
+export interface AIOptions {
+  model: string | null;
+  reasoning_effort: "minimal" | "low" | "medium" | "high" | null;
+  naming_instructions: string;
+  assist_instructions: string;
+  assist_batch: number;
 }
 
 export interface Usage {
@@ -89,6 +107,7 @@ export interface JobSnapshot {
   warnings: string[];
   errors: { rel_path: string; error: string }[];
   usage: Usage | null;
+  context: { theme: string; confidence?: number; focus?: string; source?: string } | null;
   run_id: string | null;
   error: string | null;
   plan?: PlanItem[];
@@ -133,6 +152,9 @@ export interface JobRequest {
     recursive: boolean;
     pair_sidecars: boolean;
     quality: QualityOptions;
+    focus: "auto" | "scene" | "framing" | "outfit" | "lighting" | "subject";
+    granularity: "coarse" | "normal" | "fine";
+    ai: AIOptions;
   };
 }
 
@@ -181,6 +203,7 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ file_ids: fileIds, category_id: categoryId }),
     }),
+  aiModels: () => req<{ default: string | null; models: string[]; error?: string }>("/api/ai/models"),
   runs: () => req<Run[]>("/api/runs"),
   undo: (runId: string) =>
     req<{ run_id: string; status: string; undo: Run["undo"] }>(`/api/runs/${runId}/undo`, { method: "POST" }),

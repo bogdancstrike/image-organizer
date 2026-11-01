@@ -104,7 +104,14 @@ def choose_k(embs: np.ndarray, max_k: int, seed: int = 0, bias: float = 0.002) -
     """KMeans with k chosen by silhouette. Returns (labels, normalized centroids)."""
     from sklearn.cluster import KMeans
     from sklearn.metrics import silhouette_score
+    from threadpoolctl import threadpool_limits
 
+    # small matrices: many BLAS/OpenMP threads only fight each other (13x slower on a 32-thread CPU)
+    with threadpool_limits(limits=2):
+        return _choose_k(embs, max_k, seed, bias, KMeans, silhouette_score)
+
+
+def _choose_k(embs, max_k, seed, bias, KMeans, silhouette_score):
     n = len(embs)
     if n < 6:
         return np.zeros(n, int), normalize(embs.mean(axis=0, keepdims=True))

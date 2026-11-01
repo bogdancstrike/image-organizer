@@ -9,7 +9,7 @@
 Sort by what's *in* the photos, cull a shoot like a pro (blurry · eyes closed · best of burst),
 and watch every thumbnail fly into its folder.
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-ec7fae?style=flat-square)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-18181b?style=flat-square)](LICENSE)
 [![Docker Compose](https://img.shields.io/badge/deploy-docker%20compose-2496ED?style=flat-square&logo=docker&logoColor=white)](#-quick-start)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-3776AB?style=flat-square&logo=python&logoColor=white)](backend)
 [![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)](backend)
@@ -17,9 +17,9 @@ and watch every thumbnail fly into its folder.
 [![antd 6](https://img.shields.io/badge/antd-6-1677ff?style=flat-square&logo=antdesign&logoColor=white)](frontend)
 [![Runs offline](https://img.shields.io/badge/AI-optional%20%C2%B7%20runs%20offline-18181b?style=flat-square)](#-ai-is-optional)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-a1a1aa?style=flat-square)](CONTRIBUTING.md)
-[![GitHub stars](https://img.shields.io/github/stars/bogdancstrike/image-organizer?style=flat-square&color=ec7fae)](https://github.com/bogdancstrike/image-organizer/stargazers)
+[![GitHub stars](https://img.shields.io/github/stars/bogdancstrike/image-organizer?style=flat-square&color=52525b)](https://github.com/bogdancstrike/image-organizer/stargazers)
 
-[Quick start](#-quick-start) · [Features](#-features) · [Screenshots](#-screenshots) · [For photographers](#-for-photographers-culling) · [Deploy](#-deployment) · [Docs](#-documentation)
+[Quick start](#-quick-start) · [Features](#-features) · [Screenshots](#-screenshots) · [For photographers](#-for-photographers-culling) · [Performance](#-performance--hardware) · [Deploy](#-deployment) · [Docs](#-documentation)
 
 <br/>
 
@@ -39,7 +39,7 @@ structure. Nothing moves until you press **Apply**, and every apply can be **und
 - 📸 **Built for photographers.** Culling with blur, eyes-closed and exposure checks, best-of-burst, stars, and RAW + JPEG pairs.
 - 🔒 **Private by default.** Everything runs on your machine. AI is an optional, token-frugal helper.
 - ↩️ **Safe.** You get a plan, then Apply, and a journal records every move, so Undo restores every file.
-- 🌸 **Delightful.** A pile of polaroids flies into folder cards, in seven themes (Graphite dark by default).
+- 🎞️ **Delightful.** A pile of polaroids flies into folder cards. Four themes: **Graphite** (default), Light, Midnight, Lavender.
 
 ## 🚀 Quick start
 
@@ -100,7 +100,8 @@ Use **Cull** on its own, or switch on *quality checks* with any other mode to se
 
 ### 🤖 AI is optional
 Without a key, everything works offline. With `OPENAI_API_KEY`, the app uses **`gpt-6-luna`** (`reasoning: low`):
-- **Auto naming:** *one* request per sort (small contact sheets at `detail: low`, about 1–2k tokens).
+- **Auto naming:** *one* request per sort (small contact sheets at `detail: low`), measured at **about 1k tokens and 4–6 s**.
+  On a mountain wedding shoot it answered *"Mountain Wedding"* with groups like *Mountain Vistas*, *Monochrome Veils*, *Portraits & Details*.
 - **AI assist** (opt-in): only *uncertain* files, 12 thumbnails per request.
 - Model, reasoning effort and extra instructions (your own "system prompt") are editable in **Settings → AI**.
 
@@ -111,8 +112,10 @@ Without a key, everything works offline. With `OPENAI_API_KEY`, the app uses **`
 | <img src="docs/assets/screenshot-dark.png" alt="Sorted folders in the Graphite theme" /> | <img src="docs/assets/screenshot-review.png" alt="Review table" /> |
 | **Full-size viewer** | **Categories & editable presets** |
 | <img src="docs/assets/screenshot-lightbox.png" alt="Lightbox" /> | <img src="docs/assets/screenshot-categories.png" alt="Categories" /> |
-| **Settings** | **Blossom theme** |
-| <img src="docs/assets/screenshot-settings.png" alt="Settings page" /> | <img src="docs/assets/screenshot-sorting.png" alt="Pink theme" /> |
+| **Category editor (presets are editable too)** | **Pro culling settings** |
+| <img src="docs/assets/screenshot-editor.png" alt="Category editor" /> | <img src="docs/assets/screenshot-settings.png" alt="Settings page" /> |
+| **Analyzing: the pile builds up** | **Light theme** |
+| <img src="docs/assets/screenshot-pile.png" alt="Pile of thumbnails while analyzing" /> | <img src="docs/assets/screenshot-light.png" alt="Light theme" /> |
 
 ## ⚙️ How it works
 
@@ -122,6 +125,36 @@ Without a key, everything works offline. With `OPENAI_API_KEY`, the app uses **`
 
 One container: **FastAPI** runs a background pipeline (scan → analyze → quality → dedupe → categorize → plan) and streams
 progress to the **React** UI over Server-Sent Events. A canvas engine animates every file from the pile into its folder card.
+
+## ⚡ Performance & hardware
+
+Measured with [`scripts/benchmark.py`](scripts/benchmark.py) on the bundled Docker image
+(AMD Ryzen 9 9950X3D, 16 cores / 32 threads, 64 GB RAM, NVMe, **CPU only, no GPU**). *Plan only: nothing was moved.*
+
+| Workload | Files | Cold (first run) | Warm (cached) |
+|---|---|---|---|
+| Lifestyle preset · mixed downloads incl. 3 videos | 115 | **2.2 s** (51 files/s) | 0.04 s |
+| People & Style preset · portraits | 199 | **2.1 s** (96 files/s) | 0.04 s |
+| Lifestyle preset · scale test | 995 | **8.4 s** (119 files/s) | 0.2 s |
+| Cull · 24 MP wedding JPEGs (faces, blur, exposure) | 30 | **2.1 s** | 0.01 s |
+| Cull · scale test (faces, blur, bursts) | 995 | **10.4 s** (95 files/s) | 0.2 s |
+| Auto-discover + AI naming (`gpt-6-luna`, 1 call) | 30–199 | **4–6 s** (dominated by the API call) | same |
+| Video: 60 s 1080p clip (3 keyframes + hash) | 1 | **0.3 s** | – |
+
+- **Memory:** about 50 MB idle; **about 2.2 GB peak** while culling 1,000 photos (CLIP + MediaPipe + 8 workers).
+- **Disk:** image ≈ 2.1 GB (models included, works offline). Cache ≈ **12 KB per photo** (WebP thumbnail + analysis), so 100k photos take about 1.2 GB in `./data`.
+- **Re-runs are near-instant:** analysis is cached by path + size + mtime, so changing presets, thresholds or the strategy never re-reads your photos.
+
+| | Minimum | Recommended |
+|---|---|---|
+| CPU | 4 cores (x86_64) | 8+ cores |
+| RAM | 4 GB | 8 GB+ |
+| Disk | 3 GB + ~12 KB / photo | SSD |
+| GPU | not needed | not used |
+| Software | Docker + Compose v2 | – |
+
+Rough throughput scales with cores: expect about **30–60 photos/s on a 4-core laptop** for the first run. Tune `WORKERS` (default `min(8, CPUs)`).
+Benchmark your own machine: `python3 scripts/benchmark.py --source "Pictures/Trip" --strategy cull`.
 
 ## 🐳 Deployment
 
@@ -137,7 +170,8 @@ docker compose run --rm organizer pytest -q   # tests inside the image
 | `PORT` | `8080` | Web UI / API port |
 | `PUID` / `PGID` | `1000` | Files are moved as this user |
 | `OPENAI_API_KEY` | – | Optional AI naming & assist |
-| `OPENAI_MODEL` | `gpt-6-luna` | Any vision-capable model on the Responses API |
+| `OPENAI_MODEL` | `gpt-6-luna` | Any vision-capable model on the Responses API (switchable per run in Settings → AI) |
+| `WORKERS` | `min(8, CPUs)` | Analysis threads |
 | `OUTPUT_DIR_NAME` | `Organized` | Default subfolder for sorted folders (changeable per run) |
 
 > ⚠️ The app has **no login** and can move files under `LIBRARY_PATH`. Keep it on `localhost` or behind your own

@@ -44,7 +44,7 @@ def load_settings() -> Settings:
         openai_api_key=(env.get("OPENAI_API_KEY") or "").strip() or None,
         openai_model=env.get("OPENAI_MODEL", "gpt-6-luna"),
         reasoning_effort=env.get("OPENAI_REASONING_EFFORT", "low"),
-        workers=max(1, int(env.get("WORKERS") or os.cpu_count() or 4)),
+        workers=max(1, int(env.get("WORKERS") or min(8, os.cpu_count() or 4))),
         output_dir_name=env.get("OUTPUT_DIR_NAME", "Organized"),
         static_dir=Path(static) if static else None,
         library_name=env.get("LIBRARY_NAME") or "Library",

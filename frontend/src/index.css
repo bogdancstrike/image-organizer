@@ -16,76 +16,10 @@
   --color-tint: var(--tint); /* subtle fills */
 }
 
-/* ---------- Pink (default): the look of the original demo ---------- */
-:root,
-[data-theme="pink"] {
-  color-scheme: light;
-  --ink: #4a1d3b;
-  --ink-strong: #35132a;
-  --on-ink: #ffffff;
-  --accent: #f3a6c6;
-  --surface: #ffffff;
-  --line: #fbe0ea;
-  --tint: #fdf0f5;
-  --page: #fdf8fa;
-  --glow-1: #fbe1ec;
-  --glow-2: #f9e2ee;
-  --glow-3: #ffffff;
-  --card-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 10px 30px -18px rgba(120, 40, 80, 0.35);
-  --card-shadow-hover: 0 14px 34px -18px rgba(120, 40, 80, 0.55);
-  --btn-shadow: 0 6px 20px -6px rgba(90, 30, 70, 0.6);
-  --shimmer-a: #fbeef3;
-  --shimmer-b: #ffffff;
-  --logo-a: #ffc2da;
-  --logo-b: #e5679b;
-  --logo-core-a: #7a3260;
-  --logo-core-b: #4a1d3b;
-  --flower-a: #f6c4d8;
-  --flower-b: #fbe4ee;
-  --flower-stroke: #e7a9c3;
-  --flower-core: #7b5466;
-  --flower-eye: #f7e9ef;
-  --tile-a: #fde3ee;
-  --tile-b: #f4b9d1;
-  --tile-shadow: rgba(90, 30, 70, 0.3);
-  --tile-frame: #ffffff;
-}
 
-/* ---------- Blue: calm, airy ---------- */
-[data-theme="blue"] {
-  color-scheme: light;
-  --ink: #142a4d;
-  --ink-strong: #0b1a33;
-  --on-ink: #ffffff;
-  --accent: #7fb0ff;
-  --surface: #ffffff;
-  --line: #dbe7fb;
-  --tint: #eef4ff;
-  --page: #f6f9ff;
-  --glow-1: #dce9ff;
-  --glow-2: #e2ecfb;
-  --glow-3: #ffffff;
-  --card-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 10px 30px -18px rgba(30, 60, 120, 0.35);
-  --card-shadow-hover: 0 14px 34px -18px rgba(30, 60, 120, 0.55);
-  --btn-shadow: 0 6px 20px -6px rgba(20, 42, 77, 0.55);
-  --shimmer-a: #edf3fe;
-  --shimmer-b: #ffffff;
-  --logo-a: #c4dcff;
-  --logo-b: #4f8ff7;
-  --logo-core-a: #1f3f73;
-  --logo-core-b: #142a4d;
-  --flower-a: #c3d9fb;
-  --flower-b: #e9f1fe;
-  --flower-stroke: #9fc0f2;
-  --flower-core: #3d5a85;
-  --flower-eye: #eaf2ff;
-  --tile-a: #e3edff;
-  --tile-b: #b4cff8;
-  --tile-shadow: rgba(20, 42, 77, 0.3);
-  --tile-frame: #ffffff;
-}
 
 /* ---------- Dark: shadcn/ui zinc ---------- */
+:root,
 [data-theme="dark"] {
   color-scheme: dark;
   --ink: #fafafa;
@@ -104,10 +38,10 @@
   --btn-shadow: 0 6px 20px -8px rgba(0, 0, 0, 0.8);
   --shimmer-a: #1c1c20;
   --shimmer-b: #27272a;
-  --logo-a: #e4e4e7;
+  --logo-a: #f4f4f5;
   --logo-b: #71717a;
-  --logo-core-a: #3f3f46;
-  --logo-core-b: #18181b;
+  --logo-core-a: #52525b;
+  --logo-core-b: #09090b;
   --flower-a: #3f3f46;
   --flower-b: #27272a;
   --flower-stroke: #52525b;
@@ -119,71 +53,7 @@
   --tile-frame: #3f3f46;
 }
 
-[data-theme="sage"] {
-  color-scheme: light;
-  --ink: #1f3a2e;
-  --ink-strong: #142a20;
-  --on-ink: #ffffff;
-  --accent: #9cc5a8;
-  --surface: #ffffff;
-  --line: #dcebe0;
-  --tint: #eef6f0;
-  --page: #f7fbf8;
-  --glow-1: #dcefe2;
-  --glow-2: #e6f2e9;
-  --glow-3: #ffffff;
-  --card-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 10px 30px -18px rgba(30, 70, 50, 0.35);
-  --card-shadow-hover: 0 14px 34px -18px rgba(30, 70, 50, 0.55);
-  --btn-shadow: 0 6px 20px -6px rgba(30, 70, 50, 0.55);
-  --shimmer-a: #edf5ef;
-  --shimmer-b: #ffffff;
-  --logo-a: #cfe8d6;
-  --logo-b: #4f9a6b;
-  --logo-core-a: #2c5a42;
-  --logo-core-b: #1f3a2e;
-  --flower-a: #cfe6d6;
-  --flower-b: #eef7f1;
-  --flower-stroke: #a8cfb3;
-  --flower-core: #4c7a60;
-  --flower-eye: #eef7f1;
-  --tile-a: #e3f1e7;
-  --tile-b: #b5d8bf;
-  --tile-shadow: rgba(30, 70, 50, 0.3);
-  --tile-frame: #ffffff;
-}
 
-[data-theme="peach"] {
-  color-scheme: light;
-  --ink: #4a2618;
-  --ink-strong: #351a10;
-  --on-ink: #ffffff;
-  --accent: #f6b48f;
-  --surface: #ffffff;
-  --line: #fbe3d6;
-  --tint: #fdf1ea;
-  --page: #fff8f4;
-  --glow-1: #ffe2d0;
-  --glow-2: #fde6da;
-  --glow-3: #ffffff;
-  --card-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 10px 30px -18px rgba(120, 60, 30, 0.35);
-  --card-shadow-hover: 0 14px 34px -18px rgba(120, 60, 30, 0.55);
-  --btn-shadow: 0 6px 20px -6px rgba(120, 60, 30, 0.55);
-  --shimmer-a: #fcefe7;
-  --shimmer-b: #ffffff;
-  --logo-a: #ffd2b8;
-  --logo-b: #ee7b4a;
-  --logo-core-a: #8a3b1e;
-  --logo-core-b: #4a2618;
-  --flower-a: #fbd0b8;
-  --flower-b: #fdebe1;
-  --flower-stroke: #f0b192;
-  --flower-core: #9a5536;
-  --flower-eye: #fff1e8;
-  --tile-a: #fde4d6;
-  --tile-b: #f6bfa1;
-  --tile-shadow: rgba(120, 60, 30, 0.3);
-  --tile-frame: #ffffff;
-}
 
 [data-theme="lavender"] {
   color-scheme: light;
@@ -249,6 +119,40 @@
   --tile-b: #18213f;
   --tile-shadow: rgba(0, 0, 0, 0.6);
   --tile-frame: #26335c;
+}
+
+/* ---------- Light: shadcn/ui zinc, light ---------- */
+[data-theme="light"] {
+  color-scheme: light;
+  --ink: #18181b;
+  --ink-strong: #09090b;
+  --on-ink: #fafafa;
+  --accent: #a1a1aa;
+  --surface: #ffffff;
+  --line: #e4e4e7;
+  --tint: #f4f4f5;
+  --page: #fafafa;
+  --glow-1: #f4f4f5;
+  --glow-2: #f1f1f3;
+  --glow-3: #ffffff;
+  --card-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 10px 30px -18px rgba(24, 24, 27, 0.25);
+  --card-shadow-hover: 0 14px 34px -18px rgba(24, 24, 27, 0.4);
+  --btn-shadow: 0 6px 20px -8px rgba(24, 24, 27, 0.45);
+  --shimmer-a: #f4f4f5;
+  --shimmer-b: #ffffff;
+  --logo-a: #d4d4d8;
+  --logo-b: #52525b;
+  --logo-core-a: #27272a;
+  --logo-core-b: #09090b;
+  --flower-a: #e4e4e7;
+  --flower-b: #f4f4f5;
+  --flower-stroke: #d4d4d8;
+  --flower-core: #52525b;
+  --flower-eye: #fafafa;
+  --tile-a: #e4e4e7;
+  --tile-b: #d4d4d8;
+  --tile-shadow: rgba(24, 24, 27, 0.2);
+  --tile-frame: #ffffff;
 }
 
 html,

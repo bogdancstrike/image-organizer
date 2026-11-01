@@ -1,6 +1,7 @@
 """CLIP embeddings via fastembed (ONNX, CPU). Spec: REQ-ANL-2."""
 from __future__ import annotations
 
+import os
 import threading
 from typing import Protocol
 
@@ -56,6 +57,7 @@ class ClipEmbedder:
 
 
 _singleton: ClipEmbedder | None = None
+ONNX_THREADS = min(8, os.cpu_count() or 4)
 _singleton_lock = threading.Lock()
 
 
@@ -63,5 +65,5 @@ def get_clip_embedder(cache_dir: str | None = None) -> ClipEmbedder:
     global _singleton
     with _singleton_lock:
         if _singleton is None:
-            _singleton = ClipEmbedder(cache_dir=cache_dir)
+            _singleton = ClipEmbedder(cache_dir=cache_dir, threads=ONNX_THREADS)
         return _singleton

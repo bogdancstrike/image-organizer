@@ -39,6 +39,7 @@ interface JobState {
   error: string | null;
   runId: string | null;
   errors: number;
+  context: { theme: string; source?: string } | null;
 }
 
 const INITIAL: JobState = {
@@ -54,6 +55,7 @@ const INITIAL: JobState = {
   error: null,
   runId: null,
   errors: 0,
+  context: null,
 };
 
 const DUP = "_duplicates";
@@ -193,6 +195,9 @@ export default function App() {
           case "assign":
             engine.assign(e.id, cardKey(e.category_id, e.kind));
             break;
+          case "context":
+            patch.context = { theme: e.theme, source: e.source };
+            break;
           case "warning":
             warnings = [...(warnings ?? []), e.message];
             break;
@@ -254,6 +259,7 @@ export default function App() {
           usage: s.usage,
           runId: s.run_id,
           errors: s.errors.length,
+          context: s.context ?? null,
         });
         setPlan(s.plan);
         engine.setExpected(s.plan.length);
@@ -310,6 +316,9 @@ export default function App() {
           recursive: s.recursive,
           pair_sidecars: s.pairSidecars,
           quality: s.quality,
+          focus: s.focus,
+          granularity: s.granularity,
+          ai: s.ai,
         },
       });
       setJob((j) => ({ ...j, id }));
@@ -518,6 +527,11 @@ export default function App() {
         <div className="mb-2 flex flex-wrap items-center gap-1.5">
           <Badge variant="outline">{strategyLabel}</Badge>
           <Badge variant="outline">{settings.recursive ? "incl. subfolders" : "this folder only"}</Badge>
+          {job.context?.theme && (
+            <Badge>
+              <Sparkles size={11} /> Looks like: {job.context.theme}
+            </Badge>
+          )}
           {settings.aiAssist && health?.ai_available && settings.strategy !== "auto" && settings.strategy !== "date" && (
             <Badge>
               <Sparkles size={11} /> AI assist

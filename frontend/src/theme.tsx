@@ -2,68 +2,29 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import { App as AntApp, ConfigProvider, Tooltip, theme as antdTheme, type ThemeConfig } from "antd";
 import { cn } from "@/lib/utils";
 
-export type ThemeName = "pink" | "blue" | "sage" | "peach" | "lavender" | "dark" | "midnight";
+export type ThemeName = "dark" | "light" | "midnight" | "lavender";
 
 export const THEMES: { id: ThemeName; label: string; swatch: [string, string] }[] = [
-  { id: "dark", label: "Graphite (dark, default)", swatch: ["#3f3f46", "#09090b"] },
-  { id: "pink", label: "Blossom (pink)", swatch: ["#fbe1ec", "#e5679b"] },
-  { id: "blue", label: "Sky (blue)", swatch: ["#dce9ff", "#4f8ff7"] },
-  { id: "sage", label: "Sage (green)", swatch: ["#dcefe2", "#4f9a6b"] },
-  { id: "peach", label: "Peach (sunset)", swatch: ["#ffe2d0", "#ee7b4a"] },
+  { id: "dark", label: "Graphite (default)", swatch: ["#3f3f46", "#09090b"] },
+  { id: "light", label: "Light", swatch: ["#ffffff", "#d4d4d8"] },
+  { id: "midnight", label: "Midnight", swatch: ["#4f6fe0", "#070b18"] },
   { id: "lavender", label: "Lavender", swatch: ["#e6defd", "#8a6ae6"] },
-  { id: "midnight", label: "Midnight (dark navy)", swatch: ["#4f6fe0", "#070b18"] },
-];
+]
 
 const FONT = '"Inter Variable", ui-sans-serif, system-ui, sans-serif';
 
 const ANTD: Record<ThemeName, ThemeConfig> = {
-  pink: {
+  light: {
     token: {
-      colorPrimary: "#b8467d",
-      colorText: "#4a1d3b",
-      colorTextSecondary: "rgba(74,29,59,.6)",
-      borderRadius: 12,
+      colorPrimary: "#18181b",
+      colorText: "#18181b",
+      colorTextSecondary: "rgba(24,24,27,.6)",
+      borderRadius: 10,
       fontFamily: FONT,
-      colorBgElevated: "#fffafc",
-      colorBorderSecondary: "#f6dde8",
+      colorBgElevated: "#ffffff",
+      colorBorderSecondary: "#e4e4e7",
     },
-    components: { Segmented: { itemSelectedBg: "#fff", trackBg: "#f8e8ef" } },
-  },
-  blue: {
-    token: {
-      colorPrimary: "#2f6fdb",
-      colorText: "#142a4d",
-      colorTextSecondary: "rgba(20,42,77,.6)",
-      borderRadius: 12,
-      fontFamily: FONT,
-      colorBgElevated: "#fafcff",
-      colorBorderSecondary: "#dbe7fb",
-    },
-    components: { Segmented: { itemSelectedBg: "#fff", trackBg: "#e6efff" } },
-  },
-  sage: {
-    token: {
-      colorPrimary: "#3f8a5c",
-      colorText: "#1f3a2e",
-      colorTextSecondary: "rgba(31,58,46,.6)",
-      borderRadius: 12,
-      fontFamily: FONT,
-      colorBgElevated: "#fafdfb",
-      colorBorderSecondary: "#dcebe0",
-    },
-    components: { Segmented: { itemSelectedBg: "#fff", trackBg: "#e3f1e7" } },
-  },
-  peach: {
-    token: {
-      colorPrimary: "#d9653a",
-      colorText: "#4a2618",
-      colorTextSecondary: "rgba(74,38,24,.6)",
-      borderRadius: 12,
-      fontFamily: FONT,
-      colorBgElevated: "#fffaf7",
-      colorBorderSecondary: "#fbe3d6",
-    },
-    components: { Segmented: { itemSelectedBg: "#fff", trackBg: "#fde4d6" } },
+    components: { Segmented: { itemSelectedBg: "#fff", trackBg: "#f4f4f5" } },
   },
   lavender: {
     token: {
