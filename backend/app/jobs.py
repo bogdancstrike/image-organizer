@@ -384,6 +384,10 @@ class JobManager:
                     out[f.id] = q
                 if n % 8 == 0 or n == len(photos):
                     job.emit("progress", analyzed=n, total=len(photos), stage="quality")
+        unchecked = sum(1 for q in out.values() if not q.faces_checked)
+        if fa.available and unchecked:
+            job.warnings.append(f"Face detection failed on {unchecked} photos: eyes/smile checks skipped for them")
+            job.emit("warning", message=job.warnings[-1])
         return out
 
     def _categorize(self, job: Job, keep, embedder, quality=None, rules=None) -> tuple[dict, list[dict]]:

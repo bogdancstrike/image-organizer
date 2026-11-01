@@ -1,6 +1,7 @@
 """FastAPI application: REST + SSE + static UI."""
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -12,6 +13,7 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from PIL import Image, ImageOps
 from pydantic import BaseModel, Field, field_validator
 
 from . import __version__
@@ -21,7 +23,8 @@ from .embedder import get_clip_embedder
 from .jobs import BusyError, JobManager
 from .llm import LLMClient
 from .organizer import list_runs, undo_run
-from .scanner import PathError, list_folders
+from .media import open_any
+from .scanner import PathError, list_folders, media_kind
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 SHA_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -231,6 +234,34 @@ def create_app(settings: Settings | None = None, embedder_factory=None, llm_fact
         if not p.exists():
             raise HTTPException(404, "no thumbnail")
         return FileResponse(p, media_type="image/webp", headers={"Cache-Control": "public, max-age=31536000, immutable"})
+
+    @app.get("/api/preview")
+    def preview(path: str = Query(..., min_length=1)):
+        """Large view for the lightbox: photos as a cached 1600 px JPEG, videos streamed (range requests)."""
+        root = s.library_root
+        p = (root / path.lstrip("/")).resolve()
+        if not (root in p.parents) or not p.is_file():
+            raise HTTPException(404, "file not found (it may have been moved)")
+        kind = media_kind(p.name)
+        if kind == "video":
+            return FileResponse(p)
+        if kind != "image":
+            raise HTTPException(400, "not a media file")
+        st = p.stat()
+        key = hashlib.sha1(f"{p}|{st.st_size}|{st.st_mtime}".encode()).hexdigest()
+        out = s.data_dir / "previews" / key[:2] / f"{key}.jpg"
+        if not out.exists():
+            try:
+                with open_any(p) as im:
+                    if im.format == "JPEG":
+                        im.draft("RGB", (2000, 2000))
+                    im = ImageOps.exif_transpose(im).convert("RGB")
+                    im.thumbnail((1600, 1600), Image.Resampling.LANCZOS)
+                    out.parent.mkdir(parents=True, exist_ok=True)
+                    im.save(out, "JPEG", quality=85)
+            except Exception as exc:  # noqa: BLE001
+                raise HTTPException(422, f"cannot render preview: {exc}") from exc
+        return FileResponse(out, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=86400"})
 
     if s.static_dir and s.static_dir.is_dir():
         app.mount("/", StaticFiles(directory=str(s.static_dir), html=True), name="ui")

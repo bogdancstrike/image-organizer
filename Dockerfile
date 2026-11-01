@@ -20,19 +20,23 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     HF_HUB_DISABLE_TELEMETRY=1
 
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ffmpeg gosu \
+ && apt-get install -y --no-install-recommends ffmpeg gosu libgl1 libegl1 libgles2 libglib2.0-0 libportaudio2 \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY backend/requirements.txt .
 RUN pip install -r requirements.txt
 
-# Bundle the CLIP models so the container works offline (REQ-ANL-2)
+# Bundle the CLIP models and the MediaPipe face model so the container works offline (REQ-ANL-2)
 RUN python -c "from fastembed import ImageEmbedding, TextEmbedding; \
 ImageEmbedding('Qdrant/clip-ViT-B-32-vision', cache_dir='/models'); \
 TextEmbedding('Qdrant/clip-ViT-B-32-text', cache_dir='/models')" \
+ && python -c "import urllib.request; urllib.request.urlretrieve('https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task', '/models/face_landmarker.task')" \
  && chmod -R a+rX /models
-ENV HF_HUB_OFFLINE=1
+ENV HF_HUB_OFFLINE=1 \
+    FACE_MODEL=/models/face_landmarker.task \
+    MPLCONFIGDIR=/tmp/matplotlib \
+    GLOG_minloglevel=2
 
 COPY backend/ ./
 COPY --from=ui /ui/dist /app/static

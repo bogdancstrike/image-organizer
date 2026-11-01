@@ -212,3 +212,13 @@ def test_output_directly_in_folder_and_non_recursive(client, settings):
     assert job["plan"][0]["destination"] == "trip/Photos/Red things"
     assert client.post("/api/jobs", json={**body, "options": {"output_dir": ".."}}).status_code == 422
     assert client.post("/api/jobs", json={**body, "options": {"output_dir": "a/b"}}).status_code == 422
+
+
+def test_preview_endpoint(client, settings):
+    make_image(settings.library_root / "a" / "big.jpg", COLORS["red"], size=(3000, 2000), fmt="JPEG")
+    r = client.get("/api/preview", params={"path": "a/big.jpg"})
+    assert r.status_code == 200 and r.headers["content-type"] == "image/jpeg"
+    from io import BytesIO
+    from PIL import Image
+    assert max(Image.open(BytesIO(r.content)).size) == 1600
+    assert client.get("/api/preview", params={"path": "../../etc/passwd"}).status_code == 404
