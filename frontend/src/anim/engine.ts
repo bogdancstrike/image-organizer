@@ -128,6 +128,7 @@ export class SortEngine {
   private raf = 0;
   private ro: ResizeObserver;
   private rectCache = new Map<string, DOMRect | null>();
+  private waitSince = 0; // when the head of the queue started waiting for its card
   private w = 0;
   private h = 0;
   reduced = false;
@@ -158,6 +159,7 @@ export class SortEngine {
     this.slots.clear();
     this.expected = 0;
     this.acc = 0;
+    this.waitSince = 0;
   }
 
   /** Re-read theme colors (CSS variables) and re-render every tile. */
@@ -261,7 +263,21 @@ export class SortEngine {
     this.acc += this.perFrame;
     while (this.acc >= 1 && this.queue.length) {
       const next = this.queue[0];
-      if (!this.rect(next.key)) break; // card not rendered yet; retry next frame
+      if (!this.rect(next.key)) {
+        // card not rendered yet: retry next frame; never let one missing card stall every flight behind it
+        if (!this.waitSince) this.waitSince = now;
+        if (now - this.waitSince < 1500) break;
+        this.queue.shift();
+        this.waitSince = 0;
+        const lost = this.sprites.get(next.id);
+        if (lost) {
+          lost.key = next.key;
+          lost.state = "gone";
+          this.hooks.onLand(next.key, next.id);
+        }
+        continue;
+      }
+      this.waitSince = 0;
       this.queue.shift();
       this.acc -= 1;
       const s = this.sprites.get(next.id);

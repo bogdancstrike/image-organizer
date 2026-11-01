@@ -22,6 +22,7 @@ class AppDB:
             CREATE TABLE IF NOT EXISTS runs (run_id TEXT PRIMARY KEY, created_at TEXT, data TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS job_stats (job_id TEXT PRIMARY KEY, finished_at REAL, data TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS jobs (id TEXT PRIMARY KEY, updated_at REAL, data TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS face_refs (id TEXT PRIMARY KEY, created_at REAL, data TEXT NOT NULL);
             """
         )
@@ -56,6 +57,28 @@ class AppDB:
         with self._lock:
             self._db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?,?)", (key, json.dumps(value)))
             self._db.commit()
+
+    # ---------------------------------------------------------------- finished sorts (survive refreshes & restarts)
+    def save_job(self, snapshot: dict, keep: int = 20) -> None:
+        with self._lock:
+            self._db.execute("INSERT OR REPLACE INTO jobs (id, updated_at, data) VALUES (?,?,?)",
+                             (snapshot["id"], time.time(), json.dumps(snapshot)))
+            self._db.execute("DELETE FROM jobs WHERE id NOT IN (SELECT id FROM jobs ORDER BY updated_at DESC LIMIT ?)", (keep,))
+            self._db.commit()
+
+    def load_job(self, job_id: str) -> dict | None:
+        with self._lock:
+            row = self._db.execute("SELECT data FROM jobs WHERE id=?", (job_id,)).fetchone()
+        return json.loads(row[0]) if row else None
+
+    def job_for_run(self, run_id: str) -> dict | None:
+        with self._lock:
+            rows = self._db.execute("SELECT data FROM jobs ORDER BY updated_at DESC").fetchall()
+        for (d,) in rows:
+            j = json.loads(d)
+            if j.get("run_id") == run_id:
+                return j
+        return None
 
     # ---------------------------------------------------------------- reference faces ("find this person")
     def add_face_ref(self, ref: dict) -> None:

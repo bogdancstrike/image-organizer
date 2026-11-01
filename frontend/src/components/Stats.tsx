@@ -27,7 +27,7 @@ export function Stats({ values }: { values: StatValues }) {
             {it.dot && <span className={`inline-block h-1.5 w-1.5 rounded-full ${it.dot}`} />}
             {t(it.label)}
           </div>
-          <CountUp value={values[it.key]} className="mt-0.5 block text-3xl font-semibold tabular-nums tracking-tight sm:text-[34px]" />
+          <CountUp value={values[it.key]} className="mt-0.5 block text-2xl font-semibold tabular-nums tracking-tight sm:text-[28px]" />
         </div>
       ))}
     </div>

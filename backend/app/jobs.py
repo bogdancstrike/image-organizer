@@ -153,7 +153,37 @@ class JobManager:
         return job
 
     def get(self, job_id: str) -> Job | None:
-        return self.jobs.get(job_id)
+        """In memory, or a finished sort restored from the database (e.g. after a restart)."""
+        job = self.jobs.get(job_id)
+        if job is None and getattr(self, "db", None):
+            d = self.db.load_job(job_id)
+            if d:
+                job = Job(id=d["id"], request=d["request"], status=d["status"], phase=d.get("phase", "done"),
+                          plan=d.get("plan") or [], categories=d.get("categories") or [], stats=d.get("stats") or {},
+                          warnings=d.get("warnings") or [], errors=d.get("errors") or [], usage=d.get("usage"),
+                          context=d.get("context"), run_id=d.get("run_id"), error=d.get("error"),
+                          created_at=d.get("created_at") or time.time(), finished_at=d.get("finished_at"))
+                with self._lock:
+                    self.jobs.setdefault(job_id, job)
+                    job = self.jobs[job_id]
+        return job
+
+    def _persist(self, job: Job) -> None:
+        if getattr(self, "db", None) and job.status in ("done", "applied"):
+            try:
+                self.db.save_job(job.snapshot(include_plan=True))
+            except Exception as exc:  # noqa: BLE001 - persistence must never break a sort
+                log.warning("could not save job %s: %s", job.id, exc)
+
+    def mark_undone(self, run_id: str) -> None:
+        """After Undo the files are back: the sort is a plan again (can be edited and applied)."""
+        job = next((j for j in self.jobs.values() if j.run_id == run_id), None)
+        if job is None and getattr(self, "db", None):
+            d = self.db.job_for_run(run_id)
+            job = self.get(d["id"]) if d else None
+        if job and job.status == "applied":
+            job.status, job.run_id = "done", None
+            self._persist(job)
 
     def cancel(self, job_id: str) -> bool:
         job = self.jobs.get(job_id)
@@ -163,7 +193,7 @@ class JobManager:
         return True
 
     def apply(self, job_id: str, mode: str) -> dict:
-        job = self.jobs.get(job_id)
+        job = self.get(job_id)
         if not job:
             raise KeyError(job_id)
         with self._lock:
@@ -185,6 +215,7 @@ class JobManager:
             raise
         job.status = "applied"
         job.run_id = journal["run_id"]
+        self._persist(job)
         return journal
 
     @staticmethod
@@ -202,7 +233,7 @@ class JobManager:
 
     def reassign(self, job_id: str, file_ids: list[str], category_id: str) -> dict:
         """Manual override before Apply: move files to another category of the same job."""
-        job = self.jobs.get(job_id)
+        job = self.get(job_id)
         if not job:
             raise KeyError(job_id)
         if job.status != "done":
@@ -237,6 +268,7 @@ class JobManager:
             job.categories.append(dict(cat))
         job.categories = [{**c, **counts.get(c["id"], {"photos": 0, "videos": 0})} for c in job.categories]
         job.stats["folders"] = len({p["destination"] for p in job.plan if p["category_id"] != DUPLICATES["id"]})
+        self._persist(job)
         return {"changed": changed, "categories": job.categories, "stats": job.stats}
 
     # ------------------------------------------------------------- pipeline
@@ -263,6 +295,7 @@ class JobManager:
             with job.cond:
                 job.cond.notify_all()
             self._record_stats(job)
+            self._persist(job)
 
     def _record_stats(self, job: Job) -> None:
         """Per-sort statistics (Statistics tab): wall time, time per phase, counts, model, AI usage."""
@@ -808,7 +841,7 @@ class JobManager:
 
     def rename_category(self, job_id: str, category_id: str, name: str) -> dict:
         """Rename a folder of a finished, unapplied job (e.g. Person 1 → Laura)."""
-        job = self.jobs.get(job_id)
+        job = self.get(job_id)
         if not job:
             raise KeyError(job_id)
         if job.status != "done":
@@ -830,6 +863,7 @@ class JobManager:
             if p["category_id"] == category_id:
                 p["category"] = name
                 p["destination"] = destination(source_rel, out_dir, p["kind"], cat, opts.get("split_media", True))
+        self._persist(job)
         return {"categories": job.categories, "plan": [p for p in job.plan if p["category_id"] == category_id]}
 
     def _categorize(self, job: Job, keep, embedder, quality=None, rules=None, bursts=None, faces=None) -> tuple[dict, list[dict]]:

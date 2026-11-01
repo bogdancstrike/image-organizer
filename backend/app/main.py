@@ -531,6 +531,7 @@ def create_app(settings: Settings | None = None, embedder_factory=None, llm_fact
         try:
             j = await run_in_threadpool(undo_run, s.library_root, s.journals_dir, run_id)
             _sync_run(run_id)
+            manager.mark_undone(run_id)
         except FileNotFoundError as exc:
             raise HTTPException(404, "run not found") from exc
         return {"run_id": run_id, "status": j["status"], "undo": j.get("undo")}

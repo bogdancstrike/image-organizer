@@ -563,7 +563,7 @@ export default function App() {
   }, [settings.source, settings.recursive, health?.library_ok, recipes.length]);
 
   return (
-    <div className="mx-auto max-w-[1400px] px-4 pb-16 pt-5 sm:px-8">
+    <div className="mx-auto max-w-[1400px] px-4 pb-8 pt-5 sm:px-8">
       {/* header */}
       <header className="flex flex-wrap items-center justify-between gap-3">
         <Logo />
@@ -587,7 +587,7 @@ export default function App() {
         </div>
       </header>
 
-      <nav className="mt-6 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <nav className="mt-4 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <Segmented
           value={tab}
           onChange={(v) => setTab(v as typeof tab)}
@@ -611,8 +611,8 @@ export default function App() {
 
       <div className={tab === "sort" ? "" : "hidden"}>
       {/* hero: what is sorted, one big obvious button, how */}
-      <section className="mx-auto mt-10 flex max-w-4xl flex-col items-center text-center">
-        <h1 className="text-[34px] font-semibold leading-[1.08] tracking-tight sm:text-[54px]">
+      <section className="mx-auto mt-2 flex max-w-4xl flex-col items-center text-center">
+        <h1 className="text-[32px] font-semibold leading-[1.08] tracking-tight sm:text-[44px]">
           {t("hero.before")}{" "}
           <button
             onClick={() => !running && setDrawer("folder")}
@@ -645,7 +645,8 @@ export default function App() {
             onPick={(r) => applyRecipe(r)}
           />
         )}
-        <div className="mt-7 flex flex-col items-center gap-2">
+        <div className="mt-5 flex flex-col items-center gap-1.5">
+          <div className="flex items-center gap-2">
           {running ? (
             <Button size="xl" variant="soft" onClick={stop} className="min-w-52">
               <LogoMark spinning className="h-6 w-6" /> {t("stop")}
@@ -664,10 +665,13 @@ export default function App() {
               <RotateCcw size={12} /> {t("reset")}
             </button>
           )}
-          <span className="text-xs text-plum/55">{running ? statusText : job.status === "idle" ? t("hint.idle") : statusText}</span>
+          </div>
+          {(running || job.status === "idle") && (
+            <span className="text-xs text-plum/55">{running ? statusText : t("hint.idle")}</span>
+          )}
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center justify-center gap-1.5">
+        <div className="mt-3 flex flex-wrap items-center justify-center gap-1.5">
           <button onClick={() => setDrawer("settings")} className="cursor-pointer" title="Change how files are organized">
             <Badge variant="outline">{strategyLabel} ✎</Badge>
           </button>
@@ -693,7 +697,7 @@ export default function App() {
         </div>
       </section>
 
-      <div className="mt-7">
+      <div className="mt-4">
         <Stats values={stats} />
       </div>
 
@@ -809,18 +813,13 @@ export default function App() {
       <div
         ref={stageRef}
         className={
-          "relative mt-8 grid gap-6 " +
+          "relative mt-4 grid gap-6 " +
           (manyFolders
             ? "lg:grid-cols-[minmax(0,2.4fr)_minmax(0,1fr)]"
             : "lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)_minmax(0,1fr)]")
         }
       >
         <section className={"order-2 lg:order-1" + (manyFolders ? " lg:col-start-1 lg:row-start-1" : "")}>
-          {(running || job.categories.length > 0) && (
-            <h2 className="mb-3 flex items-center gap-2 font-serif text-[22px] italic text-plum/80">
-              <span className="h-1.5 w-1.5 rounded-full bg-petal" /> {t("col.photos")}
-            </h2>
-          )}
           <div className={"grid gap-3 " + (manyFolders ? "grid-cols-2 xl:grid-cols-3" : "grid-cols-2 lg:grid-cols-1")}>
             {showGhosts &&
               (activeSet ? activeSet.categories : Array.from({ length: 6 }, () => null)).map((c, i) => (
@@ -845,7 +844,7 @@ export default function App() {
         <section
           ref={pileRef}
           className={
-            "relative order-1 flex min-h-[360px] items-center justify-center lg:order-2 lg:min-h-[600px]" +
+            "relative order-1 flex min-h-[300px] items-center justify-center lg:order-2 lg:min-h-[340px]" +
             (manyFolders ? " lg:sticky lg:top-6 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-start" : "")
           }
         >
@@ -856,11 +855,6 @@ export default function App() {
         </section>
 
         <section className={"order-3" + (manyFolders ? " lg:col-start-1 lg:row-start-2" : "")}>
-          {(running || job.categories.length > 0) && (
-            <h2 className="mb-3 flex items-center gap-2 font-serif text-[22px] italic text-plum/80">
-              <span className="h-1.5 w-1.5 rounded-full bg-plum" /> {t("col.videos")}
-            </h2>
-          )}
           <div className={"grid gap-3 " + (manyFolders ? "grid-cols-2 xl:grid-cols-4" : "grid-cols-2 lg:grid-cols-1")}>
             {showGhosts && [0, 1].map((i) => <GhostCard key={i} index={i} />)}
             {videoCats.map((c, i) => (
@@ -899,7 +893,7 @@ export default function App() {
 
       </div>
 
-      <footer className="mt-16 flex flex-wrap items-center justify-between gap-2 text-[11px] text-plum/45">
+      <footer className={(tab === "sort" ? "hidden " : "") + "mt-8 flex flex-wrap items-center justify-between gap-2 text-[11px] text-plum/45"}>
         <span>
           Auto Image Organizer v{health?.version ?? "…"} · {t("footer")}
         </span>

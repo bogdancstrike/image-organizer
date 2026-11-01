@@ -174,3 +174,17 @@ def test_assign_by_appearance_gender_decides_then_outfit():
     shots /= np.linalg.norm(shots, axis=1, keepdims=True)
     res = assign_by_appearance(shots, protos, np.array([0.9, 0.1]), np.array([0.95, 0.1, 0.5, 0.5]))
     assert [r[0] for r in res] == [0, 1, 0, -1]
+
+
+def test_finished_sort_survives_restart(settings, fake_embedder):
+    for i in range(3):
+        make_image(settings.library_root / f"p{i}.jpg", COLORS["green"], fmt="JPEG", noise_seed=60 + i)
+    with TestClient(create_app(settings, embedder_factory=lambda: fake_embedder, llm_factory=lambda: None)) as c:
+        job = wait(c, c.post("/api/jobs", json={"strategy": "date"}).json()["id"])
+    with TestClient(create_app(settings, embedder_factory=lambda: fake_embedder, llm_factory=lambda: None)) as c:  # "restart"
+        again = c.get(f"/api/jobs/{job['id']}").json()
+        assert again["status"] == "done" and len(again["plan"]) == 3
+        run = c.post(f"/api/jobs/{job['id']}/apply", json={"mode": "move"}).json()
+        c.post(f"/api/runs/{run['run_id']}/undo")
+    with TestClient(create_app(settings, embedder_factory=lambda: fake_embedder, llm_factory=lambda: None)) as c:
+        assert c.get(f"/api/jobs/{job['id']}").json()["status"] == "done"  # undone → editable plan again

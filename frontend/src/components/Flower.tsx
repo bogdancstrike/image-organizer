@@ -15,7 +15,7 @@ export function Flower({ caption, className }: { caption: string; className?: st
   const still = useMemo(() => prefersReducedMotion(), []);
   return (
     <div className={cn("pointer-events-none flex flex-col items-center", className)}>
-      <svg viewBox="-130 -130 260 260" className="bloom h-60 w-60 sm:h-72 sm:w-72" aria-hidden>
+      <svg viewBox="-130 -130 260 260" className="bloom h-56 w-56 sm:h-64 sm:w-64" aria-hidden>
         <defs>
           <linearGradient id="iris-blade" x1="0" y1="1" x2="0" y2="0">
             <stop offset="0" style={{ stopColor: "var(--flower-a)" }} />
