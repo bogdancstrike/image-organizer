@@ -19,6 +19,10 @@ try:  # HEIC/HEIF/AVIF support
     pillow_heif.register_heif_opener()
 except Exception:  # pragma: no cover - optional
     pass
+try:  # JPEG XL support
+    import pillow_jxl  # noqa: F401
+except Exception:  # pragma: no cover - optional
+    pass
 
 Image.MAX_IMAGE_PIXELS = 200_000_000
 
@@ -63,8 +67,22 @@ class Decoded:
     thumb: bytes = b""
 
 
+FULL_HASH_LIMIT = 64 << 20  # files above 64 MB get a sampled hash
+SAMPLE = 4 << 20
+
+
 def sha256_file(path: Path, chunk: int = 1 << 20) -> str:
+    """SHA-256 of the content. Large files (typically videos) hash size + head + middle + tail,
+    which is plenty to recognise byte-identical copies without reading gigabytes."""
+    size = path.stat().st_size
     h = hashlib.sha256()
+    if size > FULL_HASH_LIMIT:
+        h.update(f"sampled:{size}:".encode())
+        with open(path, "rb") as f:
+            for off in (0, size // 2 - SAMPLE // 2, size - SAMPLE):
+                f.seek(max(0, off))
+                h.update(f.read(SAMPLE))
+        return h.hexdigest()
     with open(path, "rb") as f:
         while True:
             b = f.read(chunk)
@@ -176,10 +194,15 @@ def _ffprobe(path: Path) -> dict:
         raise MediaError(f"ffprobe failed: {exc}") from exc
 
 
+VIDEO_FRAME_SIZE = 336  # CLIP looks at 224 px; small frames keep ffmpeg fast
+
+
 def _frame_at(path: Path, t: float) -> Image.Image | None:
+    """One frame near t: fast input seek + keyframe-only decode, no audio/subtitles, small output."""
     cmd = [
-        "ffmpeg", "-v", "error", "-ss", f"{max(t, 0):.3f}", "-i", str(path), "-frames:v", "1",
-        "-vf", f"scale='min({EMBED_SIZE},iw)':-2", "-f", "image2pipe", "-vcodec", "png", "-",
+        "ffmpeg", "-v", "error", "-nostdin", "-threads", "1", "-skip_frame", "nokey",
+        "-ss", f"{max(t, 0):.3f}", "-i", str(path), "-map", "0:v:0", "-an", "-sn", "-dn", "-frames:v", "1",
+        "-vf", f"scale='min({VIDEO_FRAME_SIZE},iw)':-2", "-f", "image2pipe", "-vcodec", "bmp", "-",
     ]
     try:
         r = subprocess.run(cmd, capture_output=True, timeout=30)
@@ -222,7 +245,15 @@ def decode_video(path: Path, mtime: float) -> Decoded:
         width, height = height, width
     created = _iso_to_ts((fmt.get("tags") or {}).get("creation_time")) or _iso_to_ts((vs.get("tags") or {}).get("creation_time"))
 
-    points = [0.2, 0.5, 0.8] if duration > 0 else [0.0]
+    # fewer frames for short clips: 1 (<4 s), 2 (<15 s), 3 otherwise
+    if duration <= 0:
+        points = [0.0]
+    elif duration < 4:
+        points = [0.5]
+    elif duration < 15:
+        points = [0.3, 0.7]
+    else:
+        points = [0.2, 0.5, 0.8]
     frames = [f for f in (_frame_at(path, duration * p) for p in points) if f is not None]
     if not frames:
         f0 = _frame_at(path, 0)

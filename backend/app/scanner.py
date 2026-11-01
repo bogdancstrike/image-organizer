@@ -7,13 +7,20 @@ from dataclasses import dataclass
 from pathlib import Path
 
 RAW_EXT = {".cr2", ".cr3", ".nef", ".nrw", ".arw", ".dng", ".raf", ".orf", ".rw2", ".pef", ".srw"}
-IMAGE_EXT = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tif", ".tiff", ".heic", ".heif", ".avif"} | RAW_EXT
+IMAGE_EXT = {
+    ".jpg", ".jpeg", ".jpe", ".jfif", ".png", ".apng", ".webp", ".gif", ".bmp", ".dib", ".tif", ".tiff",
+    ".heic", ".heif", ".hif", ".avif", ".jxl", ".jp2", ".j2k", ".jpf", ".psd", ".tga", ".ppm", ".pgm", ".pbm",
+    ".ico", ".qoi",
+} | RAW_EXT
 SIDECAR_EXT = {".xmp", ".aae", ".thm", ".pp3", ".dop"}
 
 
 def is_raw(name: str) -> bool:
     return os.path.splitext(name)[1].lower() in RAW_EXT
-VIDEO_EXT = {".mp4", ".mov", ".m4v", ".webm", ".mkv", ".avi", ".3gp"}
+VIDEO_EXT = {
+    ".mp4", ".m4v", ".mov", ".qt", ".webm", ".mkv", ".avi", ".3gp", ".3g2", ".mts", ".m2ts", ".ts", ".wmv",
+    ".asf", ".flv", ".f4v", ".mpg", ".mpeg", ".m2v", ".vob", ".ogv", ".mxf", ".divx", ".insv",
+}
 
 
 class PathError(ValueError):

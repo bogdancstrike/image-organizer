@@ -222,3 +222,19 @@ def test_preview_endpoint(client, settings):
     from PIL import Image
     assert max(Image.open(BytesIO(r.content)).size) == 1600
     assert client.get("/api/preview", params={"path": "../../etc/passwd"}).status_code == 404
+
+
+def test_manual_reassign_before_apply(client, settings):
+    build_library(settings.library_root)
+    set_id = client.post("/api/category-sets", json=RED_GREEN).json()["id"]
+    job_id = client.post("/api/jobs", json={"strategy": "custom", "set_id": set_id}).json()["id"]
+    job = wait(client, job_id)
+    r1 = next(p for p in job["plan"] if p["name"] == "r1.jpg")
+    green = next(c for c in job["categories"] if c["name"] == "Green things")
+    r = client.patch(f"/api/jobs/{job_id}/plan", json={"file_ids": [r1["file_id"]], "category_id": green["id"]})
+    assert r.status_code == 200
+    assert r.json()["changed"][0]["destination"] == "Organized/Photos/Green things"
+    assert client.patch(f"/api/jobs/{job_id}/plan", json={"file_ids": [r1["file_id"]], "category_id": "nope"}).status_code == 400
+    client.post(f"/api/jobs/{job_id}/apply", json={"mode": "move"})
+    assert (settings.library_root / "Organized/Photos/Green things/r1.jpg").exists()
+    assert client.patch(f"/api/jobs/{job_id}/plan", json={"file_ids": [r1["file_id"]], "category_id": green["id"]}).status_code == 409

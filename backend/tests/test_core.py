@@ -162,3 +162,30 @@ def test_custom_set_keeps_media():
     from app.categories import to_set_dict
     d = to_set_dict("x", s)
     assert [c["media"] for c in d["categories"]] == ["video", "any"]
+
+
+def test_more_formats_detected():
+    from app.scanner import media_kind
+    for n in ["a.JXL", "b.jfif", "c.psd", "d.avif", "e.DNG", "f.tga"]:
+        assert media_kind(n) == "image", n
+    for n in ["a.MTS", "b.m2ts", "c.wmv", "d.mpg", "e.flv", "f.ogv"]:
+        assert media_kind(n) == "video", n
+
+
+def test_jxl_decodes(tmp_path):
+    from PIL import Image
+    p = tmp_path / "x.jxl"
+    Image.new("RGB", (64, 48), (10, 200, 10)).save(p, "JXL")
+    assert decode_image(p, 0).analysis.width == 64
+
+
+def test_sampled_hash_for_big_files(tmp_path, monkeypatch):
+    import app.media as m
+    monkeypatch.setattr(m, "FULL_HASH_LIMIT", 1000)
+    monkeypatch.setattr(m, "SAMPLE", 100)
+    a, b = tmp_path / "a.bin", tmp_path / "b.bin"
+    a.write_bytes(bytes(range(256)) * 20)
+    b.write_bytes(a.read_bytes())
+    assert m.sha256_file(a) == m.sha256_file(b)
+    b.write_bytes(a.read_bytes()[:-1] + b"\x00")  # tail differs
+    assert m.sha256_file(a) != m.sha256_file(b)

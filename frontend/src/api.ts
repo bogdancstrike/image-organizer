@@ -1,4 +1,4 @@
-export type Strategy = "preset" | "custom" | "auto" | "date";
+export type Strategy = "preset" | "custom" | "auto" | "date" | "cull";
 
 export interface Health {
   status: string;
@@ -8,6 +8,7 @@ export interface Health {
   library_ok: boolean;
   library_name: string;
   library_host_path: string | null;
+  faces_available: boolean;
   output_dir: string;
 }
 
@@ -44,6 +45,31 @@ export interface PlanItem {
   source: string;
   destination: string;
   duplicate_of: string | null;
+  sidecars: string[];
+  quality: QualitySummary | null;
+}
+
+export interface QualitySummary {
+  sharpness: number;
+  brightness: number;
+  faces: number;
+  blink: number | null;
+  smile: number | null;
+  flags: string[];
+  smiling: boolean;
+  faces_checked: boolean;
+}
+
+export interface QualityOptions {
+  enabled: boolean;
+  blur: boolean;
+  eyes_closed: boolean;
+  exposure: boolean;
+  smiles: boolean;
+  blur_threshold: number;
+  blink_threshold: number;
+  smile_threshold: number;
+  action: "reject" | "tag";
 }
 
 export interface Usage {
@@ -104,6 +130,8 @@ export interface JobRequest {
     max_clusters: number;
     output_dir: string;
     recursive: boolean;
+    pair_sidecars: boolean;
+    quality: QualityOptions;
   };
 }
 
@@ -125,6 +153,8 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   return res.status === 204 ? (undefined as T) : res.json();
 }
 
+export const previewUrl = (relPath: string) => `/api/preview?path=${encodeURIComponent(relPath)}`;
+
 export const api = {
   health: () => req<Health>("/api/health"),
   presets: () => req<CategorySet[]>("/api/presets"),
@@ -145,6 +175,11 @@ export const api = {
       `/api/jobs/${id}/apply`,
       { method: "POST", body: JSON.stringify({ mode }) },
     ),
+  reassign: (id: string, fileIds: string[], categoryId: string) =>
+    req<{ changed: PlanItem[]; categories: JobCategory[]; stats: Record<string, number> }>(`/api/jobs/${id}/plan`, {
+      method: "PATCH",
+      body: JSON.stringify({ file_ids: fileIds, category_id: categoryId }),
+    }),
   runs: () => req<Run[]>("/api/runs"),
   undo: (runId: string) =>
     req<{ run_id: string; status: string; undo: Run["undo"] }>(`/api/runs/${runId}/undo`, { method: "POST" }),

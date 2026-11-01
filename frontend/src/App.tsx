@@ -8,9 +8,13 @@ import { Logo, LogoMark } from "./components/Logo";
 import { Stats } from "./components/Stats";
 import { CategoryCard, GhostCard } from "./components/CategoryCard";
 import { Flower } from "./components/Flower";
-import { SettingsDrawer } from "./components/SettingsDrawer";
+import { SettingsDrawer, SettingsPanel } from "./components/SettingsDrawer";
+import { ReviewTab } from "./components/ReviewTab";
+import { CategoriesTab } from "./components/CategoriesTab";
 import { CategoryEditor } from "./components/CategoryEditor";
-import { HistoryDrawer } from "./components/HistoryDrawer";
+import { HistoryDrawer, HistoryList } from "./components/HistoryDrawer";
+import { Segmented } from "antd";
+import { LayoutGrid, TableProperties, Tags, Settings2 } from "lucide-react";
 import { FilesDrawer } from "./components/FilesDrawer";
 import { FolderPicker, displayPath } from "./components/FolderPicker";
 import { Button } from "./components/ui/button";
@@ -68,6 +72,7 @@ export default function App() {
   const [drawer, setDrawer] = useState<null | "settings" | "history" | "editor" | "folder">(null);
   const [filesFor, setFilesFor] = useState<{ title: string; catId: string; kind: string | null } | null>(null);
   const [applying, setApplying] = useState(false);
+  const [tab, setTab] = useState<"sort" | "review" | "categories" | "history" | "settings">("sort");
 
   const stageRef = useRef<HTMLDivElement>(null);
   const pileRef = useRef<HTMLDivElement>(null);
@@ -237,6 +242,8 @@ export default function App() {
           max_clusters: s.maxClusters,
           output_dir: s.outputMode === "direct" ? "" : s.outputDir.trim() || "Organized",
           recursive: s.recursive,
+          pair_sidecars: s.pairSidecars,
+          quality: s.quality,
         },
       });
       setJob((j) => ({ ...j, id }));
@@ -331,6 +338,7 @@ export default function App() {
         if (job.phase === "scanning" || job.phase === "starting") return "Looking for photos & videos…";
         if (job.phase === "analyzing") return `Looking at ${fmt(job.analyzed)} / ${fmt(job.total)}…`;
         if (job.phase === "deduplicating") return "Finding duplicates…";
+        if (job.phase === "checking") return "Checking sharpness, eyes & smiles…";
         return "Sorting into folders…";
       case "done":
         return settled ? "Sorted, nothing moved yet. Review & apply" : "Sorting into folders…";
@@ -352,7 +360,9 @@ export default function App() {
         ? `My categories · ${activeSet?.name ?? "none"}`
         : settings.strategy === "auto"
           ? "Auto-discover"
-          : `By date · ${settings.dateGranularity}`;
+          : settings.strategy === "cull"
+            ? "Culling · keepers & rejects"
+            : `By date · ${settings.dateGranularity}`;
 
   const filesItems = useMemo(
     () =>
@@ -409,14 +419,40 @@ export default function App() {
         </div>
       </header>
 
+      <nav className="mt-6 overflow-x-auto">
+        <Segmented
+          value={tab}
+          onChange={(v) => setTab(v as typeof tab)}
+          options={[
+            { value: "sort", label: <span className="inline-flex items-center gap-1.5 px-1"><LayoutGrid size={14} />Sort</span> },
+            {
+              value: "review",
+              label: (
+                <span className="inline-flex items-center gap-1.5 px-1">
+                  <TableProperties size={14} />Review{plan.length ? <span className="text-plum/45">{fmt(plan.length)}</span> : null}
+                </span>
+              ),
+            },
+            { value: "categories", label: <span className="inline-flex items-center gap-1.5 px-1"><Tags size={14} />Categories</span> },
+            { value: "history", label: <span className="inline-flex items-center gap-1.5 px-1"><History size={14} />History</span> },
+            { value: "settings", label: <span className="inline-flex items-center gap-1.5 px-1"><Settings2 size={14} />Settings</span> },
+          ]}
+        />
+      </nav>
+
+      <div className={tab === "sort" ? "" : "hidden"}>
       {/* headline */}
       <section className="mt-10">
         <div className="mb-2 flex flex-wrap items-center gap-1.5">
           <Badge variant="outline">{strategyLabel}</Badge>
+          <Badge variant="outline">{settings.recursive ? "incl. subfolders" : "this folder only"}</Badge>
           {settings.aiAssist && health?.ai_available && settings.strategy !== "auto" && settings.strategy !== "date" && (
             <Badge>
               <Sparkles size={11} /> AI assist
             </Badge>
+          )}
+          {settings.quality.enabled && settings.strategy !== "cull" && (
+            <Badge>Quality checks · {settings.quality.action === "reject" ? "rejects set aside" : "tag only"}</Badge>
           )}
           {settings.strategy === "auto" && health?.ai_available && (
             <Badge>
@@ -458,6 +494,9 @@ export default function App() {
         <Stats values={stats} />
       </div>
 
+      </div>
+      {(tab === "sort" || tab === "review") && (
+      <>
       {/* review / apply bar */}
       {(settled && job.status === "done" && job.total > 0) || job.status === "applied" || job.status === "undone" ? (
         <Card className="pop-in mt-7 flex flex-wrap items-center justify-between gap-3 px-4 py-3">
@@ -501,6 +540,59 @@ export default function App() {
         <Alert className="mt-3" type="warning" showIcon title={job.warnings.join(" · ")} closable />
       )}
 
+      </>
+      )}
+
+      {tab === "review" && (
+        <div className="mt-6">
+          <ReviewTab
+            jobId={job.id}
+            editable={job.status === "done"}
+            plan={plan}
+            categories={job.categories}
+            onChanged={(changed, cats) => {
+              const byId = new Map(changed.map((c) => [c.file_id, c]));
+              setPlan((old) => old.map((p) => byId.get(p.file_id) ?? p));
+              setJob((j) => ({ ...j, categories: cats }));
+            }}
+          />
+        </div>
+      )}
+      {tab === "categories" && (
+        <div className="mt-8">
+          <CategoriesTab
+            presets={presets}
+            customSets={customSets}
+            activeId={settings.strategy === "preset" ? settings.presetId : settings.strategy === "custom" ? settings.customSetId : null}
+            onUse={(set, custom) => {
+              setSettings(custom ? { ...settings, strategy: "custom", customSetId: set.id } : { ...settings, strategy: "preset", presetId: set.id });
+              message.success(`Using “${set.name}”. Press Sort when ready`);
+              setTab("sort");
+            }}
+            onEdit={() => setDrawer("editor")}
+          />
+        </div>
+      )}
+      {tab === "history" && (
+        <Card className="mt-8 max-w-3xl p-4">
+          <HistoryList active={tab === "history"} onUndone={(id) => setJob((j) => (j.runId === id ? { ...j, status: "undone" } : j))} />
+        </Card>
+      )}
+      {tab === "settings" && (
+        <Card className="mt-8 max-w-2xl p-5">
+          <SettingsPanel
+            settings={settings}
+            onChange={setSettings}
+            presets={presets}
+            customSets={customSets}
+            health={health}
+            onEditCategories={() => setDrawer("editor")}
+            onPickFolder={() => setDrawer("folder")}
+          />
+        </Card>
+      )}
+
+      <div className={tab === "sort" ? "" : "hidden"}>
       {/* stage */}
       <div ref={stageRef} className="relative mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,1fr)]">
         <section className="order-2 lg:order-1">
@@ -575,6 +667,8 @@ export default function App() {
         </section>
 
         <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 z-10" aria-hidden />
+      </div>
+
       </div>
 
       <footer className="mt-16 flex flex-wrap items-center justify-between gap-2 text-[11px] text-plum/45">

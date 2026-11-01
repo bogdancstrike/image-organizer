@@ -162,6 +162,45 @@ class JobManager:
         job.run_id = journal["run_id"]
         return journal
 
+    def reassign(self, job_id: str, file_ids: list[str], category_id: str) -> dict:
+        """Manual override before Apply: move files to another category of the same job."""
+        job = self.jobs.get(job_id)
+        if not job:
+            raise KeyError(job_id)
+        if job.status != "done":
+            raise BusyError(f"job is {job.status}; plans can only be edited before Apply")
+        cats = {c["id"]: c for c in job.categories}
+        extra = {UNSORTED["id"]: UNSORTED, DUPLICATES["id"]: DUPLICATES}
+        cat = cats.get(category_id) or extra.get(category_id)
+        if not cat:
+            raise ValueError("unknown category")
+        if cat.get("media") in ("image", "video"):
+            kinds = {p["file_id"]: p["kind"] for p in job.plan}
+            if any(kinds.get(fid) not in (None, cat["media"]) for fid in file_ids):
+                raise ValueError(f"{cat['name']} only accepts {cat['media']}s")
+        wanted = set(file_ids)
+        opts = job.request.get("options", {})
+        out_dir = opts.get("output_dir")
+        out_dir = self.s.output_dir_name if out_dir is None else out_dir.strip()
+        source = job.request.get("source") or ""
+        source_rel = source.strip("/")
+        changed = []
+        for p in job.plan:
+            if p["file_id"] in wanted:
+                p.update(category_id=cat["id"], category=cat["name"], source="manual", confidence=1.0,
+                         destination=destination(source_rel, out_dir, p["kind"], cat, opts.get("split_media", True)))
+                changed.append(p)
+        # recount
+        counts: dict[str, dict[str, int]] = {}
+        for p in job.plan:
+            c = counts.setdefault(p["category_id"], {"photos": 0, "videos": 0})
+            c["photos" if p["kind"] == "image" else "videos"] += 1
+        if cat["id"] not in cats:
+            job.categories.append(dict(cat))
+        job.categories = [{**c, **counts.get(c["id"], {"photos": 0, "videos": 0})} for c in job.categories]
+        job.stats["folders"] = len({p["destination"] for p in job.plan if p["category_id"] != DUPLICATES["id"]})
+        return {"changed": changed, "categories": job.categories, "stats": job.stats}
+
     # ------------------------------------------------------------- pipeline
     def thumb_path(self, sha: str) -> Path:
         return self.s.thumbs_dir / sha[:2] / f"{sha}.webp"
@@ -231,7 +270,8 @@ class JobManager:
         job.emit("scanned", total=len(files), photos=n_img, videos=len(files) - n_img,
                  source=source_rel, source_name=source.name if source_rel else "Library")
 
-        # 2. analyze
+        # 2. analyze: photos first (they are the main subject), videos after
+        files.sort(key=lambda f: (f.kind != "image", f.rel_path))
         self._phase(job, "analyzing")
         embedder = self.embedder_factory() if files else None
         results: dict[str, tuple[MediaFile, Analysis, np.ndarray]] = {}

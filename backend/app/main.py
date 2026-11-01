@@ -72,6 +72,11 @@ class JobRequest(BaseModel):
     options: JobOptions = Field(default_factory=JobOptions)
 
 
+class ReassignRequest(BaseModel):
+    file_ids: list[str] = Field(min_length=1, max_length=20000)
+    category_id: str
+
+
 class ApplyRequest(BaseModel):
     mode: Literal["move", "copy"] = "move"
 
@@ -198,6 +203,16 @@ def create_app(settings: Settings | None = None, embedder_factory=None, llm_fact
             gen(), media_type="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
+
+    @app.patch("/api/jobs/{job_id}/plan")
+    def reassign(job_id: str, body: ReassignRequest):
+        _job(job_id)
+        try:
+            return manager.reassign(job_id, body.file_ids, body.category_id)
+        except BusyError as exc:
+            raise HTTPException(409, str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
 
     @app.post("/api/jobs/{job_id}/apply")
     async def apply_job(job_id: str, body: ApplyRequest):

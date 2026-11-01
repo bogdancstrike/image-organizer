@@ -1,4 +1,4 @@
-import type { Strategy } from "./api";
+import type { QualityOptions, Strategy } from "./api";
 
 export interface UiSettings {
   source: string;
@@ -15,6 +15,8 @@ export interface UiSettings {
   outputMode: "subfolder" | "direct";
   outputDir: string;
   recursive: boolean;
+  pairSidecars: boolean;
+  quality: QualityOptions;
 }
 
 export const DEFAULT_SETTINGS: UiSettings = {
@@ -32,6 +34,18 @@ export const DEFAULT_SETTINGS: UiSettings = {
   outputMode: "subfolder",
   outputDir: "Organized",
   recursive: true,
+  pairSidecars: true,
+  quality: {
+    enabled: false,
+    blur: true,
+    eyes_closed: true,
+    exposure: true,
+    smiles: true,
+    blur_threshold: 0.5,
+    blink_threshold: 0.5,
+    smile_threshold: 0.5,
+    action: "reject",
+  },
 };
 
 const KEY = "aio.settings.v1";
@@ -39,7 +53,10 @@ const KEY = "aio.settings.v1";
 export function loadSettings(): UiSettings {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+    if (raw) {
+      const saved = JSON.parse(raw);
+      return { ...DEFAULT_SETTINGS, ...saved, quality: { ...DEFAULT_SETTINGS.quality, ...(saved.quality ?? {}) } };
+    }
   } catch {
     /* storage unavailable */
   }

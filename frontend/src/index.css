@@ -119,6 +119,138 @@
   --tile-frame: #3f3f46;
 }
 
+[data-theme="sage"] {
+  color-scheme: light;
+  --ink: #1f3a2e;
+  --ink-strong: #142a20;
+  --on-ink: #ffffff;
+  --accent: #9cc5a8;
+  --surface: #ffffff;
+  --line: #dcebe0;
+  --tint: #eef6f0;
+  --page: #f7fbf8;
+  --glow-1: #dcefe2;
+  --glow-2: #e6f2e9;
+  --glow-3: #ffffff;
+  --card-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 10px 30px -18px rgba(30, 70, 50, 0.35);
+  --card-shadow-hover: 0 14px 34px -18px rgba(30, 70, 50, 0.55);
+  --btn-shadow: 0 6px 20px -6px rgba(30, 70, 50, 0.55);
+  --shimmer-a: #edf5ef;
+  --shimmer-b: #ffffff;
+  --logo-a: #cfe8d6;
+  --logo-b: #4f9a6b;
+  --logo-core-a: #2c5a42;
+  --logo-core-b: #1f3a2e;
+  --flower-a: #cfe6d6;
+  --flower-b: #eef7f1;
+  --flower-stroke: #a8cfb3;
+  --flower-core: #4c7a60;
+  --flower-eye: #eef7f1;
+  --tile-a: #e3f1e7;
+  --tile-b: #b5d8bf;
+  --tile-shadow: rgba(30, 70, 50, 0.3);
+  --tile-frame: #ffffff;
+}
+
+[data-theme="peach"] {
+  color-scheme: light;
+  --ink: #4a2618;
+  --ink-strong: #351a10;
+  --on-ink: #ffffff;
+  --accent: #f6b48f;
+  --surface: #ffffff;
+  --line: #fbe3d6;
+  --tint: #fdf1ea;
+  --page: #fff8f4;
+  --glow-1: #ffe2d0;
+  --glow-2: #fde6da;
+  --glow-3: #ffffff;
+  --card-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 10px 30px -18px rgba(120, 60, 30, 0.35);
+  --card-shadow-hover: 0 14px 34px -18px rgba(120, 60, 30, 0.55);
+  --btn-shadow: 0 6px 20px -6px rgba(120, 60, 30, 0.55);
+  --shimmer-a: #fcefe7;
+  --shimmer-b: #ffffff;
+  --logo-a: #ffd2b8;
+  --logo-b: #ee7b4a;
+  --logo-core-a: #8a3b1e;
+  --logo-core-b: #4a2618;
+  --flower-a: #fbd0b8;
+  --flower-b: #fdebe1;
+  --flower-stroke: #f0b192;
+  --flower-core: #9a5536;
+  --flower-eye: #fff1e8;
+  --tile-a: #fde4d6;
+  --tile-b: #f6bfa1;
+  --tile-shadow: rgba(120, 60, 30, 0.3);
+  --tile-frame: #ffffff;
+}
+
+[data-theme="lavender"] {
+  color-scheme: light;
+  --ink: #2f2350;
+  --ink-strong: #21183a;
+  --on-ink: #ffffff;
+  --accent: #b9a6f0;
+  --surface: #ffffff;
+  --line: #e6e0fa;
+  --tint: #f3f0fd;
+  --page: #faf8ff;
+  --glow-1: #e6defd;
+  --glow-2: #ece6fb;
+  --glow-3: #ffffff;
+  --card-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 10px 30px -18px rgba(60, 40, 120, 0.35);
+  --card-shadow-hover: 0 14px 34px -18px rgba(60, 40, 120, 0.55);
+  --btn-shadow: 0 6px 20px -6px rgba(60, 40, 120, 0.55);
+  --shimmer-a: #f1eefc;
+  --shimmer-b: #ffffff;
+  --logo-a: #dccffc;
+  --logo-b: #8a6ae6;
+  --logo-core-a: #4a3590;
+  --logo-core-b: #2f2350;
+  --flower-a: #d9cdf8;
+  --flower-b: #f1ecfd;
+  --flower-stroke: #bba9ee;
+  --flower-core: #5c4a8f;
+  --flower-eye: #f3effe;
+  --tile-a: #ebe5fc;
+  --tile-b: #c7b8f3;
+  --tile-shadow: rgba(60, 40, 120, 0.3);
+  --tile-frame: #ffffff;
+}
+
+[data-theme="midnight"] {
+  color-scheme: dark;
+  --ink: #e6ecff;
+  --ink-strong: #ffffff;
+  --on-ink: #0b1226;
+  --accent: #7c9cff;
+  --surface: #121a33;
+  --line: #1f2a4a;
+  --tint: #1a2442;
+  --page: #070b18;
+  --glow-1: #141e3c;
+  --glow-2: #0e1630;
+  --glow-3: #0a1022;
+  --card-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 10px 30px -18px rgba(0, 0, 0, 0.8);
+  --card-shadow-hover: 0 14px 34px -16px rgba(0, 0, 0, 0.9);
+  --btn-shadow: 0 6px 20px -8px rgba(124, 156, 255, 0.45);
+  --shimmer-a: #141c36;
+  --shimmer-b: #1f2a4a;
+  --logo-a: #a9bcff;
+  --logo-b: #4f6fe0;
+  --logo-core-a: #2a3a70;
+  --logo-core-b: #0b1226;
+  --flower-a: #24315a;
+  --flower-b: #18213f;
+  --flower-stroke: #3a4a80;
+  --flower-core: #9fb3ff;
+  --flower-eye: #0b1226;
+  --tile-a: #24315a;
+  --tile-b: #18213f;
+  --tile-shadow: rgba(0, 0, 0, 0.6);
+  --tile-frame: #26335c;
+}
+
 html,
 body,
 #root {

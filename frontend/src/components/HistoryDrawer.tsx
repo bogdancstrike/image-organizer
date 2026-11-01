@@ -4,15 +4,23 @@ import { RotateCcw } from "lucide-react";
 import { api, type Run } from "@/api";
 
 export function HistoryDrawer({ open, onClose, onUndone }: { open: boolean; onClose: () => void; onUndone: (runId: string) => void }) {
+  return (
+    <Drawer open={open} onClose={onClose} title="History" size={420}>
+      <HistoryList active={open} onUndone={onUndone} />
+    </Drawer>
+  );
+}
+
+export function HistoryList({ active, onUndone }: { active: boolean; onUndone: (runId: string) => void }) {
   const { message } = App.useApp();
   const [runs, setRuns] = useState<Run[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
 
   const refresh = () => api.runs().then(setRuns).catch((e) => message.error(e.message));
   useEffect(() => {
-    if (open) refresh();
+    if (active) refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [active]);
 
   const undo = async (id: string) => {
     setBusy(id);
@@ -31,7 +39,7 @@ export function HistoryDrawer({ open, onClose, onUndone }: { open: boolean; onCl
   };
 
   return (
-    <Drawer open={open} onClose={onClose} title="History" size={420}>
+    <>
       {runs.length === 0 && <Empty description="Nothing applied yet" />}
       <div className="space-y-2">
         {runs.map((r) => (
@@ -58,6 +66,6 @@ export function HistoryDrawer({ open, onClose, onUndone }: { open: boolean; onCl
           </div>
         ))}
       </div>
-    </Drawer>
+    </>
   );
 }
