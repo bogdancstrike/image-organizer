@@ -463,8 +463,13 @@ def create_app(settings: Settings | None = None, embedder_factory=None, llm_fact
             if x["recipe"] not in seen and x["recipe"] in RECIPES_BY_ID:
                 seen.add(x["recipe"])
                 uniq.append(x)
+        from .library import locate_files
+
+        geo = locate_files(manager.cache, picked)
+        gps_share = sum(1 for g in geo.values() if g.get("lat") is not None) / max(1, len(picked))
         return {"total": len(files), "photos": len(photos), "videos": videos, "sampled": len(embs), "theme": theme,
-                "people_share": round(people_share, 2), "text_share": round(text_share, 2), "suggestions": uniq[:3]}
+                "people_share": round(people_share, 2), "text_share": round(text_share, 2), "gps_share": round(gps_share, 2),
+                "suggestions": uniq[:3]}
 
     @app.patch("/api/jobs/{job_id}/plan")
     def reassign(job_id: str, body: ReassignRequest):

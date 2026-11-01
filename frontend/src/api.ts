@@ -13,6 +13,7 @@ export interface Suggestion {
   photos: number;
   videos: number;
   theme?: string;
+  gps_share?: number; // share of sampled photos with GPS: trips & places are only offered when > 0
   suggestions: { recipe: string; reason: { key: string; theme?: string; pct?: number } }[];
 }
 

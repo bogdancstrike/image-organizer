@@ -76,3 +76,15 @@ def test_library_endpoints(settings, fake_embedder):
         assert {x["name"] for x in job["categories"]} == {"Rome · May 2025", "Everyday"}
         job = wait(c, c.post("/api/jobs", json={"source": "pics", "strategy": "places", "options": {"place_granularity": "city", "near_duplicates": False}}).json()["id"])
         assert any(x["name"].startswith("Rome") for x in job["categories"])
+
+
+def test_suggest_reports_gps_share(settings, fake_embedder):
+    lib = settings.library_root
+    (lib / "g").mkdir()
+    for i in range(4):
+        gps_jpeg(lib / "g" / f"a{i}.jpg", (200 - i * 10, 30, 30), *ROME, f"2025:05:20 1{i}:00:00")
+    for i in range(4):
+        make_image(lib / "g" / f"b{i}.jpg", COLORS["green"], fmt="JPEG", noise_seed=90 + i)
+    with TestClient(create_app(settings, embedder_factory=lambda: fake_embedder, llm_factory=lambda: None)) as c:
+        s = c.get("/api/suggest", params={"path": "g"}).json()
+        assert s["gps_share"] == 0.5

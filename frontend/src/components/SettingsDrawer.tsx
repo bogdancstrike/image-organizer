@@ -35,6 +35,7 @@ interface PanelProps {
   health: Health | null;
   onEditCategories: () => void;
   onPickFolder: () => void;
+  gpsAvailable?: boolean; // the folder has photos with GPS: offer trips & places
 }
 
 interface Props extends PanelProps {
@@ -323,6 +324,7 @@ export function SettingsPanel({
   health,
   onEditCategories,
   onPickFolder,
+  gpsAvailable = false,
   layout = "drawer",
   only,
 }: PanelProps & { layout?: "drawer" | "page"; only?: SectionId[] }) {
@@ -420,8 +422,12 @@ export function SettingsPanel({
               { value: "date", label: <span className="inline-flex items-center gap-1"><CalendarDays size={14} />Date</span> },
               { value: "cull", label: <span className="inline-flex items-center gap-1"><Aperture size={14} />Cull</span> },
               { value: "people", label: <span className="inline-flex items-center gap-1"><Users size={14} />People</span> },
-              { value: "trips", label: <span className="inline-flex items-center gap-1"><Plane size={14} />Trips</span> },
-              { value: "places", label: <span className="inline-flex items-center gap-1"><MapPin size={14} />Places</span> },
+              ...(gpsAvailable || settings.strategy === "trips" || settings.strategy === "places"
+                ? [
+                    { value: "trips", label: <span className="inline-flex items-center gap-1"><Plane size={14} />Trips</span> },
+                    { value: "places", label: <span className="inline-flex items-center gap-1"><MapPin size={14} />Places</span> },
+                  ]
+                : []),
             ]}
           />
           <p className="mt-2 text-xs text-plum/60">
@@ -880,7 +886,7 @@ export function SettingsPanel({
           <p className="px-2.5 pt-3 text-[11px] text-plum/45">{t("st.saved")}</p>
         </div>
       </nav>
-      <div className="max-w-3xl space-y-5">{body}</div>
+      <div className="min-w-0 space-y-5">{body}</div>
     </div>
   );
 }

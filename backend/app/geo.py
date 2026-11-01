@@ -70,11 +70,29 @@ def _dms(values, ref) -> float | None:
     return deg
 
 
+RAW_EXT = {".cr2", ".cr3", ".nef", ".nrw", ".arw", ".dng", ".raf", ".orf", ".rw2", ".pef", ".srw"}
+
+
 def read_geo(path: Path) -> dict:
-    """{lat, lon, ts} from EXIF (any field may be None). Reads headers only (cheap)."""
+    """{lat, lon, ts} from EXIF (any field may be None). Reads headers only (cheap).
+
+    JPEG/PNG/HEIC/TIFF: the file's own EXIF. Camera RAW: TIFF-based RAWs (Sony ARW, Nikon NEF, Canon CR2, DNG,
+    Olympus ORF, Pentax PEF…) are read directly; the others (Canon CR3, Fuji RAF…) through the embedded preview JPEG,
+    which carries the camera's EXIF including GPS."""
+    out = _read_geo(path, raw_direct=path.suffix.lower() in RAW_EXT)
+    if path.suffix.lower() in RAW_EXT and out["lat"] is None:
+        alt = _read_geo(path, raw_direct=False)
+        out = {k: out[k] if out[k] is not None else alt[k] for k in out}
+    return out
+
+
+def _read_geo(path: Path, raw_direct: bool) -> dict:
     out: dict = {"lat": None, "lon": None, "ts": None}
     try:
-        with open_any(path) as im:
+        from PIL import Image
+
+        opener = Image.open if raw_direct else open_any
+        with opener(path) as im:
             exif = im.getexif()
             gps = exif.get_ifd(GPS_IFD) if exif else {}
             if gps and 2 in gps and 4 in gps:

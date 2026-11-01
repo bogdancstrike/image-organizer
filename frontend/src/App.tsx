@@ -791,7 +791,7 @@ export default function App() {
         </div>
       )}
       {tab === "history" && (
-        <Card className="mt-8 max-w-3xl p-4">
+        <div className="mx-auto mt-8 w-full max-w-6xl">
           <HistoryTab
             active={tab === "history"}
             onUndone={(id) => setJob((j) => (j.runId === id ? { ...j, status: "undone" } : j))}
@@ -804,7 +804,7 @@ export default function App() {
               window.location.assign("/sort"); // the sort page restores that plan
             }}
           />
-        </Card>
+        </div>
       )}
       {tab === "library" && (
         <div className="mt-6">
@@ -826,9 +826,10 @@ export default function App() {
         </div>
       )}
       {tab === "settings" && (
-        <div className="mt-8">
+        <div className="mx-auto mt-8 w-full max-w-6xl">
           <SettingsPanel
             layout="page"
+            gpsAvailable={(suggestion?.gps_share ?? 0) > 0}
             settings={settings}
             onChange={setSettings}
             presets={presets}
@@ -940,6 +941,7 @@ export default function App() {
       </footer>
 
       <SettingsDrawer
+        gpsAvailable={(suggestion?.gps_share ?? 0) > 0}
         open={drawer === "settings"}
         onClose={() => setDrawer(null)}
         settings={settings}
