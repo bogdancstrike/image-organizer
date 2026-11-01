@@ -1,0 +1,32 @@
+name: auto-image-organizer
+
+services:
+  organizer:
+    build: .
+    image: auto-image-organizer:latest
+    container_name: auto-image-organizer
+    ports:
+      - "${PORT:-8080}:8000"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      LIBRARY_NAME: ${LIBRARY_NAME:-Library}
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.6-luna}
+      OPENAI_REASONING_EFFORT: ${OPENAI_REASONING_EFFORT:-low}
+      OUTPUT_DIR_NAME: ${OUTPUT_DIR_NAME:-Organized}
+      WORKERS: ${WORKERS:-}
+    volumes:
+      # the folder you want to organize (read-write)
+      - ${LIBRARY_PATH:-./sample-library}:/library
+      # cache, thumbnails, undo journals, your category sets
+      - ./data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=4).status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3

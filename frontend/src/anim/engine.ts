@@ -15,6 +15,7 @@ const PAD = 8; // tile padding around the photo (room for the shadow)
 const FLIGHT_MS = 760;
 const APPEAR_MS = 380;
 const TARGET_SECONDS = 5;
+const PILE_REST_MS = 700;
 
 type State = "pile" | "flying" | "landed" | "gone";
 
@@ -102,6 +103,7 @@ export class SortEngine {
   private expected = 0;
   private perFrame = 1;
   private acc = 0;
+  private lastBorn = 0;
   private wobbling = false;
   private raf = 0;
   private ro: ResizeObserver;
@@ -147,7 +149,8 @@ export class SortEngine {
 
   /** Total number of assignments that will arrive; sets the release rate. */
   expectAssigns(n: number) {
-    this.perFrame = this.reduced ? n : Math.max(1, n / (60 * TARGET_SECONDS));
+    // fractional rates are fine: the accumulator releases one flight every 1/perFrame frames
+    this.perFrame = this.reduced ? n : Math.max(0.1, n / (60 * TARGET_SECONDS));
   }
 
   get pendingFlights() {
@@ -167,6 +170,7 @@ export class SortEngine {
       state: "pile",
       alpha: 1,
     };
+    this.lastBorn = s.born;
     this.sprites.set(id, s);
     this.order.push(s);
     const img = new Image();
@@ -277,7 +281,8 @@ export class SortEngine {
     if (!this.order.length) return;
 
     const pile = this.pileGeom(stage);
-    if (this.queue.length) this.launch(now, pile);
+    // let the finished pile rest a moment before things start flying
+    if (this.queue.length && (this.reduced || now - this.lastBorn > PILE_REST_MS)) this.launch(now, pile);
 
     const flying: Sprite[] = [];
     // 1) pile + landed

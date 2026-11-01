@@ -85,6 +85,15 @@ def test_zero_shot_and_screenshot_override():
     assert res[2][2] == "rule"
 
 
+def test_screenshot_needs_rule_or_high_confidence():
+    # purple-ish: CLIP leans "screenshots" (~55%) but below the 0.6 floor -> runner-up "red"
+    embs = _embs([(200, 80, 201)])
+    probs = classify.softmax(100 * (embs @ classify.category_matrix(FakeEmbedder(), CATS).T))[0]
+    assert 0.5 < probs[2] < classify.STRICT_SCREENSHOT
+    res = classify.classify_with_set(embs, [False], CATS, FakeEmbedder(), 0.1)
+    assert res[0][0] == "r"
+
+
 def test_low_confidence_unsorted():
     embs = _embs([(120, 120, 120)])  # gray: ambiguous
     res = classify.classify_with_set(embs, [False], CATS, FakeEmbedder(), 0.9)

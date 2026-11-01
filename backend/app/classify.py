@@ -10,6 +10,7 @@ from .embedder import Embedder, normalize
 from .presets import VOCABULARY
 
 LOGIT_SCALE = 100.0
+STRICT_SCREENSHOT = 0.6
 
 
 def category_matrix(embedder: Embedder, categories: list[dict]) -> np.ndarray:
@@ -52,16 +53,29 @@ def classify_with_set(
 ) -> list[tuple[str | None, float, str]]:
     """Preset/custom strategy. Returns (category_id or None for Unsorted, confidence, source)."""
     cat_mat = category_matrix(embedder, categories)
-    idx, prob = zero_shot(embs, cat_mat)
     shot_id = screenshot_category(categories)
     out: list[tuple[str | None, float, str]] = []
-    for i in range(len(idx)):
+    if len(embs) == 0:
+        return out
+    probs = softmax(LOGIT_SCALE * (embs @ cat_mat.T))
+    # per-category floor: CLIP alone must be very sure about "Screenshots" (the rule handles real ones)
+    floors = np.array([
+        max(min_confidence, float(c.get("min_confidence") or (STRICT_SCREENSHOT if c["id"] == shot_id else 0)))
+        for c in categories
+    ])
+    for i in range(len(embs)):
         if shot_id and screenshot_flags[i]:
             out.append((shot_id, 1.0, "rule"))
-        elif prob[i] >= min_confidence:
-            out.append((categories[int(idx[i])]["id"], float(prob[i]), "clip"))
+            continue
+        chosen = None
+        for j in np.argsort(-probs[i])[:2]:  # best, else runner-up
+            if probs[i, j] >= floors[j]:
+                chosen = int(j)
+                break
+        if chosen is None:
+            out.append((None, float(probs[i].max()), "clip"))
         else:
-            out.append((None, float(prob[i]), "clip"))
+            out.append((categories[chosen]["id"], float(probs[i, chosen]), "clip"))
     return out
 
 

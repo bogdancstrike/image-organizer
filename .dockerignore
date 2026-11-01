@@ -1,0 +1,9 @@
+.env
+.git
+**/node_modules
+frontend/dist
+data
+sample-library
+**/__pycache__
+**/.pytest_cache
+*.webm
