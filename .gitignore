@@ -6,3 +6,5 @@ __pycache__/
 data/
 sample-library/
 *.webm
+node_modules/
+frontend/dist/

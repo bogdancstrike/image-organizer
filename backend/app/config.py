@@ -17,6 +17,7 @@ class Settings:
     workers: int
     output_dir_name: str
     static_dir: Path | None
+    library_name: str = "Library"
 
     @property
     def ai_available(self) -> bool:
@@ -45,4 +46,5 @@ def load_settings() -> Settings:
         workers=max(1, int(env.get("WORKERS") or os.cpu_count() or 4)),
         output_dir_name=env.get("OUTPUT_DIR_NAME", "Organized"),
         static_dir=Path(static) if static else None,
+        library_name=env.get("LIBRARY_NAME") or "Library",
     )

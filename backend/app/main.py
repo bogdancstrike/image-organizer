@@ -76,6 +76,7 @@ def create_app(settings: Settings | None = None, embedder_factory=None, llm_fact
             "ai_available": s.ai_available,
             "model": s.openai_model if s.ai_available else None,
             "library_ok": s.library_root.is_dir(),
+            "library_name": s.library_name,
             "output_dir": s.output_dir_name,
         }
 
