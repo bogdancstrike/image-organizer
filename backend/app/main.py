@@ -128,6 +128,16 @@ class ReassignRequest(BaseModel):
     category_id: str
 
 
+log = logging.getLogger("app.main")
+
+RESET_PHRASE = "delete all data"
+
+
+class ResetRequest(BaseModel):
+    confirm: str = Field(..., max_length=100)
+    include_cache: bool = False
+
+
 class RenameRequest(BaseModel):
     name: str = Field(min_length=1, max_length=60)
 
@@ -519,6 +529,22 @@ def create_app(settings: Settings | None = None, embedder_factory=None, llm_fact
     def delete_face(ref_id: str):
         if not db.delete_face_ref(ref_id):
             raise HTTPException(404, "not found")
+
+    @app.post("/api/admin/reset")
+    def factory_reset(body: ResetRequest):
+        """Back to a freshly deployed state. Photos and folders on disk are never touched."""
+        if body.confirm.strip().lower() != RESET_PHRASE:
+            raise HTTPException(400, f'type "{RESET_PHRASE}" to confirm')
+        try:
+            manager.factory_reset(body.include_cache)
+        except BusyError as exc:
+            raise HTTPException(409, str(exc)) from exc
+        db.wipe()
+        store.wipe()
+        for j in s.journals_dir.glob("*.json"):
+            j.unlink(missing_ok=True)
+        log.warning("factory reset done (cache wiped: %s)", body.include_cache)
+        return {"ok": True}
 
     @app.get("/api/stats")
     def stats():

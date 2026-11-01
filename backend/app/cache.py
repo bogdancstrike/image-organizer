@@ -66,6 +66,15 @@ class AnalysisCache:
             )
             self._db.commit()
 
+    def wipe(self) -> None:
+        """Drop every cached analysis (embeddings, quality, OCR, faces, GPS…); files are re-analyzed on the next sort."""
+        with self._lock:
+            tables = [r[0] for r in self._db.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
+            for t in tables:
+                self._db.execute(f'DELETE FROM "{t}"')  # noqa: S608 - names come from sqlite_master
+            self._db.commit()
+            self._db.execute("VACUUM")
+
     def close(self) -> None:
         with self._lock:
             self._db.close()

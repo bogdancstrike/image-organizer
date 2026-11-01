@@ -130,6 +130,14 @@ class CategoryStore:
             self._db.commit()
         self.legacy.rename(self.legacy.with_suffix(".json.migrated"))
 
+    def wipe(self) -> None:
+        """Factory reset: drop every custom set and edited preset, then re-seed the built-in presets."""
+        with self._lock:
+            self._db.execute("DELETE FROM category_sets")
+            self._db.execute("DELETE FROM meta WHERE key='seed_version'")
+            self._db.commit()
+        self.seed()
+
     def seed(self) -> int:
         """Insert built-in presets that are missing (or refresh unedited ones after a preset update)."""
         with self._lock:

@@ -58,6 +58,13 @@ class AppDB:
             self._db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?,?)", (key, json.dumps(value)))
             self._db.commit()
 
+    def wipe(self) -> None:
+        """Factory reset: history, settings, statistics, saved sorts and reference faces."""
+        with self._lock:
+            for table in ("runs", "settings", "job_stats", "jobs", "face_refs"):
+                self._db.execute(f"DELETE FROM {table}")  # noqa: S608 - fixed table names
+            self._db.commit()
+
     # ---------------------------------------------------------------- finished sorts (survive refreshes & restarts)
     def save_job(self, snapshot: dict, keep: int = 20) -> None:
         with self._lock:

@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import random
+import shutil
 import threading
 import time
 import uuid
@@ -174,6 +175,18 @@ class JobManager:
                 self.db.save_job(job.snapshot(include_plan=True))
             except Exception as exc:  # noqa: BLE001 - persistence must never break a sort
                 log.warning("could not save job %s: %s", job.id, exc)
+
+    def factory_reset(self, include_cache: bool) -> None:
+        with self._lock:
+            if any(j.status in ("running", "applying") for j in self.jobs.values()):
+                raise BusyError("a sort is running; stop it first")
+            self.jobs.clear()
+        if include_cache:
+            for model in ("clip", "siglip2"):
+                self.cache_for(model).wipe()
+            for d in (self.s.thumbs_dir, self.s.data_dir / "previews"):
+                shutil.rmtree(d, ignore_errors=True)
+                d.mkdir(parents=True, exist_ok=True)
 
     def mark_undone(self, run_id: str) -> None:
         """After Undo the files are back: the sort is a plan again (can be edited and applied)."""

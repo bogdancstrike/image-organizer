@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { FacePicker } from "./FacePicker";
-import { Button, Drawer, Input, InputNumber, Popconfirm, Radio, Rate, Segmented, Select, Slider, Switch, Tag, Tooltip } from "antd";
+import { Button, Checkbox, Drawer, Input, InputNumber, Modal, Popconfirm, Radio, Rate, Segmented, Select, Slider, Switch, Tag, Tooltip } from "antd";
 import {
   Aperture,
   CalendarDays,
@@ -84,6 +84,82 @@ function Row({ label, hint, children, inline }: { label: string; hint?: ReactNod
       ) : (
         children
       )}
+    </div>
+  );
+}
+
+const RESET_PHRASE = "delete all data";
+
+/** Factory reset, GitHub-style: type the phrase to enable the button. Photos on disk are never touched. */
+function DangerZone() {
+  const [open, setOpen] = useState(false);
+  const [typed, setTyped] = useState("");
+  const [cache, setCache] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const ok = typed.trim().toLowerCase() === RESET_PHRASE;
+  const close = () => {
+    setOpen(false);
+    setTyped("");
+    setError(null);
+  };
+  const run = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.factoryReset(typed, cache);
+      try {
+        Object.keys(localStorage)
+          .filter((k) => k.startsWith("aio."))
+          .forEach((k) => localStorage.removeItem(k));
+      } catch {
+        /* storage unavailable */
+      }
+      window.location.assign("/sort");
+    } catch (e) {
+      setError((e as Error).message);
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="mt-4 rounded-xl border border-red-500/40 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className="text-[13px] font-semibold text-red-500">Danger zone · delete all app data</div>
+          <div className="text-[11px] text-plum/55">History, statistics, saved sorts, settings, faces and your category sets. Like a fresh install.</div>
+        </div>
+        <Button danger onClick={() => setOpen(true)}>
+          Delete all data…
+        </Button>
+      </div>
+      <Modal
+        open={open}
+        onCancel={close}
+        title="Delete all app data?"
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button onClick={close}>Cancel</Button>
+            <Button danger type="primary" disabled={!ok} loading={busy} onClick={run}>
+              I understand, delete everything
+            </Button>
+          </div>
+        }
+      >
+        <ul className="mb-3 list-disc space-y-1 pl-5 text-[13px] text-plum/80">
+          <li>History and undo records: <b>applied sorts can no longer be undone</b>.</li>
+          <li>Statistics, saved sorts, settings, uploaded faces.</li>
+          <li>Your category sets and edits to presets (presets come back as shipped).</li>
+          <li>Your photos and folders are <b>not</b> touched. Files in a <code>.aio-trash</code> folder stay there.</li>
+        </ul>
+        <Checkbox checked={cache} onChange={(e) => setCache(e.target.checked)}>
+          Also clear the analysis cache (thumbnails, embeddings, faces, OCR: the next sort re-analyzes everything)
+        </Checkbox>
+        <p className="mb-1.5 mt-4 text-[13px]">
+          To confirm, type <b className="select-all font-mono">{RESET_PHRASE}</b>:
+        </p>
+        <Input value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={RESET_PHRASE} status={typed && !ok ? "warning" : undefined} autoFocus />
+        {error && <p className="mt-2 text-[12px] text-red-500">{error}</p>}
+      </Modal>
     </div>
   );
 }
@@ -775,6 +851,7 @@ export function SettingsPanel({
             Copy
           </Button>
         </Row>
+        <DangerZone />
       </Section>
     </>
   );

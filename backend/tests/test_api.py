@@ -360,3 +360,15 @@ def test_places_samples_and_path_thumbs(client, settings):
     r = client.get("/api/thumb", params={"path": "Pictures/a.jpg"})
     assert r.status_code == 200 and r.headers["content-type"] == "image/webp"
     assert client.get("/api/thumb", params={"path": "../etc/passwd"}).status_code == 404
+
+
+def test_factory_reset_requires_phrase_and_clears_state(client, settings):
+    make_image(settings.library_root / "a.jpg", COLORS["red"], fmt="JPEG")
+    client.put("/api/settings", json={"strategy": "cull"})
+    client.post("/api/category-sets", json={"name": "Mine", "categories": [{"name": "Cats"}]})
+    assert client.post("/api/admin/reset", json={"confirm": "yes"}).status_code == 400
+    r = client.post("/api/admin/reset", json={"confirm": "Delete all data", "include_cache": True})
+    assert r.status_code == 200
+    assert client.get("/api/settings").json() == {} and client.get("/api/runs").json() == []
+    assert client.get("/api/category-sets").json() == [] and len(client.get("/api/presets").json()) >= 15
+    assert (settings.library_root / "a.jpg").exists()  # photos are never touched

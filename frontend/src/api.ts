@@ -370,6 +370,8 @@ export const api = {
     req<LibResults>(`/api/library/similar?${new URLSearchParams({ path, folder, model })}`),
   libPlaces: (folder: string) => req<PlacesResult>(`/api/library/places?${new URLSearchParams({ folder })}`),
   libTrips: (folder: string) => req<TripsResult>(`/api/library/trips?${new URLSearchParams({ folder })}`),
+  factoryReset: (confirm: string, includeCache: boolean) =>
+    req<{ ok: boolean }>("/api/admin/reset", { method: "POST", body: JSON.stringify({ confirm, include_cache: includeCache }) }),
   places: () => req<Place[]>("/api/places"),
   faces: () => req<FaceRef[]>("/api/faces"),
   addFace: async (file: File, name: string) => {
