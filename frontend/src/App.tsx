@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, App as AntApp, Button as AntButton, Tooltip } from "antd";
-import { History, SlidersHorizontal, Square, Sparkles, Undo2, RefreshCw, ChevronDown, FolderOpen } from "lucide-react";
+import { History, SlidersHorizontal, Sparkles, Undo2, RefreshCw, ChevronDown, FolderOpen } from "lucide-react";
 import { GithubOutlined } from "@ant-design/icons";
 import { api, subscribe, type CategorySet, type Health, type JobCategory, type JobEvent, type PlanItem, type Usage } from "./api";
 import { SortEngine } from "./anim/engine";
@@ -309,7 +309,11 @@ export default function App() {
           min_confidence: s.minConfidence,
           near_duplicates: s.nearDuplicates,
           split_media: s.splitMedia,
+          duplicates_action: s.duplicatesAction,
+          duplicate_keep: s.duplicateKeep,
+          near_dup_distance: s.nearDupDistance,
           ai_assist: s.aiAssist && !!health?.ai_available,
+          ai_max_files: s.aiMaxFiles,
           date_granularity: s.dateGranularity,
           max_clusters: s.maxClusters,
           output_dir: s.outputMode === "direct" ? "" : s.outputDir.trim() || "Organized",
@@ -473,59 +477,81 @@ export default function App() {
       {/* header */}
       <header className="flex flex-wrap items-center justify-between gap-3">
         <Logo />
-        <div className="flex items-center gap-1.5">
-          <span className="mr-2 hidden text-xs text-plum/55 md:inline">{statusText}</span>
-          <div className="mr-1">
-            <ThemeSwitcher />
-          </div>
-          <Tooltip title="History & undo">
-            <Button variant="ghost" size="icon" onClick={() => setDrawer("history")} aria-label="History">
-              <History size={18} />
-            </Button>
-          </Tooltip>
-          <Tooltip title="Settings">
-            <Button variant="ghost" size="icon" onClick={() => setDrawer("settings")} aria-label="Settings">
+        <div className="flex items-center gap-3">
+          <span className="hidden text-xs text-plum/55 md:inline">{statusText}</span>
+          <ThemeSwitcher />
+          <Tooltip title="Quick settings">
+            <Button variant="ghost" size="icon" onClick={() => setDrawer("settings")} aria-label="Quick settings">
               <SlidersHorizontal size={18} />
             </Button>
           </Tooltip>
-          {running ? (
-            <Button variant="soft" onClick={stop}>
-              <Square size={14} /> Stop
-            </Button>
-          ) : (
-            <Button onClick={startSort} disabled={!health?.library_ok}>
-              <LogoMark className="h-5 w-5" /> Sort
-            </Button>
-          )}
         </div>
       </header>
 
-      <nav className="mt-6 overflow-x-auto">
+      <nav className="mt-6 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <Segmented
           value={tab}
           onChange={(v) => setTab(v as typeof tab)}
           options={[
-            { value: "sort", label: <span className="inline-flex items-center gap-1.5 px-1"><LayoutGrid size={14} />Sort</span> },
+            { value: "sort", label: <span className="inline-flex items-center gap-1.5 px-1"><LayoutGrid size={14} /><span className="hidden sm:inline">Sort</span></span> },
             {
               value: "review",
               label: (
                 <span className="inline-flex items-center gap-1.5 px-1">
-                  <TableProperties size={14} />Review{plan.length ? <span className="text-plum/45">{fmt(plan.length)}</span> : null}
+                  <TableProperties size={14} /><span className="hidden sm:inline">Review</span>{plan.length ? <span className="text-plum/45">{fmt(plan.length)}</span> : null}
                 </span>
               ),
             },
-            { value: "categories", label: <span className="inline-flex items-center gap-1.5 px-1"><Tags size={14} />Categories</span> },
-            { value: "history", label: <span className="inline-flex items-center gap-1.5 px-1"><History size={14} />History</span> },
-            { value: "settings", label: <span className="inline-flex items-center gap-1.5 px-1"><Settings2 size={14} />Settings</span> },
+            { value: "categories", label: <span className="inline-flex items-center gap-1.5 px-1"><Tags size={14} /><span className="hidden sm:inline">Categories</span></span> },
+            { value: "history", label: <span className="inline-flex items-center gap-1.5 px-1"><History size={14} /><span className="hidden sm:inline">History</span></span> },
+            { value: "settings", label: <span className="inline-flex items-center gap-1.5 px-1"><Settings2 size={14} /><span className="hidden sm:inline">Settings</span></span> },
           ]}
         />
       </nav>
 
       <div className={tab === "sort" ? "" : "hidden"}>
-      {/* headline */}
-      <section className="mt-10">
-        <div className="mb-2 flex flex-wrap items-center gap-1.5">
-          <Badge variant="outline">{strategyLabel}</Badge>
+      {/* hero: what is sorted, one big obvious button, how */}
+      <section className="mx-auto mt-10 flex max-w-4xl flex-col items-center text-center">
+        <h1 className="text-[34px] font-semibold leading-[1.08] tracking-tight sm:text-[54px]">
+          Sorting my{" "}
+          <button
+            onClick={() => !running && setDrawer("folder")}
+            disabled={running}
+            title="Choose another folder"
+            className="group inline-flex cursor-pointer items-baseline gap-1 rounded-xl px-1 font-serif text-[1.12em] font-normal italic decoration-petal decoration-2 underline-offset-[10px] hover:underline disabled:cursor-default disabled:no-underline"
+          >
+            {folderName}
+            <ChevronDown className="h-6 w-6 self-center text-plum/40 transition-transform group-hover:translate-y-0.5 sm:h-8 sm:w-8" />
+          </button>{" "}
+          folder
+        </h1>
+        <button
+          onClick={() => !running && setDrawer("folder")}
+          className="mt-3 inline-flex max-w-full cursor-pointer items-center gap-1.5 truncate text-xs text-plum/55 hover:text-plum"
+        >
+          <FolderOpen size={13} className="shrink-0" />
+          <span className="truncate">
+            {displayPath(health, settings.source)} → {settings.outputMode === "direct" ? "sorted folders directly inside" : `${settings.outputDir || "Organized"}/`}
+          </span>
+        </button>
+
+        <div className="mt-7 flex flex-col items-center gap-2">
+          {running ? (
+            <Button size="xl" variant="soft" onClick={stop} className="min-w-52">
+              <LogoMark spinning className="h-6 w-6" /> Stop
+            </Button>
+          ) : (
+            <Button size="xl" onClick={startSort} disabled={!health?.library_ok} className="min-w-52">
+              <LogoMark className="h-6 w-6" /> {job.status === "idle" ? "Sort" : "Sort again"}
+            </Button>
+          )}
+          <span className="text-xs text-plum/55">{running ? statusText : job.status === "idle" ? "Nothing is moved until you press Apply" : statusText}</span>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-1.5">
+          <button onClick={() => setDrawer("settings")} className="cursor-pointer" title="Change how files are organized">
+            <Badge variant="outline">{strategyLabel} ✎</Badge>
+          </button>
           <Badge variant="outline">{settings.recursive ? "incl. subfolders" : "this folder only"}</Badge>
           {job.context?.theme && (
             <Badge>
@@ -545,36 +571,8 @@ export default function App() {
               <Sparkles size={11} /> AI names
             </Badge>
           )}
-          {running && (
-            <span className="ml-1 inline-flex items-center gap-1.5 text-xs text-plum/55 md:hidden">
-              <LogoMark spinning className="h-3.5 w-3.5" /> {statusText}
-            </span>
-          )}
         </div>
-        <h1 className="text-[38px] font-semibold leading-[1.05] tracking-tight sm:text-[56px]">
-          Sorting my{" "}
-          <button
-            onClick={() => !running && setDrawer("folder")}
-            disabled={running}
-            title="Choose another folder"
-            className="group inline-flex cursor-pointer items-baseline gap-1 rounded-xl px-1 font-serif text-[1.12em] font-normal italic decoration-petal decoration-2 underline-offset-[10px] hover:underline disabled:cursor-default disabled:no-underline"
-          >
-            {folderName}
-            <ChevronDown className="h-6 w-6 self-center text-plum/40 transition-transform group-hover:translate-y-0.5 sm:h-8 sm:w-8" />
-          </button>{" "}
-          folder
-        </h1>
       </section>
-
-      <button
-        onClick={() => !running && setDrawer("folder")}
-        className="mt-3 inline-flex max-w-full cursor-pointer items-center gap-1.5 truncate text-xs text-plum/55 hover:text-plum"
-      >
-        <FolderOpen size={13} className="shrink-0" />
-        <span className="truncate">
-          {displayPath(health, settings.source)} → {settings.outputMode === "direct" ? "sorted folders directly inside" : `${settings.outputDir || "Organized"}/`}
-        </span>
-      </button>
 
       <div className="mt-7">
         <Stats values={stats} />
@@ -793,6 +791,10 @@ export default function App() {
         health={health}
         onEditCategories={() => setDrawer("editor")}
         onPickFolder={() => setDrawer("folder")}
+        onOpenAll={() => {
+          setDrawer(null);
+          setTab("settings");
+        }}
       />
       <FolderPicker
         open={drawer === "folder"}

@@ -30,6 +30,7 @@ from .scanner import MediaFile, resolve_in_library, scan
 log = logging.getLogger(__name__)
 
 CHUNK = 48
+TRASH_DIR = ".aio-trash"  # recoverable "delete": hidden, skipped by scans, emptied explicitly from History
 TERMINAL = {"done", "error", "cancelled"}
 
 
@@ -150,8 +151,8 @@ class JobManager:
         try:
             journal = apply_plan(
                 self.s.library_root,
-                [{"rel_path": p["rel_path"], "destination": p["destination"], "sidecars": p.get("sidecars") or []}
-                 for p in job.plan],
+                [{"rel_path": p["rel_path"], "destination": p["destination"], "sidecars": p.get("sidecars") or [],
+                  "xmp": p.get("xmp")} for p in job.plan],
                 mode,
                 self.s.journals_dir,
                 job.id,
@@ -163,6 +164,19 @@ class JobManager:
         job.status = "applied"
         job.run_id = journal["run_id"]
         return journal
+
+    @staticmethod
+    def _xmp_for(fid, cid, quality, rules, bursts) -> dict | None:
+        """Lightroom/Capture One rating & label: rejects -1/Red, picks 5/Green, else stars from the keeper score."""
+        q = quality.get(fid)
+        if q is None:
+            return None
+        rejected = cid in REASONS or cid.startswith("_reject-") or (bursts.get(fid) and not bursts[fid]["best"])
+        if rejected:
+            return {"rating": -1, "label": "Red"}
+        if cid == "picks":
+            return {"rating": 5, "label": "Green"}
+        return {"rating": stars(score(q, rules)), "label": None}
 
     def reassign(self, job_id: str, file_ids: list[str], category_id: str) -> dict:
         """Manual override before Apply: move files to another category of the same job."""
@@ -325,7 +339,8 @@ class JobManager:
         if need_quality and qopts.get("bursts", True):
             cand = [(f.id, str(Path(f.rel_path).parent), a.captured_at, e) for f, a, e in ordered
                     if f.kind == "image" and f.id in quality]
-            groups = find_bursts(cand, float(qopts.get("burst_seconds", 2.0)), float(qopts.get("burst_similarity", 0.9)))
+            window = 1e12 if qopts.get("similar_any_time") else float(qopts.get("burst_seconds", 2.0))
+            groups = find_bursts(cand, window, float(qopts.get("burst_similarity", 0.9)))
             members: dict[int, list[str]] = {}
             for fid, g in groups.items():
                 members.setdefault(g, []).append(fid)
@@ -343,7 +358,8 @@ class JobManager:
             for f, a, e in ordered
         ]
         dup_map = find_duplicates(dup_items, near=opts.get("near_duplicates", True),
-                                  max_distance=int(opts.get("near_dup_distance", 4)))
+                                  max_distance=int(opts.get("near_dup_distance", 4)),
+                                  keep=opts.get("duplicate_keep", "best"))
         job.stats["duplicates"] = len(dup_map)
         job.emit("stats", **job.stats)
 
@@ -374,26 +390,47 @@ class JobManager:
         cats_by_id = {c["id"]: c for c in categories}
         if any(cid is None for cid, _, _ in assignment.values()):
             cats_by_id[UNSORTED["id"]] = dict(UNSORTED)
+        dup_action = opts.get("duplicates_action", "folder")
         if dup_map:
-            cats_by_id[DUPLICATES["id"]] = dict(DUPLICATES)
+            label = {"keep": "Duplicates (left in place)", "delete": "Duplicates → trash"}.get(dup_action, "Duplicates")
+            cats_by_id[DUPLICATES["id"]] = {**DUPLICATES, "name": label}
         split = opts.get("split_media", True)
+        trash_dir = "/".join(p for p in (source_rel, TRASH_DIR) if p)
+        # keepers first, so duplicates can follow their original
+        dest_of: dict[str, tuple[str, str]] = {}
+        for f, a, e in ordered:
+            if f.id not in dup_map:
+                cid = assignment[f.id][0] or UNSORTED["id"]
+                dest_of[f.id] = (cid, destination(source_rel, out_dir, f.kind, cats_by_id[cid], split))
         plan = []
         for f, a, e in ordered:
-            if f.id in dup_map:
+            if f.id in dup_map and dup_action == "with_original":
+                cid, dest = dest_of[dup_map[f.id]]
+                conf, src = 1.0, "duplicate"
+            elif f.id in dup_map:
                 cid, conf, src = DUPLICATES["id"], 1.0, "duplicate"
+                parent = Path(f.rel_path).parent.as_posix()
+                if dup_action == "keep":
+                    dest = "" if parent == "." else parent  # same folder: apply skips it
+                elif dup_action == "delete":
+                    dest = trash_dir
+                else:
+                    dest = destination(source_rel, out_dir, f.kind, cats_by_id[cid], split)
             else:
                 cid, conf, src = assignment[f.id]
                 cid = cid or UNSORTED["id"]
+                dest = dest_of[f.id][1]
             cat = cats_by_id[cid]
             plan.append({
                 "file_id": f.id, "rel_path": f.rel_path, "name": f.name, "kind": f.kind,
                 "thumb": f"/api/thumbs/{a.sha256}", "category_id": cid, "category": cat["name"],
                 "confidence": round(float(conf), 4), "source": src,
-                "destination": destination(source_rel, out_dir, f.kind, cat, split),
+                "destination": dest,
                 "duplicate_of": dup_map.get(f.id),
                 "sidecars": list(f.sidecars),
                 "quality": summary(quality[f.id], rules) if f.id in quality else None,
                 "burst": bursts.get(f.id),
+                "xmp": self._xmp_for(f.id, cid, quality, rules, bursts) if qopts.get("write_xmp") and f.kind == "image" else None,
             })
         counts: dict[str, dict[str, int]] = {}
         for p in plan:
@@ -427,7 +464,7 @@ class JobManager:
             if job.cancel_requested:
                 return f, None
             cached = self.cache.get_quality(str(f.path), f.size, f.mtime)
-            if cached and (cached.get("faces_checked") or not fa.available):
+            if cached and "noise" in cached and (cached.get("faces_checked") or not fa.available):
                 return f, Quality.from_dict(cached)
             try:
                 q = analyze_image(load_for_quality(f.path), fa)
@@ -468,6 +505,9 @@ class JobManager:
             for reason, (name, emoji) in REASONS.items():
                 cats.append({"id": reason, "name": name, "emoji": emoji})
             cats.append({"id": "videos", "name": "Videos", "emoji": "🎬", "media": "video"})
+            picks_pct = float(qopts.get("picks_percent", 0))
+            if picks_pct > 0:
+                cats.insert(0, {"id": "picks", "name": "Picks ★", "emoji": "🏆"})
             used: set[str] = set()
             for f, _, _ in keep:
                 if f.kind == "video":
@@ -486,6 +526,12 @@ class JobManager:
                         cid = "smiling" if smiles and smiling else "keepers"
                 assignment[f.id] = (cid, 1.0, "quality")
                 used.add(cid)
+            if picks_pct > 0:
+                kept = [f.id for f, _, _ in keep if assignment[f.id][0] in ("keepers", "smiling") and f.id in (quality or {})]
+                n_picks = max(1, round(len(kept) * picks_pct / 100)) if kept else 0
+                for fid in sorted(kept, key=lambda i: -score(quality[i], rules))[:n_picks]:
+                    assignment[fid] = ("picks", 1.0, "quality")
+                    used.add("picks")
             return assignment, [c for c in cats if c["id"] in used]
 
         if strategy == "date":
@@ -544,7 +590,8 @@ class JobManager:
         for (f, _, _), r in zip(keep, res):
             assignment[f.id] = r
         if opts.get("ai_assist"):
-            self._assist(job, keep, assignment, cats, int(opts.get("ai_max_files", 200)))
+            scope = ((opts.get("ai") or {}).get("assist_scope")) or "unsure"
+            self._assist(job, keep, assignment, cats, int(opts.get("ai_max_files", 200)), scope)
         return assignment, cats
 
     def _llm(self, job: Job) -> LLMClient | None:
@@ -556,6 +603,8 @@ class JobManager:
                     llm.model = ai["model"]
                 if ai.get("reasoning_effort"):
                     llm.effort = ai["reasoning_effort"]
+                llm.naming_prompt = ai.get("naming_prompt") or ""
+                llm.assist_prompt = ai.get("assist_prompt") or ""
                 llm.naming_instructions = ai.get("naming_instructions") or ""
                 llm.assist_instructions = ai.get("assist_instructions") or ""
                 llm.assist_batch = int(ai.get("assist_batch") or llm.assist_batch)
@@ -588,8 +637,12 @@ class JobManager:
             job.emit("warning", message=job.warnings[-1])
             return fallback
 
-    def _assist(self, job, keep, assignment, cats, max_files: int) -> None:
-        unsure = [(f, a) for f, a, _ in keep if assignment[f.id][0] is None][:max_files]
+    def _assist(self, job, keep, assignment, cats, max_files: int, scope: str = "unsure") -> None:
+        """AI picks the folder: for uncertain files only (cheap) or for every file (most accurate)."""
+        if scope == "all":
+            unsure = [(f, a) for f, a, _ in keep][:max_files]
+        else:
+            unsure = [(f, a) for f, a, _ in keep if assignment[f.id][0] is None][:max_files]
         if not unsure:
             return
         llm = self._llm(job)
@@ -603,7 +656,10 @@ class JobManager:
                 thumbs.append(t)
                 owners.append(f)
         try:
-            labels = llm.assist(thumbs, [c["name"] for c in cats])
+            folders = [{"name": c["name"], "hint": c.get("ai_hint") or "; ".join((c.get("prompts") or [])[:2])
+                        + (" (videos only)" if c.get("media") == "video" else "")} for c in cats]
+            job.emit("phase", phase="ai")
+            labels = llm.assist(thumbs, folders)
         except Exception as exc:  # noqa: BLE001
             log.warning("assist failed: %s", exc)
             job.warnings.append(f"AI assist failed, kept local results ({type(exc).__name__})")

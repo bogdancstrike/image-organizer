@@ -55,5 +55,5 @@ See [categories.md](categories.md) for details and tips.
 4. Changed your mind? Press **Undo** in the notice, or open **History** (clock icon) at any time later.
 
 ## 5. Themes
-Three themes: **Blossom** (pink), **Sky** (blue) and **Graphite** (dark, shadcn/ui-style). Switch them with the
-swatches in the header. Your choice is remembered.
+Three themes: **Graphite** (dark, shadcn/ui-style, default), **Light** and **Lavender**. Switch them with the
+swatches in the header or in Settings → Appearance. Your choice is remembered.

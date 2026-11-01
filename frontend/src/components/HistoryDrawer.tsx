@@ -63,6 +63,26 @@ export function HistoryList({ active, onUndone }: { active: boolean; onUndone: (
               )}
             </div>
             {r.failed > 0 && <div className="mt-1 text-[11px] text-red-500">{r.failed} failed</div>}
+            {!!r.in_trash && r.status !== "undone" && (
+              <div className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-tint px-2.5 py-1.5 text-[12px] text-plum/75">
+                <span>🗑️ {r.in_trash} duplicate{r.in_trash === 1 ? "" : "s"} in trash (still recoverable with Undo)</span>
+                <Popconfirm
+                  title="Delete these files permanently?"
+                  description="This cannot be undone."
+                  okText="Delete forever"
+                  okButtonProps={{ danger: true }}
+                  onConfirm={async () => {
+                    const res = await api.emptyTrash(r.run_id);
+                    message.success(`Deleted ${res.deleted} files · freed ${(res.freed_bytes / 1e6).toFixed(1)} MB`);
+                    refresh();
+                  }}
+                >
+                  <Button size="small" danger>
+                    Empty trash
+                  </Button>
+                </Popconfirm>
+              </div>
+            )}
           </div>
         ))}
       </div>

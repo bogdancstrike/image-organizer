@@ -23,6 +23,7 @@ class CategoryIn(BaseModel):
     emoji: str | None = Field(default=None, max_length=8)
     prompts: list[str] = Field(default_factory=list, max_length=8)
     media: Literal["any", "image", "video"] = "any"  # which files this folder accepts
+    ai_hint: str | None = Field(default=None, max_length=300)  # extra instruction for the AI about this folder
 
     @field_validator("name")
     @classmethod
@@ -66,7 +67,8 @@ def to_set_dict(set_id: str, data: CategorySetIn) -> dict:
             cid = f"{base}-{n}"
             n += 1
         used.add(cid)
-        cats.append({"id": cid, "name": c.name, "emoji": c.emoji or "📁", "prompts": c.prompts, "media": c.media})
+        cats.append({"id": cid, "name": c.name, "emoji": c.emoji or "📁", "prompts": c.prompts, "media": c.media,
+                     "ai_hint": (c.ai_hint or "").strip() or None})
     return {"id": set_id, "name": data.name.strip(), "description": data.description, "categories": cats, "custom": True}
 
 

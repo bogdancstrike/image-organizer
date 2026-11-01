@@ -146,7 +146,7 @@ class _FakeResponses:
             raise TimeoutError("boom")
         n = sum(1 for c in kw["input"][0]["content"] if c["type"] == "input_image")
         text = kw["input"][0]["content"][0]["text"]
-        if "contact sheets" in text:
+        if "contact sheets" in text or "collection" in text:
             groups = n - 1  # first image is the overview sheet
             out = {"collection": "Test shoot", "groups": [{"i": i + 1, "name": f"Group Name {i + 1}", "emoji": "✨"} for i in range(groups)]}
         else:
@@ -291,3 +291,58 @@ def test_ai_overrides_reach_the_model(settings, fake_embedder):
     call = fr.calls[0]
     assert call["model"] == "gpt-5.6-luna" and call["reasoning"] == {"effort": "minimal"}
     assert "Use Romanian names" in call["input"][0]["content"][0]["text"]
+
+
+@pytest.mark.parametrize("action", ["folder", "with_original", "keep", "delete"])
+def test_duplicate_actions(client, settings, action):
+    lib = settings.library_root
+    build_library(lib)
+    set_id = client.post("/api/category-sets", json=RED_GREEN).json()["id"]
+    body = {"strategy": "custom", "set_id": set_id, "options": {"duplicates_action": action}}
+    job = wait(client, client.post("/api/jobs", json=body).json()["id"])
+    dup = next(p for p in job["plan"] if p["name"] == "r0 (1).jpg")
+    keeper = next(p for p in job["plan"] if p["name"] == "r0.jpg")
+    expected = {"folder": "Organized/_Duplicates", "with_original": keeper["destination"], "keep": "", "delete": ".aio-trash"}[action]
+    assert dup["destination"] == expected
+    r = client.post(f"/api/jobs/{job['id']}/apply", json={"mode": "move"}).json()
+    if action == "keep":
+        assert (lib / "r0 (1).jpg").exists()
+    if action == "delete":
+        assert (lib / ".aio-trash" / "r0 (1).jpg").exists()
+        run = next(x for x in client.get("/api/runs").json() if x["run_id"] == r["run_id"])
+        assert run["in_trash"] == 1
+        assert client.post(f"/api/runs/{r['run_id']}/empty-trash").json()["deleted"] == 1
+        assert not (lib / ".aio-trash" / "r0 (1).jpg").exists()
+
+
+def test_duplicate_keep_newest(client, settings):
+    import os
+    lib = settings.library_root
+    make_image(lib / "a.jpg", COLORS["red"], fmt="JPEG", noise_seed=3)
+    (lib / "b.jpg").write_bytes((lib / "a.jpg").read_bytes())
+    os.utime(lib / "a.jpg", (1000, 1000))
+    os.utime(lib / "b.jpg", (9000, 9000))
+    job = wait(client, client.post("/api/jobs", json={"strategy": "date", "options": {"duplicate_keep": "newest"}}).json()["id"])
+    dup = next(p for p in job["plan"] if p["duplicate_of"])
+    assert dup["name"] == "a.jpg"
+
+
+def test_ai_assist_all_files_custom_prompt_and_category_hint(settings, fake_embedder):
+    build_library(settings.library_root)
+    fr = _FakeResponses()
+    sets = {"name": "Colors", "categories": [
+        {"name": "Red things", "prompts": ["red"], "ai_hint": "anything mostly red"},
+        {"name": "Green things", "prompts": ["green"]},
+    ]}
+    with TestClient(_llm_app(settings, fake_embedder, fr)) as c:
+        sid = c.post("/api/category-sets", json=sets).json()["id"]
+        body = {"strategy": "custom", "set_id": sid, "options": {"ai_assist": True, "near_duplicates": False,
+                "ai": {"assist_scope": "all", "assist_batch": 4, "assist_prompt": "MY PROMPT {count} images. Folders:\n{folders}"}}}
+        job = wait(c, c.post("/api/jobs", json=body).json()["id"])
+        d = c.get("/api/ai/defaults").json()
+    assert "{folders}" in d["assist_prompt"] and "{theme}" in d["naming_prompt"]
+    texts = [call["input"][0]["content"][0]["text"] for call in fr.calls]
+    assert len(fr.calls) == 3  # 10 photos / 4 per request
+    assert texts[0].startswith("MY PROMPT 4 images") and "Red things: anything mostly red" in texts[0]
+    assert "Green things: green" in texts[0] and texts[0].rstrip().endswith("in order.")
+    assert all(p["source"] == "ai" for p in job["plan"] if p["category"] == "Red things")

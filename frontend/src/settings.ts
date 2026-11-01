@@ -17,9 +17,13 @@ export interface UiSettings {
   recursive: boolean;
   pairSidecars: boolean;
   quality: QualityOptions;
+  duplicatesAction: "folder" | "with_original" | "keep" | "delete";
+  duplicateKeep: "best" | "oldest" | "newest";
+  nearDupDistance: number;
   focus: "auto" | "scene" | "framing" | "outfit" | "lighting" | "subject";
   granularity: "coarse" | "normal" | "fine";
   ai: AIOptions;
+  aiMaxFiles: number;
 }
 
 export const DEFAULT_SETTINGS: UiSettings = {
@@ -55,10 +59,22 @@ export const DEFAULT_SETTINGS: UiSettings = {
     burst_seconds: 2,
     burst_similarity: 0.9,
     keeper_min_stars: 0,
+    noise_check: false,
+    noise_threshold: 0.045,
+    tilt_check: false,
+    tilt_tolerance: 1.5,
+    face_crop: false,
+    picks_percent: 0,
+    similar_any_time: false,
+    write_xmp: false,
   },
+  duplicatesAction: "folder",
+  duplicateKeep: "best",
+  nearDupDistance: 4,
   focus: "auto",
   granularity: "normal",
-  ai: { model: null, reasoning_effort: null, naming_instructions: "", assist_instructions: "", assist_batch: 12 },
+  aiMaxFiles: 300,
+  ai: { model: null, reasoning_effort: null, naming_prompt: "", assist_prompt: "", assist_scope: "unsure", assist_batch: 12 },
 };
 
 const KEY = "aio.settings.v1";

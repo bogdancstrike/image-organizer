@@ -39,7 +39,7 @@ structure. Nothing moves until you press **Apply**, and every apply can be **und
 - 📸 **Built for photographers.** Culling with blur, eyes-closed and exposure checks, best-of-burst, stars, and RAW + JPEG pairs.
 - 🔒 **Private by default.** Everything runs on your machine. AI is an optional, token-frugal helper.
 - ↩️ **Safe.** You get a plan, then Apply, and a journal records every move, so Undo restores every file.
-- 🎞️ **Delightful.** A pile of polaroids flies into folder cards. Four themes: **Graphite** (default), Light, Midnight, Lavender.
+- 🎞️ **Delightful.** A pile of polaroids flies into folder cards. Three themes: **Graphite** (default), Light and Lavender.
 
 ## 🚀 Quick start
 
@@ -60,13 +60,13 @@ Open **http://localhost:8080**, click the folder name in *"Sorting my **…** fo
 
 | Mode | What you get | Good for |
 |---|---|---|
-| **Preset** | 13 ready-made, **editable** folder sets | Instant results |
+| **Preset** | 14 ready-made, **editable** folder sets | Instant results |
 | **My categories** | Your own folders, each described in a few words (and *Photos-only / Videos-only*) | Your Instagram system, client workflows |
 | **Auto-discover** | Groups found automatically, named by **what makes them different** inside your folder | Unknown dumps, a studio shoot, a wedding |
 | **By date** | `2025/07 - July` from EXIF / video metadata | Archives |
-| **Cull** | Keepers · Smiling · Maybe · Blurry · Eyes closed · Too dark/bright · Burst extras | Photographers |
+| **Cull** | Picks ★ · Keepers · Smiling · Maybe · Blurry · Eyes closed · Too dark/bright · Noisy · Burst extras | Photographers |
 
-**Presets:** Lifestyle · People & Style · Photoshoot themes (wedding, halloween, moto, pool, studio …) · Wedding day ·
+**Presets:** Lifestyle · People & Style · Boudoir & glamour · Photoshoot themes (wedding, halloween, moto, pool, studio …) · Wedding day ·
 Instagram creator · Travel · Creator · Family & kids · Events · Real estate · Nature & wildlife · Food & product · Documents.
 Every preset can be edited from **/categories** and reset to its default.
 
@@ -84,6 +84,10 @@ groups like *Full-body · Golden hour* or *Close-up · Low-key*, not "Wedding" f
 | **Exposure** | Too dark / too bright, with adjustable thresholds |
 | **Best of burst** | Near-identical frames shot seconds apart: keep the best, set the rest aside |
 | **Score & stars** | 0–100 keeper score and 1–5 ★ for every photo; *Maybe* for keepers under your star bar |
+| **Noise · tilted horizon · face cut off** | Opt-in checks: Immerkær noise estimate, consistent horizon lines (beta), faces touching the frame |
+| **Picks ★** | The top X % of keepers by score get their own folder |
+| **Best of similar** | Like best-of-burst, but for near-identical shots taken at any time |
+| **Lightroom / Capture One** | On Apply, write `.xmp` sidecars with ★ ratings and color labels (picks Green, rejects Red); removed on Undo |
 | **RAW workflow** | `.ARW .CR2 .CR3 .NEF .DNG .RAF …` read through the embedded preview; **RAW + JPEG pairs and `.xmp` sidecars move together** |
 
 Use **Cull** on its own, or switch on *quality checks* with any other mode to set rejects aside in `_Rejects/<reason>`.
@@ -91,7 +95,9 @@ Use **Cull** on its own, or switch on *quality checks* with any other mode to se
 ### Safe by design
 - **Plan → Review → Apply → Undo.** Review the plan in a sortable, filterable table, open any photo full-size, and **reassign** files (or a whole selection) before applying.
 - Move **or** copy. Collisions become `name (1).jpg`, and a journal makes undo work even after a restart.
-- Duplicates (byte-identical **and** resized or re-saved copies) go to `_Duplicates`. Nothing is ever deleted.
+- Duplicates (byte-identical **and** resized or re-saved copies): **set aside** in `_Duplicates`, put **next to the original**,
+  **left in place**, or **deleted** into a recoverable `.aio-trash/` (Undo restores; *Empty trash* in History deletes for good).
+  Choose which copy counts as the original: best quality, oldest or newest.
 
 ### Fast & frugal
 - CLIP ViT-B/32 on **ONNX/CPU**: about 100 photos in about 5 s on first run, and **re-runs are instant** thanks to the analysis cache.
@@ -102,20 +108,24 @@ Use **Cull** on its own, or switch on *quality checks* with any other mode to se
 Without a key, everything works offline. With `OPENAI_API_KEY`, the app uses **`gpt-6-luna`** (`reasoning: low`):
 - **Auto naming:** *one* request per sort (small contact sheets at `detail: low`), measured at **about 1k tokens and 4–6 s**.
   On a mountain wedding shoot it answered *"Mountain Wedding"* with groups like *Mountain Vistas*, *Monochrome Veils*, *Portraits & Details*.
-- **AI assist** (opt-in): only *uncertain* files, 12 thumbnails per request.
-- Model, reasoning effort and extra instructions (your own "system prompt") are editable in **Settings → AI**.
+- **AI assist** (opt-in): only *uncertain* files (cheap) **or every photo** (most accurate), 12 low-detail thumbnails per request.
+- **Editable prompts:** the naming and assist prompts are shown pre-filled; tweak them or reset. Each folder can carry its own
+  **AI hint** ("only if a motorcycle is clearly visible"); folders without one are described by their CLIP descriptions.
+- Model (any vision model on your key) and reasoning effort are switchable per run in **Settings → AI**.
 
 ## 🖼 Screenshots
 
-| Sorted | Review & edit the plan |
+| Start: pick a folder, press Sort | Sorted (Graphite theme) |
 |---|---|
-| <img src="docs/assets/screenshot-dark.png" alt="Sorted folders in the Graphite theme" /> | <img src="docs/assets/screenshot-review.png" alt="Review table" /> |
-| **Full-size viewer** | **Categories & editable presets** |
-| <img src="docs/assets/screenshot-lightbox.png" alt="Lightbox" /> | <img src="docs/assets/screenshot-categories.png" alt="Categories" /> |
-| **Category editor (presets are editable too)** | **Pro culling settings** |
-| <img src="docs/assets/screenshot-editor.png" alt="Category editor" /> | <img src="docs/assets/screenshot-settings.png" alt="Settings page" /> |
-| **Analyzing: the pile builds up** | **Light theme** |
-| <img src="docs/assets/screenshot-pile.png" alt="Pile of thumbnails while analyzing" /> | <img src="docs/assets/screenshot-light.png" alt="Light theme" /> |
+| <img src="docs/assets/screenshot-home.png" alt="Start screen with the animated aperture" /> | <img src="docs/assets/screenshot-dark.png" alt="Sorted folders" /> |
+| **Review & edit the plan** | **Full-size viewer** |
+| <img src="docs/assets/screenshot-review.png" alt="Review table" /> | <img src="docs/assets/screenshot-lightbox.png" alt="Lightbox" /> |
+| **Quick settings: strategy, presets, culling** | **Category editor (presets are editable too)** |
+| <img src="docs/assets/screenshot-quick-settings.png" alt="Quick settings drawer" /> | <img src="docs/assets/screenshot-editor.png" alt="Category editor" /> |
+| **Categories & presets** | **AI settings: editable prompts, scope** |
+| <img src="docs/assets/screenshot-categories.png" alt="Categories" /> | <img src="docs/assets/screenshot-settings-ai.png" alt="AI settings" /> |
+| **Pro culling settings** | **Light theme** |
+| <img src="docs/assets/screenshot-settings.png" alt="Culling settings" /> | <img src="docs/assets/screenshot-light.png" alt="Light theme" /> |
 
 ## ⚙️ How it works
 
@@ -140,6 +150,18 @@ Measured with [`scripts/benchmark.py`](scripts/benchmark.py) on the bundled Dock
 | Cull · scale test (faces, blur, bursts) | 995 | **10.4 s** (95 files/s) | 0.2 s |
 | Auto-discover + AI naming (`gpt-6-luna`, 1 call) | 30–199 | **4–6 s** (dominated by the API call) | same |
 | Video: 60 s 1080p clip (3 keyframes + hash) | 1 | **0.3 s** | – |
+
+**With AI** (`gpt-6-luna`, `reasoning: low`, 12 thumbnails per request at `detail: low`, 6 requests in parallel; analysis cached):
+
+| Run | Files | Wall time | Requests | Tokens in / out | Result |
+|---|---|---|---|---|---|
+| Lifestyle preset + AI on **every** photo | 115 | 15.4 s | 10 | 5.8k / 3.9k | 101 placed by AI, 4 unsorted |
+| People & Style preset + AI on **every** photo | 199 | 21.7 s | 17 | 10.3k / 8.1k | 192 placed by AI, 0 unsorted |
+| People & Style preset + AI on **unsure** photos only | 199 | 6.6 s | 1 | 0.6k / 0.5k | 12 placed by AI, 0 unsorted |
+| Auto-discover + AI naming | 199 | 5.1 s | 1 | 1.0k / 0.3k | collection + group names |
+
+Rule of thumb: AI on every photo costs **≈ 50 input + 40 output tokens per photo** and adds about **0.1 s per photo**.
+Unsure-only usually needs a single request.
 
 - **Memory:** about 50 MB idle; **about 2.2 GB peak** while culling 1,000 photos (CLIP + MediaPipe + 8 workers).
 - **Disk:** image ≈ 2.1 GB (models included, works offline). Cache ≈ **12 KB per photo** (WebP thumbnail + analysis), so 100k photos take about 1.2 GB in `./data`.

@@ -22,6 +22,36 @@ log = logging.getLogger(__name__)
 
 ASSIST_BATCH = 12
 
+# Editable prompt templates (Settings → AI). {placeholders} are filled in; the JSON reply format is always
+# appended by the app, so a user edit can never break parsing.
+DEFAULT_NAMING_PROMPT = (
+    "You organize a photographer's folder into sub-folders. First look at the overview of the whole folder "
+    "(local guess: {theme}) and name the collection in 1-4 words, e.g. 'Trash the dress · mountains', "
+    "'Studio fashion shoot', 'Instagram outfits'.\n"
+    "Then {groups} contact sheets follow; each shows ONE group. Give each group a short folder name (1-4 words, "
+    "Title Case) that says what makes it DIFFERENT from the other groups in this same collection: pose, framing, "
+    "location, lighting, outfit, people, props. Do not just repeat the collection name. Prefer names about {focus}. "
+    "Names must be distinct; add one fitting emoji each."
+)
+DEFAULT_ASSIST_PROMPT = (
+    "You sort photos into the user's folders. Put each of the {count} images into exactly ONE folder from this list:\n"
+    "{folders}\n"
+    "Judge what the photo shows (people, outfit, place, mood). If no folder fits, answer \"Unsorted\"."
+)
+NAMING_FORMAT = ' Reply JSON only: {"collection":"...","groups":[{"i":1,"name":"...","emoji":"..."}]}'
+ASSIST_FORMAT = ' Reply JSON only: {"labels":["<folder>", ...]} with one label per image, in order.'
+
+
+def _fill(template: str, **values) -> str:
+    """str.format that leaves unknown {placeholders} untouched (user templates may contain braces)."""
+    class _Safe(dict):
+        def __missing__(self, key):
+            return "{" + key + "}"
+    try:
+        return template.format_map(_Safe(**values))
+    except (ValueError, IndexError):
+        return template
+
 
 def _data_url(img: Image.Image, quality: int = 70) -> str:
     buf = io.BytesIO()
@@ -62,6 +92,8 @@ class LLMClient:
         self.model = model
         self.effort = effort
         self.usage = {"calls": 0, "input_tokens": 0, "output_tokens": 0}
+        self.naming_prompt = ""  # "" = DEFAULT_NAMING_PROMPT (Settings → AI)
+        self.assist_prompt = ""  # "" = DEFAULT_ASSIST_PROMPT
         self.naming_instructions = ""  # user-provided extra guidance (Settings → AI)
         self.assist_instructions = ""
         self.assist_batch = ASSIST_BATCH
@@ -93,21 +125,13 @@ class LLMClient:
         local_hints: list[str] | None = None,
     ) -> tuple[str, list[tuple[str, str]]]:
         """One request: name the whole collection and every group *within* it. Returns (collection, [(name, emoji)])."""
-        rules = (
-            f"You organize a photographer's folder into sub-folders. First look at the overview of the whole folder"
-            f"{f' (local guess: {theme_hint})' if theme_hint else ''} and name the collection in 1-4 words "
-            "(e.g. 'Trash the dress · mountains', 'Studio fashion shoot', 'Instagram outfits'). "
-            f"Then {len(sheets)} contact sheets follow; each shows ONE group. Give each group a short folder name "
-            "(1-4 words, Title Case) that says what makes it DIFFERENT from the other groups in this same collection "
-            "(pose, framing, location, lighting, outfit, people, props). Do not just repeat the collection name. "
-            f"{f'Prefer names about {focus_hint}. ' if focus_hint else ''}"
-            "Names must be distinct; add one fitting emoji each. "
-            'Reply JSON: {"collection":"...","groups":[{"i":1,"name":"...","emoji":"..."}]}'
-        )
+        rules = _fill(self.naming_prompt or DEFAULT_NAMING_PROMPT, theme=theme_hint or "unknown", groups=len(sheets),
+                      focus=focus_hint or "whatever best separates the groups")
         if local_hints:
-            rules += " Local model hints per group (may be wrong): " + "; ".join(f"{i + 1}: {h}" for i, h in enumerate(local_hints))
+            rules += "\nLocal model hints per group (may be wrong): " + "; ".join(f"{i + 1}: {h}" for i, h in enumerate(local_hints))
         if self.naming_instructions:
             rules += "\nExtra instructions from the user: " + self.naming_instructions[:1500]
+        rules += NAMING_FORMAT
         content: list[dict] = [{"type": "input_text", "text": rules + " These are contact sheets of a photo collection."}]
         if overview is not None:
             content.append({"type": "input_text", "text": "Overview of the whole folder:"})
@@ -128,26 +152,25 @@ class LLMClient:
         return str(data.get("collection", "")).strip()[:60], out
 
     # --- assist ---------------------------------------------------------
-    def _assist_batch(self, thumbs: list[Image.Image], names: list[str]) -> list[str]:
-        folder_list = "; ".join(names)
-        content: list[dict] = [{
-            "type": "input_text",
-            "text": (
-                f"Put each of the {len(thumbs)} images into exactly one folder from this list: {folder_list}. "
-                "If none fits, use \"Unsorted\". Reply JSON: {\"labels\":[\"<folder>\", ...]} with one label per image, in order."
-                + (f"\nExtra instructions from the user: {self.assist_instructions[:1500]}" if self.assist_instructions else "")
-            ),
-        }]
+    def _assist_batch(self, thumbs: list[Image.Image], folders: list[dict]) -> list[str]:
+        names = [f["name"] for f in folders]
+        lines = "\n".join(f"- {f['name']}" + (f": {f['hint']}" if f.get("hint") else "") for f in folders)
+        text = _fill(self.assist_prompt or DEFAULT_ASSIST_PROMPT, count=len(thumbs), folders=lines)
+        if self.assist_instructions:
+            text += "\nExtra instructions from the user: " + self.assist_instructions[:1500]
+        content: list[dict] = [{"type": "input_text", "text": text + ASSIST_FORMAT}]
         for t in thumbs:
             content.append({"type": "input_image", "image_url": _data_url(t, 65), "detail": "low"})
-        data = self._call(content, max_output_tokens=600)
+        data = self._call(content, max_output_tokens=2500)
         labels = [str(x) for x in data.get("labels", [])]
         valid = {n.lower(): n for n in names}
         return [valid.get(labels[i].strip().lower(), "Unsorted") if i < len(labels) else "Unsorted" for i in range(len(thumbs))]
 
-    def assist(self, thumbs: list[Image.Image], names: list[str], parallel: int = 4) -> list[str]:
+    def assist(self, thumbs: list[Image.Image], folders: list, parallel: int = 6) -> list[str]:
+        """folders: [{"name", "hint"}] (plain names are accepted too)."""
+        folders = [f if isinstance(f, dict) else {"name": f} for f in folders]
         n = max(1, int(self.assist_batch))
         batches = [thumbs[i : i + n] for i in range(0, len(thumbs), n)]
         with ThreadPoolExecutor(max_workers=parallel) as ex:
-            results = list(ex.map(lambda b: self._assist_batch(b, names), batches))
+            results = list(ex.map(lambda b: self._assist_batch(b, folders), batches))
         return [x for r in results for x in r]

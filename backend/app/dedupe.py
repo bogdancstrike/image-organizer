@@ -51,8 +51,14 @@ def find_duplicates(
     near: bool = True,
     max_distance: int = 4,
     min_cosine: float = 0.90,
+    keep: str = "best",
 ) -> dict[str, str]:
-    """Return {duplicate_id: keeper_id}. Keepers are not in the mapping."""
+    """Return {duplicate_id: keeper_id}. Keepers are not in the mapping.
+    keep: "best" (most pixels, then size, then oldest), "oldest" or "newest" capture time."""
+    rank = {
+        "oldest": lambda it: (it.captured_at, -it.pixels, it.rel_path),
+        "newest": lambda it: (-it.captured_at, -it.pixels, it.rel_path),
+    }.get(keep, _keeper_key)
     n = len(items)
     uf = _UF(n)
     by_sha: dict[str, int] = {}
@@ -87,7 +93,7 @@ def find_duplicates(
     for members in groups.values():
         if len(members) < 2:
             continue
-        keeper = min((items[m] for m in members), key=_keeper_key)
+        keeper = min((items[m] for m in members), key=rank)
         for m in members:
             if items[m].id != keeper.id:
                 result[items[m].id] = keeper.id

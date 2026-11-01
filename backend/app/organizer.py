@@ -38,6 +38,16 @@ def _group_names(dst_dir: Path, primary: str, sidecars: list[str]) -> list[str]:
         n += 1
 
 
+def _xmp_packet(x: dict) -> str:
+    label = f' xmp:Label="{x["label"]}"' if x.get("label") else ""
+    return (
+        '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>\n'
+        '<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
+        f'<rdf:Description rdf:about="" xmlns:xmp="http://ns.adobe.com/xap/1.0/" xmp:Rating="{int(x.get("rating", 0))}"{label}/>'
+        "</rdf:RDF></x:xmpmeta>\n<?xpacket end=\"w\"?>\n"
+    )
+
+
 def _write_journal(path: Path, data: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".tmp")
@@ -114,6 +124,12 @@ def apply_plan(
                     st = dst.stat()
                     op["size"], op["mtime"] = st.st_size, st.st_mtime
                 journal["ops"].append(op)
+            # optional rating/label sidecar for Lightroom & Capture One (never overwrites an existing .xmp)
+            if it.get("xmp"):
+                xmp_path = dst_dir / (Path(names[0]).stem + ".xmp")
+                if not xmp_path.exists():
+                    xmp_path.write_text(_xmp_packet(it["xmp"]), "utf-8")
+                    journal["ops"].append({"created": xmp_path.relative_to(root).as_posix()})
         except Exception as exc:  # noqa: BLE001 - record and continue (REQ-ORG-4)
             journal["failed"].append({"src": it["rel_path"], "error": str(exc)})
         if n % FLUSH_EVERY == 0:
@@ -139,6 +155,12 @@ def undo_run(library_root: Path, journals_dir: Path, run_id: str) -> dict:
         return journal
     restored, problems = 0, []
     for op in reversed(journal.get("ops", [])):
+        if "created" in op:  # files we generated (e.g. .xmp ratings): remove them
+            try:
+                (root / op["created"]).unlink(missing_ok=True)
+            except OSError as exc:
+                problems.append({"file": op["created"], "error": str(exc)})
+            continue
         src, dst = root / op["src"], root / op["dst"]
         try:
             if not dst.exists():
@@ -176,6 +198,28 @@ def undo_run(library_root: Path, journals_dir: Path, run_id: str) -> dict:
     return journal
 
 
+def empty_trash(library_root: Path, journals_dir: Path, run_id: str, trash_name: str = ".aio-trash") -> dict:
+    """Permanently delete the files this run moved into the trash. Irreversible; undo will report them missing."""
+    root = library_root.resolve()
+    jpath = journals_dir / f"{run_id}.json"
+    if not jpath.exists() or "/" in run_id or ".." in run_id:
+        raise FileNotFoundError(run_id)
+    journal = json.loads(jpath.read_text("utf-8"))
+    deleted, freed = 0, 0
+    for op in journal.get("ops", []):
+        dst = op.get("dst", "")
+        if f"/{trash_name}/" in f"/{dst}" and not op.get("purged"):
+            p = root / dst
+            if p.is_file() and _inside(root, p) and trash_name in p.parts:
+                freed += p.stat().st_size
+                p.unlink()
+                deleted += 1
+            op["purged"] = True
+    journal["trash_emptied_at"] = datetime.now(timezone.utc).isoformat()
+    _write_journal(jpath, journal)
+    return {"deleted": deleted, "freed_bytes": freed}
+
+
 def list_runs(journals_dir: Path) -> list[dict]:
     if not journals_dir.exists():
         return []
@@ -192,8 +236,9 @@ def list_runs(journals_dir: Path) -> list[dict]:
             "mode": j.get("mode"),
             "source": j.get("source"),
             "status": j.get("status"),
-            "moved": len(j.get("ops", [])),
+            "moved": len([o for o in j.get("ops", []) if "src" in o]),
             "failed": len(j.get("failed", [])),
+            "in_trash": len([o for o in j.get("ops", []) if "/.aio-trash/" in f"/{o.get('dst', '')}" and not o.get("purged")]),
             "undo": j.get("undo"),
         })
     runs.sort(key=lambda r: r.get("created_at") or "", reverse=True)

@@ -20,7 +20,8 @@ The sorting is shown as a live animation: thumbnails start in one pile and fly i
 |---|---|
 | Backend | Python 3.12, FastAPI, Uvicorn |
 | Vision embeddings | CLIP ViT-B/32 via `fastembed` (ONNX Runtime, CPU) |
-| LLM (optional) | OpenAI Responses API, model `gpt-5.6-luna` (configurable), `reasoning.effort=low` |
+| LLM (optional) | OpenAI Responses API, model `gpt-6-luna` (configurable per run), `reasoning.effort=low` |
+| Faces | MediaPipe Face Landmarker (blendshapes: blink, smile) |
 | Media | Pillow, pillow-heif, ffmpeg/ffprobe, imagehash |
 | Clustering | scikit-learn (KMeans + silhouette) |
 | Storage | SQLite (analysis cache), JSON (undo journals), WebP thumbnails |
@@ -43,6 +44,7 @@ The sorting is shown as a live animation: thumbnails start in one pile and fly i
 | [categorization](specs/categorization/spec.md) | Presets, custom categories, auto-discovery, by date, AI assist |
 | [duplicate-detection](specs/duplicate-detection/spec.md) | Exact and near-duplicate detection, and picking which copy to keep |
 | [organize-apply-undo](specs/organize-apply-undo/spec.md) | Plans, applying moves or copies, the journal, undo |
+| [quality-culling](specs/quality-culling/spec.md) | Sharpness, eyes, smiles, exposure, stars, best-of-burst, RAW pairs |
 | [web-ui](specs/web-ui/spec.md) | The single-page UI and the sorting animation |
 | [deployment](specs/deployment/spec.md) | Docker image, compose, and configuration |
 

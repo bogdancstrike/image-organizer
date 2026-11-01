@@ -20,6 +20,9 @@ export const FLAG: Record<string, { label: string; emoji: string }> = {
   "eyes-closed": { label: "Eyes closed", emoji: "😑" },
   "too-dark": { label: "Too dark", emoji: "🌑" },
   "too-bright": { label: "Too bright", emoji: "☀️" },
+  noisy: { label: "Noisy", emoji: "🌪️" },
+  tilted: { label: "Tilted horizon", emoji: "📐" },
+  "cropped-face": { label: "Face cut off", emoji: "✂️" },
 };
 
 export function FileDetails({ p }: { p: PlanItem }) {

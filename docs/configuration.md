@@ -10,10 +10,10 @@ Every variable is optional.
 | `PORT` | `8080` | Host port of the web UI and API |
 | `PUID` / `PGID` | `1000` | User and group the app runs as, so moved files keep your ownership (`id -u`, `id -g`) |
 | `OPENAI_API_KEY` | *(empty)* | Turns on AI cluster naming (Auto mode) and AI assist. Without it everything runs locally. |
-| `OPENAI_MODEL` | `gpt-5.6-luna` | Any vision-capable model on the Responses API |
+| `OPENAI_MODEL` | `gpt-6-luna` | Any vision-capable model on the Responses API |
 | `OPENAI_REASONING_EFFORT` | `low` | `low` keeps calls fast and cheap |
 | `OUTPUT_DIR_NAME` | `Organized` | Default name of the subfolder that holds sorted folders (the UI can override it per run) |
-| `WORKERS` | CPU count | Threads for decoding and thumbnails |
+| `WORKERS` | `min(8, CPUs)` | Threads for decoding, thumbnails and quality checks |
 
 ## Volumes
 | Container path | Purpose |

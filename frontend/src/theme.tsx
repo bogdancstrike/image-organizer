@@ -2,12 +2,11 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import { App as AntApp, ConfigProvider, Tooltip, theme as antdTheme, type ThemeConfig } from "antd";
 import { cn } from "@/lib/utils";
 
-export type ThemeName = "dark" | "light" | "midnight" | "lavender";
+export type ThemeName = "dark" | "light" | "lavender";
 
 export const THEMES: { id: ThemeName; label: string; swatch: [string, string] }[] = [
   { id: "dark", label: "Graphite (default)", swatch: ["#3f3f46", "#09090b"] },
   { id: "light", label: "Light", swatch: ["#ffffff", "#d4d4d8"] },
-  { id: "midnight", label: "Midnight", swatch: ["#4f6fe0", "#070b18"] },
   { id: "lavender", label: "Lavender", swatch: ["#e6defd", "#8a6ae6"] },
 ]
 
@@ -37,21 +36,6 @@ const ANTD: Record<ThemeName, ThemeConfig> = {
       colorBorderSecondary: "#e6e0fa",
     },
     components: { Segmented: { itemSelectedBg: "#fff", trackBg: "#ebe5fc" } },
-  },
-  midnight: {
-    algorithm: antdTheme.darkAlgorithm,
-    token: {
-      colorPrimary: "#7c9cff",
-      colorText: "#e6ecff",
-      colorBgBase: "#070b18",
-      colorBgElevated: "#121a33",
-      colorBgContainer: "#121a33",
-      colorBorder: "#2a3a70",
-      colorBorderSecondary: "#1f2a4a",
-      borderRadius: 12,
-      fontFamily: FONT,
-    },
-    components: { Segmented: { itemSelectedBg: "#2a3a70", trackBg: "#121a33" } },
   },
   dark: {
     algorithm: antdTheme.darkAlgorithm,

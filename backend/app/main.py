@@ -22,7 +22,7 @@ from .config import Settings, load_settings
 from .embedder import get_clip_embedder
 from .jobs import BusyError, JobManager
 from .llm import LLMClient
-from .organizer import list_runs, undo_run
+from .organizer import empty_trash, list_runs, undo_run
 from .media import open_any
 from .scanner import PathError, list_folders, media_kind
 
@@ -48,11 +48,22 @@ class QualityOptions(BaseModel):
     burst_seconds: float = Field(2.0, ge=0.2, le=30.0)
     burst_similarity: float = Field(0.9, ge=0.75, le=0.99)
     keeper_min_stars: int = Field(0, ge=0, le=5)  # cull: keepers below this go to "Maybe" (0 = off)
+    noise_check: bool = False
+    noise_threshold: float = Field(0.045, ge=0.005, le=0.2)
+    tilt_check: bool = False  # experimental: consistent horizon lines leaning 1.5–8°
+    tilt_tolerance: float = Field(1.5, ge=0.5, le=8.0)
+    face_crop: bool = False
+    picks_percent: float = Field(0, ge=0, le=50)  # cull: top X% of keepers go to "Picks ★"
+    similar_any_time: bool = False  # best-of-similar regardless of time, not just bursts
+    write_xmp: bool = False  # on apply, write .xmp sidecars with star rating and color label
 
 
 class AIOptions(BaseModel):
     model: str | None = Field(None, pattern=r"^[A-Za-z0-9._:-]{1,64}$")  # None = server default
     reasoning_effort: Literal["minimal", "low", "medium", "high"] | None = None
+    naming_prompt: str = Field("", max_length=4000)  # full template; "" = default (GET /api/ai/defaults)
+    assist_prompt: str = Field("", max_length=4000)
+    assist_scope: Literal["unsure", "all"] = "unsure"  # AI assist on uncertain files only, or on every file
     naming_instructions: str = Field("", max_length=1500)  # extra guidance for naming auto groups
     assist_instructions: str = Field("", max_length=1500)  # extra guidance for AI assist
     assist_batch: int = Field(12, ge=1, le=24)  # thumbnails per assist request
@@ -63,8 +74,10 @@ class JobOptions(BaseModel):
     near_duplicates: bool = True
     near_dup_distance: int = Field(4, ge=0, le=16)
     split_media: bool = True
+    duplicates_action: Literal["folder", "with_original", "keep", "delete"] = "folder"
+    duplicate_keep: Literal["best", "oldest", "newest"] = "best"
     ai_assist: bool = False
-    ai_max_files: int = Field(200, ge=1, le=2000)
+    ai_max_files: int = Field(200, ge=1, le=5000)
     date_granularity: Literal["year", "month", "day"] = "month"
     max_clusters: int = Field(12, ge=2, le=30)
     focus: Literal["auto", "scene", "framing", "outfit", "lighting", "subject"] = "auto"  # what auto groups by
@@ -136,6 +149,20 @@ def create_app(settings: Settings | None = None, embedder_factory=None, llm_fact
         }
 
     _models_cache: dict = {}
+
+    @app.get("/api/ai/defaults")
+    def ai_defaults():
+        """Default prompt templates, so the UI can show them pre-filled and editable."""
+        from .llm import ASSIST_FORMAT, DEFAULT_ASSIST_PROMPT, DEFAULT_NAMING_PROMPT, NAMING_FORMAT
+
+        return {
+            "naming_prompt": DEFAULT_NAMING_PROMPT,
+            "assist_prompt": DEFAULT_ASSIST_PROMPT,
+            "naming_placeholders": ["{theme}", "{groups}", "{focus}"],
+            "assist_placeholders": ["{count}", "{folders}"],
+            "naming_format": NAMING_FORMAT.strip(),
+            "assist_format": ASSIST_FORMAT.strip(),
+        }
 
     @app.get("/api/ai/models")
     def ai_models():
@@ -261,7 +288,7 @@ def create_app(settings: Settings | None = None, embedder_factory=None, llm_fact
         except BusyError as exc:
             raise HTTPException(409, str(exc)) from exc
         return {k: journal[k] for k in ("run_id", "mode", "status", "created_at")} | {
-            "moved": len(journal["ops"]), "failed": journal["failed"], "skipped": journal["skipped"],
+            "moved": len([o for o in journal["ops"] if "src" in o]), "failed": journal["failed"], "skipped": journal["skipped"],
         }
 
     # --------------------------------------------------------------- runs
@@ -278,6 +305,16 @@ def create_app(settings: Settings | None = None, embedder_factory=None, llm_fact
         except FileNotFoundError as exc:
             raise HTTPException(404, "run not found") from exc
         return {"run_id": run_id, "status": j["status"], "undo": j.get("undo")}
+
+    @app.post("/api/runs/{run_id}/empty-trash")
+    async def run_empty_trash(run_id: str):
+        """Permanently delete the duplicates this run sent to the trash (irreversible)."""
+        if not re.fullmatch(r"[0-9A-Za-z-]+", run_id):
+            raise HTTPException(400, "bad run id")
+        try:
+            return await run_in_threadpool(empty_trash, s.library_root, s.journals_dir, run_id)
+        except FileNotFoundError as exc:
+            raise HTTPException(404, "run not found") from exc
 
     # ------------------------------------------------------------- thumbs
     @app.get("/api/thumbs/{sha}")

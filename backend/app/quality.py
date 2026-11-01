@@ -45,6 +45,8 @@ class Quality:
     bright_clip: float  # share of pixels > 97%
     faces: list[Face] = field(default_factory=list)
     faces_checked: bool = False
+    noise: float = 0.0  # Immerkær noise sigma (0..1), edges excluded
+    tilt: float | None = None  # degrees of a consistent near-horizontal line structure, None if there is none
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -52,7 +54,8 @@ class Quality:
     @classmethod
     def from_dict(cls, d: dict) -> "Quality":
         faces = [Face(**{**f, "box": tuple(f["box"])}) for f in d.get("faces", [])]
-        return cls(d["sharpness"], d["brightness"], d["dark_clip"], d["bright_clip"], faces, d.get("faces_checked", False))
+        return cls(d["sharpness"], d["brightness"], d["dark_clip"], d["bright_clip"], faces, d.get("faces_checked", False),
+                   d.get("noise", 0.0), d.get("tilt"))
 
 
 def _lap_var(gray: np.ndarray) -> float:
@@ -61,6 +64,40 @@ def _lap_var(gray: np.ndarray) -> float:
     g = gray.astype(np.float32)
     lap = -4 * g[1:-1, 1:-1] + g[:-2, 1:-1] + g[2:, 1:-1] + g[1:-1, :-2] + g[1:-1, 2:]
     return float(lap.var())
+
+
+def noise_sigma(gray: np.ndarray) -> float:
+    """Immerkær fast noise estimate on a grayscale image, ignoring strong edges (texture is not noise)."""
+    import cv2
+
+    g = gray.astype(np.float32)
+    m = np.array([[1, -2, 1], [-2, 4, -2], [1, -2, 1]], np.float32)
+    r = cv2.filter2D(g, -1, m)[1:-1, 1:-1]
+    edges = cv2.Canny(gray.astype(np.uint8), 60, 150)[1:-1, 1:-1] > 0
+    vals = np.abs(r[~edges])
+    if vals.size == 0:
+        return 0.0
+    return float(math.sqrt(math.pi / 2) * vals.mean() / 6 / 255)
+
+
+def horizon_tilt(gray: np.ndarray) -> float | None:
+    """Angle of a *consistent* set of long near-horizontal lines (horizons, tables, window sills).
+    Returns None when there is no such structure (organic slopes disagree and are ignored)."""
+    import cv2
+
+    h, w = gray.shape
+    lines = cv2.HoughLinesP(cv2.Canny(gray, 50, 150), 1, np.pi / 360, threshold=80, minLineLength=int(w * 0.45), maxLineGap=8)
+    if lines is None:
+        return None
+    angs = []
+    for x1, y1, x2, y2 in lines.reshape(-1, 4):
+        a = math.degrees(math.atan2(y2 - y1, x2 - x1))
+        a = a - 180 if a > 90 else a + 180 if a < -90 else a
+        if abs(a) < 10:
+            angs.append(a)
+    if len(angs) < 3 or float(np.std(angs)) > 1.5:
+        return None
+    return round(float(np.median(angs)), 2)
 
 
 def _norm_sharp(var: float) -> float:
@@ -212,6 +249,8 @@ def analyze_image(img: Image.Image, faces: FaceAnalyzer | None) -> Quality:
     g = np.asarray(gray)
     lum = g.astype(np.float32) / 255.0
     return Quality(
+        noise=round(noise_sigma(g), 4),
+        tilt=horizon_tilt(g),
         sharpness=round(sharpness(g, found), 4),
         brightness=round(float(lum.mean()), 4),
         dark_clip=round(float((lum < 0.03).mean()), 4),
@@ -227,6 +266,9 @@ REASONS = {
     "eyes-closed": ("Eyes closed", "😑"),
     "too-dark": ("Too dark", "🌑"),
     "too-bright": ("Too bright", "☀️"),
+    "noisy": ("Noisy", "🌪️"),
+    "tilted": ("Tilted horizon", "📐"),
+    "cropped-face": ("Face cut off", "✂️"),
     "burst": ("Burst extras", "🎞️"),  # not a verdict flag: assigned by best-of-burst selection
 }
 
@@ -242,6 +284,11 @@ class QualityRules:
     dark_threshold: float = 0.18  # mean luminance below (and lots of crushed blacks)
     bright_threshold: float = 0.85
     faces_rule: str = "any"  # "any" face or only the "main" (largest) face counts for eyes/smile
+    noise_check: bool = False
+    noise_threshold: float = 0.045
+    tilt_check: bool = False
+    tilt_tolerance: float = 1.5  # degrees
+    face_crop: bool = False  # a face cut by the frame edge
 
 
 def _faces(q: Quality, r: QualityRules) -> list[Face]:
@@ -263,6 +310,14 @@ def verdict(q: Quality, r: QualityRules) -> tuple[str | None, list[str], bool]:
             flags.append("too-dark")
         elif q.brightness > r.bright_threshold and q.bright_clip > 0.25:
             flags.append("too-bright")
+    if r.noise_check and q.noise > r.noise_threshold:
+        flags.append("noisy")
+    if r.tilt_check and q.tilt is not None and r.tilt_tolerance <= abs(q.tilt) <= 8:
+        flags.append("tilted")
+    if r.face_crop and any(
+        f.area > 0.01 and (f.box[0] < 0.005 or f.box[2] > 0.995 or f.box[1] < 0.003) for f in faces
+    ):
+        flags.append("cropped-face")
     smiling = bool(faces) and all(f.smile >= r.smile_threshold for f in faces)
     return (flags[0] if flags else None), flags, smiling
 
@@ -326,4 +381,6 @@ def summary(q: Quality, r: QualityRules) -> dict:
         "flags": flags,
         "smiling": smiling,
         "faces_checked": q.faces_checked,
+        "noise": q.noise,
+        "tilt": q.tilt,
     }

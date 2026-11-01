@@ -38,9 +38,23 @@ Status: `[x]` done · `[ ]` open. Each task lists the specs it covers and its "d
 - [x] T25 E2E check on a sample library: sort → apply → undo inside compose.
 - [x] T26 README (logo, badges, GIF slot, quick start, contributing) + docs (architecture, configuration, API, categories, development).
 
+## M6 Pro & polish (done)
+- [x] T27 Quality signals, tiled face detection, culling strategy, rejects overlay (QC-1..6).
+- [x] T28 Score & stars, best-of-burst, Maybe, main-face rule, exposure thresholds (QC-2..5).
+- [x] T29 RAW decoding, RAW+JPEG pairing and sidecars moving together (QC-7).
+- [x] T30 Context-aware auto (theme, focus, granularity, facet names; AI with overview + instructions).
+- [x] T31 URL tabs: Sort / Review (plan table + reassign) / Categories (editable presets) / History / Settings.
+- [x] T32 Lightbox and video player, themes Graphite/Light/Lavender, aperture logo, responsive drawers and modals.
+- [x] T33 Per-run AI settings (model, effort, naming/assist instructions, batch), `gpt-6-luna` default.
+- [x] T34 Perf: thread caps (KMeans 13× faster), workers `min(8, CPUs)`, memory peak 6.1 → 2.2 GB, keyframe-only video decoding.
+- [x] T35 Benchmarks + README performance & hardware section.
+
 ## Backlog (good first issues)
 - [ ] OCR signal (RapidOCR) to strengthen "Text & captions" and "Documents".
-- [ ] Face detection + speech activity signal for "Talking to camera" videos.
+- [ ] Speech-activity signal for "Talking to camera" videos.
+- [ ] Write star ratings / labels to XMP for Lightroom & Capture One.
+- [ ] Face clustering: sort by person.
+- [ ] Local vision-LLM engine (vLLM, OpenAI-compatible) for zero-token AI.
 - [ ] GPU image variant (onnxruntime-gpu).
 - [ ] Larger CLIP models (SigLIP 2) as an option.
 - [ ] Watch-folder mode (sort new downloads automatically).

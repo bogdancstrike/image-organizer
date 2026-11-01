@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { Button, Checkbox, Drawer, Input, InputNumber, Popconfirm, Radio, Rate, Segmented, Select, Slider, Switch, Tag, Tooltip } from "antd";
 import {
   Aperture,
@@ -15,7 +15,7 @@ import {
   Wand2,
   Workflow,
 } from "lucide-react";
-import { api, type AIOptions, type CategorySet, type Health, type QualityOptions } from "@/api";
+import { api, type AIDefaults, type AIOptions, type CategorySet, type Health, type QualityOptions } from "@/api";
 import { DEFAULT_SETTINGS, type UiSettings } from "@/settings";
 import { THEMES, useTheme } from "@/theme";
 import { cn } from "@/lib/utils";
@@ -35,12 +35,28 @@ interface PanelProps {
 interface Props extends PanelProps {
   open: boolean;
   onClose: () => void;
+  onOpenAll: () => void;
 }
 
-export function SettingsDrawer({ open, onClose, ...rest }: Props) {
+/** Quick settings: only what you tweak between sorts (how to organize, culling). Everything else lives on /settings. */
+export function SettingsDrawer({ open, onClose, onOpenAll, ...rest }: Props) {
   return (
-    <Drawer open={open} onClose={onClose} title="Sort settings" size={560} styles={{ body: { padding: "8px 28px 32px" } }}>
-      <SettingsPanel {...rest} layout="drawer" />
+    <Drawer
+      open={open}
+      onClose={onClose}
+      title="Quick settings"
+      size={600}
+      styles={{ body: { padding: "8px 28px 32px" } }}
+      footer={
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-plum/50">Saved automatically · applies to the next Sort</span>
+          <Button type="link" onClick={onOpenAll}>
+            All settings →
+          </Button>
+        </div>
+      }
+    >
+      <SettingsPanel {...rest} layout="drawer" only={["organize", "pro"]} />
     </Drawer>
   );
 }
@@ -78,7 +94,11 @@ const SECTIONS = [
 
 type SectionId = (typeof SECTIONS)[number]["id"];
 
+const OnlyCtx = createContext<SectionId[] | null>(null);
+
 function Section({ id, page, children }: { id: SectionId; page: boolean; children: ReactNode }) {
+  const only = useContext(OnlyCtx);
+  if (only && !only.includes(id)) return null;
   const meta = SECTIONS.find((s) => s.id === id)!;
   const Icon = meta.icon;
   if (!page) {
@@ -107,6 +127,79 @@ function Section({ id, page, children }: { id: SectionId; page: boolean; childre
   );
 }
 
+/** A prompt shown pre-filled with the default; editing stores a custom template, Reset goes back to the default. */
+function PromptEditor(props: {
+  label: string;
+  value: string;
+  fallback: string;
+  placeholders: string[];
+  format?: string;
+  note?: string;
+  disabled?: boolean;
+  onChange: (v: string) => void;
+}) {
+  const custom = !!props.value;
+  return (
+    <Row
+      label={props.label}
+      hint={
+        custom ? (
+          <a onClick={() => props.onChange("")}>reset to default</a>
+        ) : (
+          <span>default</span>
+        )
+      }
+    >
+      <Input.TextArea
+        disabled={props.disabled}
+        autoSize={{ minRows: 4, maxRows: 12 }}
+        maxLength={4000}
+        value={props.value || props.fallback}
+        onChange={(e) => props.onChange(e.target.value === props.fallback ? "" : e.target.value)}
+        className="font-mono !text-[12px]"
+      />
+      <p className="mt-1.5 text-[11px] text-plum/50">
+        Placeholders: {props.placeholders.map((p) => <code key={p} className="mr-1">{p}</code>)}
+        {props.note ? <> · {props.note}</> : null}
+        {props.format ? <> · Always appended: <code>{props.format}</code></> : null}
+      </p>
+    </Row>
+  );
+}
+
+/** Clickable cards: name, folder count and a preview of the folders. */
+function SetPicker({ sets, value, onPick }: { sets: CategorySet[]; value: string | null; onPick: (id: string) => void }) {
+  return (
+    <div className="grid max-h-[340px] grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+      {sets.map((s) => {
+        const active = s.id === value;
+        return (
+          <button
+            key={s.id}
+            onClick={() => onPick(s.id)}
+            className={cn(
+              "cursor-pointer rounded-xl border p-2.5 text-left transition-all hover:-translate-y-px",
+              active ? "border-plum/60 bg-tint ring-1 ring-plum/40" : "border-line bg-surface/60 hover:border-plum/30",
+            )}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="truncate text-[13px] font-medium text-plum">
+                {s.name}
+                {s.modified && <span className="ml-1 text-[10px] text-amber-500">●</span>}
+              </span>
+              <span className="shrink-0 text-[11px] text-plum/45">{s.categories.length}</span>
+            </div>
+            <div className="mt-1 truncate text-[12px] leading-5 text-plum/60" title={s.categories.map((c) => c.name).join(" · ")}>
+              {s.categories.slice(0, 8).map((c) => c.emoji ?? "📁").join(" ")}
+            </div>
+            <div className="truncate text-[11px] text-plum/45">{s.categories.slice(0, 4).map((c) => c.name).join(" · ")}…</div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ the panel */
 
 export function SettingsPanel({
@@ -118,12 +211,15 @@ export function SettingsPanel({
   onEditCategories,
   onPickFolder,
   layout = "drawer",
-}: PanelProps & { layout?: "drawer" | "page" }) {
+  only,
+}: PanelProps & { layout?: "drawer" | "page"; only?: SectionId[] }) {
   const set = <K extends keyof UiSettings>(k: K, v: UiSettings[K]) => onChange({ ...settings, [k]: v });
   const setQ = (patch: Partial<QualityOptions>) => onChange({ ...settings, quality: { ...settings.quality, ...patch } });
   const setAI = (patch: Partial<AIOptions>) => onChange({ ...settings, ai: { ...settings.ai, ...patch } });
   const [models, setModels] = useState<string[]>([]);
+  const [defaults, setDefaults] = useState<AIDefaults | null>(null);
   useEffect(() => {
+    api.aiDefaults().then(setDefaults).catch(() => {});
     if (health?.ai_available) api.aiModels().then((r) => setModels(r.models)).catch(() => {});
   }, [health?.ai_available]);
   const { theme, setTheme } = useTheme();
@@ -216,42 +312,20 @@ export function SettingsPanel({
         </Row>
 
         {settings.strategy === "preset" && (
-          <Row label="Preset" hint={<a onClick={onEditCategories}>edit…</a>}>
-            <Select
-              className="w-full"
-              value={settings.presetId}
-              onChange={(v) => set("presetId", v)}
-              options={presets.map((p) => ({
-                value: p.id,
-                label: `${p.name} · ${p.categories.length} folders${p.modified ? " · edited" : ""}`,
-              }))}
-            />
-            <div className="mt-2 flex flex-wrap gap-1">
-              {presets
-                .find((p) => p.id === settings.presetId)
-                ?.categories.map((c) => (
-                  <span key={c.id} className="rounded-full border border-line bg-surface px-2 py-0.5 text-[11px] text-plum/70">
-                    {c.emoji} {c.name}
-                  </span>
-                ))}
-            </div>
+          <Row label="Preset" hint={<a onClick={onEditCategories}>edit presets…</a>}>
+            <SetPicker sets={presets} value={settings.presetId} onPick={(id) => set("presetId", id)} />
           </Row>
         )}
 
         {settings.strategy === "custom" && (
-          <Row label="My category set">
-            <div className="flex gap-2">
-              <Select
-                className="flex-1"
-                placeholder="Create a set first →"
-                value={settings.customSetId ?? undefined}
-                onChange={(v) => set("customSetId", v)}
-                options={customSets.map((p) => ({ value: p.id, label: `${p.name} · ${p.categories.length}` }))}
-              />
+          <Row label="My category set" hint={<a onClick={onEditCategories}>new / edit…</a>}>
+            {customSets.length ? (
+              <SetPicker sets={customSets} value={settings.customSetId} onPick={(id) => set("customSetId", id)} />
+            ) : (
               <Button onClick={onEditCategories} icon={<PencilLine size={14} />}>
-                Edit…
+                Create your first set…
               </Button>
-            </div>
+            )}
           </Row>
         )}
 
@@ -341,6 +415,21 @@ export function SettingsPanel({
                 >
                   😄 Smiles ({settings.strategy === "cull" ? "own folder" : "tag"})
                 </Checkbox>
+                <Checkbox checked={settings.quality.noise_check} onChange={(e) => setQ({ noise_check: e.target.checked })}>
+                  🌪️ Noisy (high ISO)
+                </Checkbox>
+                <Checkbox
+                  checked={settings.quality.face_crop}
+                  disabled={!health?.faces_available}
+                  onChange={(e) => setQ({ face_crop: e.target.checked })}
+                >
+                  ✂️ Face cut off by the frame
+                </Checkbox>
+                <Tooltip title="Experimental: flags frames whose straight horizontal lines (horizon, table, window) lean">
+                  <Checkbox checked={settings.quality.tilt_check} onChange={(e) => setQ({ tilt_check: e.target.checked })}>
+                    📐 Tilted horizon <span className="text-plum/40">(beta)</span>
+                  </Checkbox>
+                </Tooltip>
               </div>
             </Row>
             <Row label="Sharpness needed" hint={`${Math.round(settings.quality.blur_threshold * 100)}%: higher is stricter`}>
@@ -352,6 +441,16 @@ export function SettingsPanel({
             <Row label="Smile needed" hint={`≥ ${Math.round(settings.quality.smile_threshold * 100)}%`}>
               <Slider min={0.2} max={0.9} step={0.05} value={settings.quality.smile_threshold} onChange={(v) => setQ({ smile_threshold: v })} />
             </Row>
+            {settings.quality.noise_check && (
+              <Row label="Noise limit" hint={`grain σ > ${(settings.quality.noise_threshold * 100).toFixed(1)}%`}>
+                <Slider min={0.01} max={0.12} step={0.005} value={settings.quality.noise_threshold} onChange={(v) => setQ({ noise_threshold: v })} />
+              </Row>
+            )}
+            {settings.quality.tilt_check && (
+              <Row label="Tilt tolerance" hint={`flag from ${settings.quality.tilt_tolerance}°`}>
+                <Slider min={0.5} max={6} step={0.5} value={settings.quality.tilt_tolerance} onChange={(v) => setQ({ tilt_tolerance: v })} />
+              </Row>
+            )}
             <Row label="Whose eyes & smile count">
               <Radio.Group
                 value={settings.quality.faces_rule}
@@ -377,6 +476,11 @@ export function SettingsPanel({
               <Switch checked={settings.quality.bursts} onChange={(v) => setQ({ bursts: v })} />
             </Row>
             {settings.quality.bursts && (
+              <Row label="Also group similar shots taken at any time" hint="best of similar, same folder" inline>
+                <Switch size="small" checked={settings.quality.similar_any_time} onChange={(v) => setQ({ similar_any_time: v })} />
+              </Row>
+            )}
+            {settings.quality.bursts && !settings.quality.similar_any_time && (
               <div className="grid gap-x-6 sm:grid-cols-2">
                 <Row label="Burst window" hint={`${settings.quality.burst_seconds}s`}>
                   <Slider min={0.5} max={10} step={0.5} value={settings.quality.burst_seconds} onChange={(v) => setQ({ burst_seconds: v })} />
@@ -386,6 +490,14 @@ export function SettingsPanel({
                 </Row>
               </div>
             )}
+            {settings.strategy === "cull" && (
+              <Row label="Picks ★" hint={settings.quality.picks_percent ? `top ${settings.quality.picks_percent}% of keepers → Picks` : "off"}>
+                <Slider min={0} max={50} step={5} value={settings.quality.picks_percent} onChange={(v) => setQ({ picks_percent: v })} />
+              </Row>
+            )}
+            <Row label="Write ratings to XMP on Apply" hint="★ + color labels for Lightroom / Capture One · undoable" inline>
+              <Switch checked={settings.quality.write_xmp} onChange={(v) => setQ({ write_xmp: v })} />
+            </Row>
             {settings.strategy === "cull" && (
               <Row label="Keepers need at least" hint={settings.quality.keeper_min_stars ? "others go to Maybe" : "off"} inline>
                 <Rate value={settings.quality.keeper_min_stars} onChange={(v) => setQ({ keeper_min_stars: v })} allowClear />
@@ -412,9 +524,43 @@ export function SettingsPanel({
       </Section>
 
       <Section id="files" page={page}>
-        <Row label="Detect near-duplicates" hint="resized / re-saved copies" inline>
+        <Row label="Duplicates: extra copies go…">
+          <Radio.Group
+            value={settings.duplicatesAction}
+            onChange={(e) => set("duplicatesAction", e.target.value)}
+            className="!grid gap-1.5 sm:grid-cols-2"
+            options={[
+              { value: "folder", label: "🗂️ Set aside in _Duplicates/" },
+              { value: "with_original", label: "📎 Next to the original" },
+              { value: "keep", label: "📍 Leave them where they are" },
+              { value: "delete", label: "🗑️ Delete (recoverable trash)" },
+            ]}
+          />
+          {settings.duplicatesAction === "delete" && (
+            <p className="mt-2 text-[11px] text-plum/55">
+              Copies move to a hidden <code>.aio-trash/</code> folder. Undo brings them back; <b>History → Empty trash</b> deletes them for good.
+            </p>
+          )}
+        </Row>
+        <Row label="Which copy is the original">
+          <Segmented
+            value={settings.duplicateKeep}
+            onChange={(v) => set("duplicateKeep", v as UiSettings["duplicateKeep"])}
+            options={[
+              { value: "best", label: "Best quality" },
+              { value: "oldest", label: "Oldest" },
+              { value: "newest", label: "Newest" },
+            ]}
+          />
+        </Row>
+        <Row label="Detect near-duplicates" hint="resized / re-saved copies, not just identical files" inline>
           <Switch checked={settings.nearDuplicates} onChange={(v) => set("nearDuplicates", v)} />
         </Row>
+        {settings.nearDuplicates && (
+          <Row label="Near-duplicate strictness" hint={settings.nearDupDistance <= 2 ? "only almost identical" : settings.nearDupDistance >= 8 ? "loose: also small edits" : "balanced"}>
+            <Slider min={0} max={12} step={1} value={settings.nearDupDistance} onChange={(v) => set("nearDupDistance", v)} />
+          </Row>
+        )}
         <Row label="Keep RAW + JPEG pairs & sidecars together" hint=".ARW .CR2 .NEF … + .xmp" inline>
           <Switch checked={settings.pairSidecars} onChange={(v) => set("pairSidecars", v)} />
         </Row>
@@ -435,7 +581,7 @@ export function SettingsPanel({
         <Row label="Status" inline>
           {ai ? <Tag color="green">connected · {health?.model}</Tag> : <Tag>off · no OPENAI_API_KEY</Tag>}
         </Row>
-        <Row label="AI assist for unsure files" hint="preset & custom strategies" inline>
+        <Row label="AI assist" hint="let AI help place photos (preset & custom strategies)" inline>
           <Tooltip title={ai ? "Only unsure files are sent, as small thumbnails, 12 per request" : "Set OPENAI_API_KEY in .env to enable"}>
             <Switch checked={settings.aiAssist && ai} disabled={!ai} onChange={(v) => set("aiAssist", v)} />
           </Tooltip>
@@ -466,31 +612,50 @@ export function SettingsPanel({
             ]}
           />
         </Row>
-        <Row label="Naming instructions" hint="added to the auto-naming prompt">
-          <Input.TextArea
+        <Row label="Use AI for" hint="preset & custom strategies, when AI assist is on">
+          <Radio.Group
             disabled={!ai}
-            autoSize={{ minRows: 2, maxRows: 6 }}
-            maxLength={1500}
-            showCount
-            value={settings.ai.naming_instructions}
-            onChange={(e) => setAI({ naming_instructions: e.target.value })}
-            placeholder="e.g. Use short lowercase names like my Instagram folders. Separate indoor and outdoor. Name in Romanian."
+            value={settings.ai.assist_scope}
+            onChange={(e) => setAI({ assist_scope: e.target.value })}
+            optionType="button"
+            options={[
+              { value: "unsure", label: "Unsure photos only (cheap)" },
+              { value: "all", label: "Every photo (most accurate)" },
+            ]}
           />
+          <p className="mt-1.5 text-[11px] text-plum/50">
+            {settings.ai.assist_scope === "all"
+              ? `About ${Math.ceil(settings.aiMaxFiles / settings.ai.assist_batch)} requests per ${settings.aiMaxFiles} photos (${settings.ai.assist_batch} thumbnails each, low detail).`
+              : "Only photos CLIP is not sure about are sent."}
+          </p>
         </Row>
-        <Row label="Assist instructions" hint="added to the AI-assist prompt">
-          <Input.TextArea
-            disabled={!ai}
-            autoSize={{ minRows: 2, maxRows: 6 }}
-            maxLength={1500}
-            showCount
-            value={settings.ai.assist_instructions}
-            onChange={(e) => setAI({ assist_instructions: e.target.value })}
-            placeholder="e.g. Motorbikes always go to “moto”, even with people on them."
-          />
-        </Row>
-        <Row label="Photos per assist request" hint="fewer = more accurate, more requests" inline>
-          <InputNumber disabled={!ai} min={1} max={24} value={settings.ai.assist_batch} onChange={(v) => setAI({ assist_batch: v ?? 12 })} />
-        </Row>
+        <div className="grid gap-x-6 sm:grid-cols-2">
+          <Row label="Max photos sent to AI" inline>
+            <InputNumber disabled={!ai} min={10} max={5000} step={50} value={settings.aiMaxFiles} onChange={(v) => set("aiMaxFiles", v ?? 300)} />
+          </Row>
+          <Row label="Photos per request" inline>
+            <InputNumber disabled={!ai} min={1} max={24} value={settings.ai.assist_batch} onChange={(v) => setAI({ assist_batch: v ?? 12 })} />
+          </Row>
+        </div>
+        <PromptEditor
+          label="Folder-naming prompt (Auto)"
+          disabled={!ai}
+          value={settings.ai.naming_prompt}
+          fallback={defaults?.naming_prompt ?? ""}
+          placeholders={defaults?.naming_placeholders ?? []}
+          format={defaults?.naming_format}
+          onChange={(v) => setAI({ naming_prompt: v })}
+        />
+        <PromptEditor
+          label="Assist prompt (Preset & My categories)"
+          disabled={!ai}
+          value={settings.ai.assist_prompt}
+          fallback={defaults?.assist_prompt ?? ""}
+          placeholders={defaults?.assist_placeholders ?? []}
+          format={defaults?.assist_format}
+          onChange={(v) => setAI({ assist_prompt: v })}
+          note="Each folder is listed with its own AI hint (Category editor), or its descriptions when it has none."
+        />
         <p className="py-2 text-[11px] text-plum/50">
           Auto mode names its groups with a single request. Images are sent at low detail, and reasoning effort is low. Nothing is sent
           without a key. Private content? Keep AI assist off: CLIP runs fully offline.
@@ -544,7 +709,7 @@ export function SettingsPanel({
     </>
   );
 
-  if (!page) return body;
+  if (!page) return <OnlyCtx.Provider value={only ?? null}>{body}</OnlyCtx.Provider>;
 
   return (
     <div className="grid gap-8 lg:grid-cols-[220px_minmax(0,1fr)]">

@@ -138,3 +138,56 @@ def test_cull_best_of_burst_and_maybe(settings, fake_embedder):
         job = wait(c, c.post("/api/jobs", json={"strategy": "cull", "options": opts}).json()["id"])
         cat = {p["name"]: p["category"] for p in job["plan"]}
         assert cat["soft.jpg"] == "Maybe" and cat["solo.jpg"] == "Keepers"
+
+
+# ---------------------------------------------------------------- more pro checks
+from app.quality import horizon_tilt, noise_sigma  # noqa: E402
+
+
+def test_noise_estimate_separates_grainy_from_clean():
+    rng = np.random.default_rng(1)
+    clean = np.tile(np.linspace(40, 200, 400, dtype=np.float32), (300, 1))
+    noisy = np.clip(clean + rng.normal(0, 18, clean.shape), 0, 255)
+    assert noise_sigma(clean.astype(np.uint8)) < 0.02 < 0.045 < noise_sigma(noisy.astype(np.uint8))
+
+
+def test_horizon_tilt_needs_consistent_lines():
+    import cv2
+    img = np.full((300, 400), 30, np.uint8)
+    for y in (100, 150, 200):  # three parallel "horizons" leaning ~4 degrees
+        cv2.line(img, (0, y), (399, y + 28), 230, 2)
+    t = horizon_tilt(img)
+    assert t is not None and 3 < abs(t) < 5
+    assert horizon_tilt(np.full((300, 400), 30, np.uint8)) is None
+
+
+def test_new_flags_and_face_crop():
+    r = QualityRules(noise_check=True, tilt_check=True, face_crop=True)
+    q = Quality(0.8, 0.5, 0, 0, [Face(0.1, 0.5, 0.05, (0.0, 0.3, 0.2, 0.6))], True, noise=0.08, tilt=3.0)
+    _, flags, _ = verdict(q, r)
+    assert {"noisy", "tilted", "cropped-face"} <= set(flags)
+    assert verdict(q, QualityRules())[1] == []  # all opt-in
+
+
+def test_picks_and_xmp_ratings_with_undo(settings, fake_embedder):
+    from app.main import create_app
+
+    lib = settings.library_root
+    for i in range(4):
+        _noise(lib / f"k{i}.jpg", 50 + i)
+    Image.open(lib / "k0.jpg").filter(ImageFilter.GaussianBlur(8)).save(lib / "soft.jpg")
+    opts = {"near_duplicates": False, "quality": {"bursts": False, "picks_percent": 25, "write_xmp": True}}
+    with TestClient(create_app(settings, embedder_factory=lambda: fake_embedder, llm_factory=lambda: None)) as c:
+        job = wait(c, c.post("/api/jobs", json={"strategy": "cull", "options": opts}).json()["id"])
+        cats = [p["category"] for p in job["plan"]]
+        assert cats.count("Picks ★") == 1 and "Blurry" in cats
+        by = {p["name"]: p for p in job["plan"]}
+        assert by["soft.jpg"]["xmp"] == {"rating": -1, "label": "Red"}
+        pick = next(p for p in job["plan"] if p["category"] == "Picks ★")
+        assert pick["xmp"] == {"rating": 5, "label": "Green"}
+        r = c.post(f"/api/jobs/{job['id']}/apply", json={"mode": "move"}).json()
+        assert r["moved"] == 5
+        xmp = next(lib.rglob("soft.xmp"))
+        assert 'xmp:Rating="-1"' in xmp.read_text() and 'xmp:Label="Red"' in xmp.read_text()
+        c.post(f"/api/runs/{r['run_id']}/undo")
+        assert not list(lib.rglob("*.xmp")) and (lib / "soft.jpg").exists()

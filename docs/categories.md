@@ -9,6 +9,8 @@ Ready-made folder sets. Each folder is described by a few text prompts, matched 
 | **People & Style** | Headshots & portraits · Selfies · Full-body outfits · Dresses & formal wear · Casual & streetwear · Outfit details · Runway & editorial · People in scenery · Scenery · Groups & friends · Screenshots |
 | **Travel** | Beaches & sea · Mountains & hiking · Cities & streets · Landmarks & monuments · Hotels & stays · Food & markets · Transport & airports · Night life · People & friends · Screenshots & tickets |
 | **Creator** | Talking to camera · Outfits & try-ons · Product shots · B-roll scenery · Behind the scenes · Text & captions · Memes · Screenshots |
+| **Boudoir & glamour** | Lingerie · studio · Lingerie · bedroom · On the bed · Corset & bodysuit · Stockings & heels · Robe & oversized shirt · Silhouette & implied · Black & white · Details · Glamour portrait · Outdoor & swimwear · Runway & show |
+| **Photoshoot themes, Wedding day, Instagram creator, Family & kids, Events, Real estate, Nature & wildlife, Food & product** | see Categories tab |
 | **Documents** | Receipts & invoices · IDs & cards · Notes & whiteboards · Slides & charts · Screenshots · Photos (other) |
 
 Presets live in [`backend/app/presets.py`](../backend/app/presets.py). Adding one is a great first PR.
@@ -25,12 +27,22 @@ Tips:
 - Folders that look alike (e.g. "Beach" and "Sea") split the vote. Merge them or describe what tells them apart.
 - Raise the **confidence threshold** to send ambiguous files to `Unsorted` rather than to a wrong folder. Turn on **AI assist** to let Luna place them.
 
+## Culling (Cull mode, or quality checks with any mode)
+See [quality-culling spec](openspec/specs/quality-culling/spec.md). Folders: Keepers · Smiling · Maybe · Blurry · Eyes closed ·
+Too dark · Too bright · Burst extras. Tune sharpness, blink and smile thresholds, exposure limits, whose face counts (any vs main
+subject), burst window and similarity, and the minimum stars for a keeper. With other modes, rejects go to `_Rejects/<reason>` (or are
+only tagged).
+
 ## Auto-discover
-1. All CLIP embeddings are clustered with KMeans, and k (2…`max_clusters`) is chosen by silhouette score.
+0. **Context:** the folder's theme is detected (e.g. *Trash the dress*, *Studio fashion*, *Boudoir*, *Halloween*).
+1. **Group by** (focus): *auto* clusters raw CLIP embeddings; *scene*, *framing & pose*, *outfit*, *lighting* or *subject* cluster on
+   z-scored similarity to a bank of prompts for that aspect, so a studio shoot splits by pose or light instead of "all studio".
+   KMeans picks k (2…`max_clusters`) by silhouette; **granularity** coarse / normal / fine shifts it.
 2. Naming:
    - **With an OpenAI key**: one request to `gpt-5.6-luna` (`reasoning: low`) with a small contact sheet per group. You get names like
      *Coastal Shores*, *Workspaces*, *Golden Gate*.
-   - **Without a key**: each group takes the best matching label from a built-in vocabulary of more than 100 labels (Beach, Outfits, Food, Screenshots…).
+   - **Without a key**: each group is named by what makes it stand out within the folder, e.g. *Full-body · Golden hour*.
+   - With a key, the AI also sees an overview sheet, the detected theme, the focus and the local names, plus your own *naming instructions*.
 3. Groups that end up with the same name are merged.
 
 ## By date

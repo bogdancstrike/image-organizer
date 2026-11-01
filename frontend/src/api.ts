@@ -18,6 +18,7 @@ export interface Category {
   emoji?: string;
   prompts?: string[];
   media?: "any" | "image" | "video";
+  ai_hint?: string | null;
 }
 
 export interface CategorySet {
@@ -81,14 +82,32 @@ export interface QualityOptions {
   burst_seconds: number;
   burst_similarity: number;
   keeper_min_stars: number;
+  noise_check: boolean;
+  noise_threshold: number;
+  tilt_check: boolean;
+  tilt_tolerance: number;
+  face_crop: boolean;
+  picks_percent: number;
+  similar_any_time: boolean;
+  write_xmp: boolean;
 }
 
 export interface AIOptions {
   model: string | null;
   reasoning_effort: "minimal" | "low" | "medium" | "high" | null;
-  naming_instructions: string;
-  assist_instructions: string;
+  naming_prompt: string; // "" = server default
+  assist_prompt: string;
+  assist_scope: "unsure" | "all";
   assist_batch: number;
+}
+
+export interface AIDefaults {
+  naming_prompt: string;
+  assist_prompt: string;
+  naming_placeholders: string[];
+  assist_placeholders: string[];
+  naming_format: string;
+  assist_format: string;
 }
 
 export interface Usage {
@@ -128,6 +147,7 @@ export interface Run {
   status: string;
   moved: number;
   failed: number;
+  in_trash?: number;
   undo?: { restored: number; problems: { file: string; error: string }[] } | null;
 }
 
@@ -145,7 +165,11 @@ export interface JobRequest {
     min_confidence: number;
     near_duplicates: boolean;
     split_media: boolean;
+    duplicates_action: "folder" | "with_original" | "keep" | "delete";
+    duplicate_keep: "best" | "oldest" | "newest";
+    near_dup_distance: number;
     ai_assist: boolean;
+    ai_max_files: number;
     date_granularity: "year" | "month" | "day";
     max_clusters: number;
     output_dir: string;
@@ -203,6 +227,9 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ file_ids: fileIds, category_id: categoryId }),
     }),
+  emptyTrash: (runId: string) =>
+    req<{ deleted: number; freed_bytes: number }>(`/api/runs/${runId}/empty-trash`, { method: "POST" }),
+  aiDefaults: () => req<AIDefaults>("/api/ai/defaults"),
   aiModels: () => req<{ default: string | null; models: string[]; error?: string }>("/api/ai/models"),
   runs: () => req<Run[]>("/api/runs"),
   undo: (runId: string) =>
