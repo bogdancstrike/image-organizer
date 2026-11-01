@@ -3,6 +3,7 @@ import { Button, Checkbox, Drawer, Input, InputNumber, Popconfirm, Radio, Rate, 
 import {
   Aperture,
   CalendarDays,
+  Users,
   Copy,
   Cpu,
   FolderOpen,
@@ -18,6 +19,7 @@ import {
 import { api, type AIDefaults, type AIOptions, type CategorySet, type Health, type QualityOptions } from "@/api";
 import { DEFAULT_SETTINGS, type UiSettings } from "@/settings";
 import { THEMES, useTheme } from "@/theme";
+import { LANGS, useI18n } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { displayPath } from "./FolderPicker";
 import { Card } from "./ui/card";
@@ -40,18 +42,19 @@ interface Props extends PanelProps {
 
 /** Quick settings: only what you tweak between sorts (how to organize, culling). Everything else lives on /settings. */
 export function SettingsDrawer({ open, onClose, onOpenAll, ...rest }: Props) {
+  const { t } = useI18n();
   return (
     <Drawer
       open={open}
       onClose={onClose}
-      title="Quick settings"
+      title={t("quick.title")}
       size={600}
       styles={{ body: { padding: "8px 28px 32px" } }}
       footer={
         <div className="flex items-center justify-between">
-          <span className="text-xs text-plum/50">Saved automatically · applies to the next Sort</span>
+          <span className="text-xs text-plum/50">{t("quick.saved")}</span>
           <Button type="link" onClick={onOpenAll}>
-            All settings →
+            {t("quick.all")}
           </Button>
         </div>
       }
@@ -200,6 +203,18 @@ function SetPicker({ sets, value, onPick }: { sets: CategorySet[]; value: string
   );
 }
 
+function LangSelect() {
+  const { lang, setLang } = useI18n();
+  return (
+    <Select
+      value={lang}
+      onChange={setLang}
+      className="w-44"
+      options={LANGS.map((l) => ({ value: l.id, label: `${l.flag} ${l.label}` }))}
+    />
+  );
+}
+
 /* ------------------------------------------------------------------ the panel */
 
 export function SettingsPanel({
@@ -296,6 +311,7 @@ export function SettingsPanel({
               { value: "auto", label: <span className="inline-flex items-center gap-1"><Wand2 size={14} />Auto</span> },
               { value: "date", label: <span className="inline-flex items-center gap-1"><CalendarDays size={14} />Date</span> },
               { value: "cull", label: <span className="inline-flex items-center gap-1"><Aperture size={14} />Cull</span> },
+              { value: "people", label: <span className="inline-flex items-center gap-1"><Users size={14} />People</span> },
             ]}
           />
           <p className="mt-2 text-xs text-plum/60">
@@ -306,7 +322,8 @@ export function SettingsPanel({
                 ? "Groups are discovered automatically and named by AI (a single small request)."
                 : "Groups are discovered automatically and named from a built-in vocabulary.")}
             {settings.strategy === "date" && "Year / month folders from the capture date (EXIF), falling back to the file date."}
-            {settings.strategy === "cull" &&
+            {settings.strategy === "people" && "One folder per person, recognized by face. Group photos and photos without people get their own folders. You can rename people after sorting."}
+          {settings.strategy === "cull" &&
               "For a shoot: Keepers, Smiling, and rejects (Blurry, Eyes closed, Too dark/bright). Tune the checks under Pro."}
           </p>
         </Row>
@@ -378,6 +395,32 @@ export function SettingsPanel({
           </>
         )}
 
+        {settings.strategy === "people" && (
+          <>
+            <Row label="A person needs at least" hint={`${settings.peopleMinPhotos} photos, otherwise “Other people”`} inline>
+              <InputNumber min={1} max={50} value={settings.peopleMinPhotos} onChange={(v) => set("peopleMinPhotos", v ?? 3)} />
+            </Row>
+            <Row label="Same-person strictness" hint={settings.peopleSimilarity > 0.42 ? "strict: may split one person" : settings.peopleSimilarity < 0.3 ? "loose: may merge look-alikes" : "balanced"}>
+              <Slider min={0.25} max={0.55} step={0.01} value={settings.peopleSimilarity} onChange={(v) => set("peopleSimilarity", v)} />
+            </Row>
+            {!health?.people_available && <p className="py-2 text-[11px] text-red-500">Face recognition models are missing in this build.</p>}
+          </>
+        )}
+        <Row label="Recognition model" hint={settings.model === "siglip2" ? "more accurate · ~5× slower first run" : "fast"}>
+          <Segmented
+            value={settings.model}
+            onChange={(v) => set("model", v as UiSettings["model"])}
+            options={[
+              { value: "clip", label: "CLIP · fast" },
+              { value: "siglip2", label: "SigLIP 2 · accurate" },
+            ]}
+          />
+        </Row>
+        {(settings.strategy === "preset" || settings.strategy === "custom") && (
+          <Row label="Read text in photos (OCR)" hint="text-heavy photos go to documents / captions folders; text becomes searchable" inline>
+            <Switch checked={settings.ocr} disabled={health?.ocr_available === false} onChange={(v) => set("ocr", v)} />
+          </Row>
+        )}
         {(settings.strategy === "preset" || settings.strategy === "custom") && (
           <Row label="Confidence threshold" hint={`below ${Math.round(settings.minConfidence * 100)}%, files go to Unsorted`}>
             <Slider min={0.05} max={0.9} step={0.05} value={settings.minConfidence} onChange={(v) => set("minConfidence", v)} />
@@ -663,6 +706,9 @@ export function SettingsPanel({
       </Section>
 
       <Section id="appearance" page={page}>
+        <Row label="Language" inline>
+          <LangSelect />
+        </Row>
         <div className="grid grid-cols-2 gap-2 py-3 sm:grid-cols-4">
           {THEMES.map((t) => (
             <button

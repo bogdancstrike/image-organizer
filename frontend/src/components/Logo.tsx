@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/i18n";
 
 const LINES = "M5.0,-8.66 L0.0,-26.0 M10.0,0.0 L22.52,-13.0 M5.0,8.66 L22.52,13.0 M-5.0,8.66 L0.0,26.0 M-10.0,0.0 L-22.52,13.0 M-5.0,-8.66 L-22.52,-13.0";
 const HEXAGON = "5.0,-8.66 10.0,0.0 5.0,8.66 -5.0,8.66 -10.0,0.0 -5.0,-8.66";
@@ -25,12 +26,13 @@ export function LogoMark({ className, spinning = false }: { className?: string; 
 }
 
 export function Logo() {
+  const { t } = useI18n();
   return (
     <div className="flex items-center gap-2.5">
       <LogoMark className="h-9 w-9" />
       <div className="leading-tight">
         <div className="text-[13px] font-semibold tracking-tight text-plum">Auto Image Organizer</div>
-        <div className="text-[11px] text-plum/50">photos & videos, sorted</div>
+        <div className="text-[11px] text-plum/50">{t("tagline")}</div>
       </div>
     </div>
   );

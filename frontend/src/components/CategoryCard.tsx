@@ -13,9 +13,10 @@ interface Props {
   variant?: "default" | "trash" | "ghost";
   tall?: boolean;
   index?: number;
+  cover?: string | null;
 }
 
-export function CategoryCard({ name, emoji, count, total, slotRef, onClick, variant = "default", tall, index = 0 }: Props) {
+export function CategoryCard({ name, emoji, count, total, slotRef, onClick, variant = "default", tall, index = 0, cover }: Props) {
   const Icon = variant === "trash" ? Trash2 : FolderClosed;
   return (
     <Card
@@ -30,7 +31,11 @@ export function CategoryCard({ name, emoji, count, total, slotRef, onClick, vari
     >
       <CardHeader>
         <CardTitle>
-          <Icon className="h-3.5 w-3.5 shrink-0 text-plum/60" strokeWidth={1.8} />
+          {cover ? (
+            <img src={cover} alt="" className="h-6 w-6 shrink-0 rounded-full border border-line object-cover" />
+          ) : (
+            <Icon className="h-3.5 w-3.5 shrink-0 text-plum/60" strokeWidth={1.8} />
+          )}
           <span className="truncate">{variant === "trash" ? `${name} → trash` : name}</span>
           {emoji && variant !== "trash" && <span className="text-xs opacity-80">{emoji}</span>}
         </CardTitle>

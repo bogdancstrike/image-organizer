@@ -6,6 +6,7 @@ import { api, type JobCategory, type PlanItem } from "@/api";
 import { Thumb } from "./FilesDrawer";
 import { FLAG, useMediaViewer } from "./MediaViewer";
 import { fmt } from "@/lib/utils";
+import { useI18n } from "@/i18n";
 
 interface Props {
   jobId: string | null;
@@ -20,6 +21,7 @@ type Filter = "all" | "rejects" | "smiling" | "unsure" | "ai" | "manual" | "burs
 /** The whole plan as a table: filter, inspect, and reassign files before Apply. */
 export function ReviewTab({ jobId, editable, plan, categories, onChanged }: Props) {
   const { message } = App.useApp();
+  const { t } = useI18n();
   const [q, setQ] = useState("");
   const [kind, setKind] = useState<"all" | "image" | "video">("all");
   const [cats, setCats] = useState<string[]>([]);
@@ -33,7 +35,7 @@ export function ReviewTab({ jobId, editable, plan, categories, onChanged }: Prop
     return plan.filter((p) => {
       if (kind !== "all" && p.kind !== kind) return false;
       if (cats.length && !cats.includes(p.category_id)) return false;
-      if (needle && !p.rel_path.toLowerCase().includes(needle)) return false;
+      if (needle && !p.rel_path.toLowerCase().includes(needle) && !(p.text ?? "").toLowerCase().includes(needle)) return false;
       if (filter === "rejects" && !(p.quality?.flags.length || p.category_id.startsWith("_reject"))) return false;
       if (filter === "smiling" && !p.quality?.smiling) return false;
       if (filter === "unsure" && !(p.category_id === "_unsorted" || (p.source === "clip" && p.confidence < 0.45))) return false;
@@ -166,7 +168,7 @@ export function ReviewTab({ jobId, editable, plan, categories, onChanged }: Prop
         <Input
           allowClear
           prefix={<Search size={14} className="text-plum/40" />}
-          placeholder="Search file name or folder"
+          placeholder={t("review.search")}
           className="w-64"
           value={q}
           onChange={(e) => setQ(e.target.value)}

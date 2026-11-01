@@ -35,6 +35,9 @@ Your *Downloads*, your phone dump, last weekend's shoot: thousands of files call
 **Auto Image Organizer** looks at every photo and video, understands what it shows, and proposes a clean folder
 structure. Nothing moves until you press **Apply**, and every apply can be **undone**.
 
+- 🧭 **Tells you what to do.** It looks at a sample of the folder and recommends a recipe ("Looks like *Trash the dress*, 96% sure → *A wedding*"). One click, then Sort.
+- 🧑‍🤝‍🧑 **By person.** Face recognition (YuNet + SFace, on-device) puts every person in their own folder; rename *Person 1* to *Laura*.
+- 🌍 **5 languages:** English, Română, Español, Deutsch, Français.
 - 🧠 **Understands content.** CLIP sorts *outfits*, *mountains*, *studio light*, *food & cafés*, *screenshots* … no tags needed.
 - 📸 **Built for photographers.** Culling with blur, eyes-closed and exposure checks, best-of-burst, stars, and RAW + JPEG pairs.
 - 🔒 **Private by default.** Everything runs on your machine. AI is an optional, token-frugal helper.
@@ -60,13 +63,14 @@ Open **http://localhost:8080**, click the folder name in *"Sorting my **…** fo
 
 | Mode | What you get | Good for |
 |---|---|---|
-| **Preset** | 14 ready-made, **editable** folder sets | Instant results |
+| **Preset** | 15 ready-made, **editable** folder sets | Instant results |
 | **My categories** | Your own folders, each described in a few words (and *Photos-only / Videos-only*) | Your Instagram system, client workflows |
 | **Auto-discover** | Groups found automatically, named by **what makes them different** inside your folder | Unknown dumps, a studio shoot, a wedding |
 | **By date** | `2025/07 - July` from EXIF / video metadata | Archives |
+| **By person** | One folder per recognized person + Groups, Other people, No people | Families, events, model shoots |
 | **Cull** | Picks ★ · Keepers · Smiling · Maybe · Blurry · Eyes closed · Too dark/bright · Noisy · Burst extras | Photographers |
 
-**Presets:** Lifestyle · People & Style · Boudoir & glamour · Photoshoot themes (wedding, halloween, moto, pool, studio …) · Wedding day ·
+**Presets:** Lifestyle · People & Style · Boudoir & glamour · Boudoir session (poses & light) · Photoshoot themes (wedding, halloween, moto, pool, studio …) · Wedding day ·
 Instagram creator · Travel · Creator · Family & kids · Events · Real estate · Nature & wildlife · Food & product · Documents.
 Every preset can be edited from **/categories** and reset to its default.
 
@@ -103,6 +107,10 @@ Use **Cull** on its own, or switch on *quality checks* with any other mode to se
 - CLIP ViT-B/32 on **ONNX/CPU**: about 100 photos in about 5 s on first run, and **re-runs are instant** thanks to the analysis cache.
 - Videos: keyframe-only decoding at 336 px with sampled hashing, so a 60 s 1080p clip takes **0.3 s**. Photos are analyzed first.
 - 40+ formats: JPEG, PNG, HEIC/HEIF, AVIF, **JPEG XL**, WebP, TIFF, PSD, JPEG 2000, camera RAW · MP4, MOV, MKV, MTS/M2TS, AVI, WMV, …
+
+### More engines
+- **SigLIP 2** as an alternative recognition model (Settings → Organizing): more accurate on scenes and styles, ~3× slower on the first run.
+- **OCR** (RapidOCR): reads text in photos; text-heavy ones go to documents / captions folders, and the text is **searchable** in Review.
 
 ### 🤖 AI is optional
 Without a key, everything works offline. With `OPENAI_API_KEY`, the app uses **`gpt-6-luna`** (`reasoning: low`):
@@ -150,6 +158,17 @@ Measured with [`scripts/benchmark.py`](scripts/benchmark.py) on the bundled Dock
 | Cull · scale test (faces, blur, bursts) | 995 | **10.4 s** (95 files/s) | 0.2 s |
 | Auto-discover + AI naming (`gpt-6-luna`, 1 call) | 30–199 | **4–6 s** (dominated by the API call) | same |
 | Video: 60 s 1080p clip (3 keyframes + hash) | 1 | **0.3 s** | – |
+
+**New engines on a real 1,029-photo boudoir folder** (24 MP JPEGs):
+
+| Run | Wall time | Notes |
+|---|---|---|
+| CLIP preset, cold | 26.9 s | 55 duplicates found |
+| SigLIP 2 preset, cold / warm | 57.4 s / 0.2 s | 768-d embeddings, separate cache |
+| By person (YuNet + SFace), cold | 36.6 s | 7+ people found, avatars per person |
+| Cull (faces, blur, exposure, bursts), cold | 43.3 s | |
+| OCR · 115 mixed downloads, cold | 13.7 s | |
+| Whole sample library (1,800 files), warm | 0.5 s | analysis cache |
 
 **With AI** (`gpt-6-luna`, `reasoning: low`, 12 thumbnails per request at `detail: low`, 6 requests in parallel; analysis cached):
 

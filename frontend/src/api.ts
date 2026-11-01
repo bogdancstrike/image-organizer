@@ -1,4 +1,20 @@
-export type Strategy = "preset" | "custom" | "auto" | "date" | "cull";
+export type Strategy = "preset" | "custom" | "auto" | "date" | "cull" | "people";
+
+export interface Recipe {
+  id: string;
+  emoji: string;
+  strategy: Strategy;
+  set_id?: string;
+  options: { quality?: Partial<QualityOptions>; ocr?: boolean; focus?: string };
+}
+
+export interface Suggestion {
+  total: number;
+  photos: number;
+  videos: number;
+  theme?: string;
+  suggestions: { recipe: string; reason: { key: string; theme?: string; pct?: number } }[];
+}
 
 export interface Health {
   status: string;
@@ -9,6 +25,8 @@ export interface Health {
   library_name: string;
   library_host_path: string | null;
   faces_available: boolean;
+  people_available?: boolean;
+  ocr_available?: boolean;
   output_dir: string;
 }
 
@@ -31,6 +49,7 @@ export interface CategorySet {
 }
 
 export interface JobCategory extends Category {
+  cover?: string | null;
   photos: number;
   videos: number;
 }
@@ -50,6 +69,7 @@ export interface PlanItem {
   sidecars: string[];
   quality: QualitySummary | null;
   burst: { group: number; size: number; best: boolean } | null;
+  text?: string | null;
 }
 
 export interface QualitySummary {
@@ -170,6 +190,10 @@ export interface JobRequest {
     near_dup_distance: number;
     ai_assist: boolean;
     ai_max_files: number;
+    model: "clip" | "siglip2";
+    ocr: boolean;
+    people_min_photos: number;
+    people_similarity: number;
     date_granularity: "year" | "month" | "day";
     max_clusters: number;
     output_dir: string;
@@ -229,6 +253,14 @@ export const api = {
     }),
   emptyTrash: (runId: string) =>
     req<{ deleted: number; freed_bytes: number }>(`/api/runs/${runId}/empty-trash`, { method: "POST" }),
+  recipes: () => req<Recipe[]>("/api/recipes"),
+  suggest: (path: string, recursive: boolean) =>
+    req<Suggestion>(`/api/suggest?path=${encodeURIComponent(path)}&recursive=${recursive}`),
+  renameCategory: (jobId: string, catId: string, name: string) =>
+    req<{ categories: JobCategory[]; plan: PlanItem[] }>(`/api/jobs/${jobId}/categories/${catId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name }),
+    }),
   aiDefaults: () => req<AIDefaults>("/api/ai/defaults"),
   aiModels: () => req<{ default: string | null; models: string[]; error?: string }>("/api/ai/models"),
   runs: () => req<Run[]>("/api/runs"),

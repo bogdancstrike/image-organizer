@@ -24,6 +24,12 @@ export interface UiSettings {
   granularity: "coarse" | "normal" | "fine";
   ai: AIOptions;
   aiMaxFiles: number;
+  recipeId: string | null;
+  recipeFor: string | null; // folder the recipe was recommended for
+  model: "clip" | "siglip2";
+  ocr: boolean;
+  peopleMinPhotos: number;
+  peopleSimilarity: number;
 }
 
 export const DEFAULT_SETTINGS: UiSettings = {
@@ -74,6 +80,12 @@ export const DEFAULT_SETTINGS: UiSettings = {
   focus: "auto",
   granularity: "normal",
   aiMaxFiles: 300,
+  recipeId: null,
+  recipeFor: null,
+  model: "clip",
+  ocr: false,
+  peopleMinPhotos: 3,
+  peopleSimilarity: 0.363,
   ai: { model: null, reasoning_effort: null, naming_prompt: "", assist_prompt: "", assist_scope: "unsure", assist_batch: 12 },
 };
 

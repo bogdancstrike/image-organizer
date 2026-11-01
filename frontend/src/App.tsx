@@ -22,6 +22,11 @@ import { Badge } from "./components/ui/badge";
 import { Card } from "./components/ui/card";
 import { loadSettings, saveSettings, type UiSettings } from "./settings";
 import { ThemeSwitcher, useTheme } from "./theme";
+import { LANGS, useI18n } from "./i18n";
+import { RecipePicker } from "./components/RecipePicker";
+import { Select } from "antd";
+import type { Recipe, Suggestion } from "./api";
+import { DEFAULT_SETTINGS } from "./settings";
 import { fmt, prefersReducedMotion } from "./lib/utils";
 
 type Status = "idle" | "running" | "done" | "error" | "cancelled" | "applied" | "undone";
@@ -105,6 +110,10 @@ export default function App() {
   const unsub = useRef<null | (() => void)>(null);
 
   const { theme } = useTheme();
+  const { t, lang, setLang } = useI18n();
+  const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
+  const [suggesting, setSuggesting] = useState(false);
   useEffect(() => {
     // parent effects (data-theme) run after ours: wait a frame before re-reading CSS variables
     const id = requestAnimationFrame(() => engineRef.current?.refreshTheme());
@@ -323,6 +332,10 @@ export default function App() {
           focus: s.focus,
           granularity: s.granularity,
           ai: s.ai,
+          model: s.model,
+          ocr: s.ocr,
+          people_min_photos: s.peopleMinPhotos,
+          people_similarity: s.peopleSimilarity,
         },
       });
       setJob((j) => ({ ...j, id }));
@@ -418,25 +431,28 @@ export default function App() {
   const statusText = useMemo(() => {
     switch (job.status) {
       case "idle":
-        return "Ready when you are";
+        return t("status.idle");
       case "running":
-        if (job.phase === "scanning" || job.phase === "starting") return "Looking for photos & videos…";
-        if (job.phase === "analyzing") return `Looking at ${fmt(job.analyzed)} / ${fmt(job.total)}…`;
-        if (job.phase === "deduplicating") return "Finding duplicates…";
-        if (job.phase === "checking") return "Checking sharpness, eyes & smiles…";
-        return "Sorting into folders…";
+        if (job.phase === "scanning" || job.phase === "starting") return t("status.scanning");
+        if (job.phase === "analyzing") return t("status.analyzing", { n: fmt(job.analyzed), total: fmt(job.total) });
+        if (job.phase === "deduplicating") return t("status.dedupe");
+        if (job.phase === "checking") return t("status.checking");
+        if (job.phase === "reading") return t("status.reading");
+        if (job.phase === "faces") return t("status.faces");
+        if (job.phase === "ai") return t("status.ai");
+        return t("status.sorting");
       case "done":
-        return settled ? "Sorted, nothing moved yet. Review & apply" : "Sorting into folders…";
+        return settled ? t("status.done") : t("status.sorting");
       case "applied":
-        return "Applied ✓";
+        return t("status.applied");
       case "undone":
-        return "Undone, all files are back";
+        return t("status.undone");
       case "cancelled":
-        return "Stopped";
+        return t("status.stopped");
       case "error":
-        return "Something went wrong";
+        return t("status.error");
     }
-  }, [job.status, job.phase, job.analyzed, job.total, settled]);
+  }, [job.status, job.phase, job.analyzed, job.total, settled, t]);
 
   const strategyLabel =
     settings.strategy === "preset"
@@ -447,6 +463,8 @@ export default function App() {
           ? "Auto-discover"
           : settings.strategy === "cull"
             ? "Culling · keepers & rejects"
+            : settings.strategy === "people"
+              ? "By person"
             : `By date · ${settings.dateGranularity}`;
 
   const filesItems = useMemo(
@@ -461,16 +479,54 @@ export default function App() {
   const showFlower = !running && (job.status === "idle" || settled || job.status === "cancelled" || job.status === "error");
   const caption =
     job.status === "applied"
-      ? "…not anymore ✿"
+      ? t("caption.applied")
       : job.status === "idle" || job.status === "undone"
-        ? "a total mess"
+        ? t("caption.idle")
         : job.status === "done"
           ? job.total === 0
-            ? "nothing to sort here"
-            : "a total mess, sorted"
+            ? t("caption.empty")
+            : t("caption.sorted")
           : job.status === "error"
-            ? "oops"
-            : "paused";
+            ? t("caption.error")
+            : t("caption.paused");
+
+  // ---- recipes: the app recommends how to sort the chosen folder
+  useEffect(() => {
+    api.recipes().then(setRecipes).catch(() => {});
+  }, []);
+  const applyRecipe = (r: Recipe, folder: string | null = settings.source) => {
+    setSettings({
+      ...settings,
+      recipeId: r.id,
+      recipeFor: folder,
+      strategy: r.strategy,
+      presetId: r.set_id ?? settings.presetId,
+      quality: { ...DEFAULT_SETTINGS.quality, ...(r.options.quality ?? {}) },
+      ocr: !!r.options.ocr,
+      focus: (r.options.focus as UiSettings["focus"]) ?? settings.focus,
+    });
+  };
+  useEffect(() => {
+    if (!health?.library_ok) return;
+    let alive = true;
+    setSuggesting(true);
+    setSuggestion(null);
+    api
+      .suggest(settings.source, settings.recursive)
+      .then((sg) => {
+        if (!alive) return;
+        setSuggestion(sg);
+        // first visit of this folder: pre-select the recommendation (the user can still pick another)
+        const top = recipes.find((r) => r.id === sg.suggestions[0]?.recipe);
+        if (top && settings.recipeFor !== settings.source) applyRecipe(top, settings.source);
+      })
+      .catch(() => {})
+      .finally(() => alive && setSuggesting(false));
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings.source, settings.recursive, health?.library_ok, recipes.length]);
 
   return (
     <div className="mx-auto max-w-[1400px] px-4 pb-16 pt-5 sm:px-8">
@@ -479,8 +535,17 @@ export default function App() {
         <Logo />
         <div className="flex items-center gap-3">
           <span className="hidden text-xs text-plum/55 md:inline">{statusText}</span>
+          <Select
+            size="small"
+            variant="borderless"
+            value={lang}
+            onChange={setLang}
+            popupMatchSelectWidth={140}
+            aria-label={t("lang")}
+            options={LANGS.map((l) => ({ value: l.id, label: `${l.flag} ${l.id.toUpperCase()}`, title: l.label }))}
+          />
           <ThemeSwitcher />
-          <Tooltip title="Quick settings">
+          <Tooltip title={t("quick.title")}>
             <Button variant="ghost" size="icon" onClick={() => setDrawer("settings")} aria-label="Quick settings">
               <SlidersHorizontal size={18} />
             </Button>
@@ -493,18 +558,18 @@ export default function App() {
           value={tab}
           onChange={(v) => setTab(v as typeof tab)}
           options={[
-            { value: "sort", label: <span className="inline-flex items-center gap-1.5 px-1"><LayoutGrid size={14} /><span className="hidden sm:inline">Sort</span></span> },
+            { value: "sort", label: <span className="inline-flex items-center gap-1.5 px-1"><LayoutGrid size={14} /><span className="hidden sm:inline">{t("tab.sort")}</span></span> },
             {
               value: "review",
               label: (
                 <span className="inline-flex items-center gap-1.5 px-1">
-                  <TableProperties size={14} /><span className="hidden sm:inline">Review</span>{plan.length ? <span className="text-plum/45">{fmt(plan.length)}</span> : null}
+                  <TableProperties size={14} /><span className="hidden sm:inline">{t("tab.review")}</span>{plan.length ? <span className="text-plum/45">{fmt(plan.length)}</span> : null}
                 </span>
               ),
             },
-            { value: "categories", label: <span className="inline-flex items-center gap-1.5 px-1"><Tags size={14} /><span className="hidden sm:inline">Categories</span></span> },
-            { value: "history", label: <span className="inline-flex items-center gap-1.5 px-1"><History size={14} /><span className="hidden sm:inline">History</span></span> },
-            { value: "settings", label: <span className="inline-flex items-center gap-1.5 px-1"><Settings2 size={14} /><span className="hidden sm:inline">Settings</span></span> },
+            { value: "categories", label: <span className="inline-flex items-center gap-1.5 px-1"><Tags size={14} /><span className="hidden sm:inline">{t("tab.categories")}</span></span> },
+            { value: "history", label: <span className="inline-flex items-center gap-1.5 px-1"><History size={14} /><span className="hidden sm:inline">{t("tab.history")}</span></span> },
+            { value: "settings", label: <span className="inline-flex items-center gap-1.5 px-1"><Settings2 size={14} /><span className="hidden sm:inline">{t("tab.settings")}</span></span> },
           ]}
         />
       </nav>
@@ -513,17 +578,17 @@ export default function App() {
       {/* hero: what is sorted, one big obvious button, how */}
       <section className="mx-auto mt-10 flex max-w-4xl flex-col items-center text-center">
         <h1 className="text-[34px] font-semibold leading-[1.08] tracking-tight sm:text-[54px]">
-          Sorting my{" "}
+          {t("hero.before")}{" "}
           <button
             onClick={() => !running && setDrawer("folder")}
             disabled={running}
-            title="Choose another folder"
+            title={t("hero.change")}
             className="group inline-flex cursor-pointer items-baseline gap-1 rounded-xl px-1 font-serif text-[1.12em] font-normal italic decoration-petal decoration-2 underline-offset-[10px] hover:underline disabled:cursor-default disabled:no-underline"
           >
             {folderName}
             <ChevronDown className="h-6 w-6 self-center text-plum/40 transition-transform group-hover:translate-y-0.5 sm:h-8 sm:w-8" />
           </button>{" "}
-          folder
+          {t("hero.after")}
         </h1>
         <button
           onClick={() => !running && setDrawer("folder")}
@@ -531,21 +596,31 @@ export default function App() {
         >
           <FolderOpen size={13} className="shrink-0" />
           <span className="truncate">
-            {displayPath(health, settings.source)} → {settings.outputMode === "direct" ? "sorted folders directly inside" : `${settings.outputDir || "Organized"}/`}
+            {displayPath(health, settings.source)} → {settings.outputMode === "direct" ? t("hero.sorted_into") : `${settings.outputDir || "Organized"}/`}
           </span>
         </button>
 
+        {(job.status === "idle" || job.status === "undone") && (
+          <RecipePicker
+            recipes={recipes}
+            suggestion={suggestion}
+            loading={suggesting}
+            active={settings.recipeId}
+            disabled={running}
+            onPick={(r) => applyRecipe(r)}
+          />
+        )}
         <div className="mt-7 flex flex-col items-center gap-2">
           {running ? (
             <Button size="xl" variant="soft" onClick={stop} className="min-w-52">
-              <LogoMark spinning className="h-6 w-6" /> Stop
+              <LogoMark spinning className="h-6 w-6" /> {t("stop")}
             </Button>
           ) : (
             <Button size="xl" onClick={startSort} disabled={!health?.library_ok} className="min-w-52">
-              <LogoMark className="h-6 w-6" /> {job.status === "idle" ? "Sort" : "Sort again"}
+              <LogoMark className="h-6 w-6" /> {job.status === "idle" ? t("sort") : t("sort.again")}
             </Button>
           )}
-          <span className="text-xs text-plum/55">{running ? statusText : job.status === "idle" ? "Nothing is moved until you press Apply" : statusText}</span>
+          <span className="text-xs text-plum/55">{running ? statusText : job.status === "idle" ? t("hint.idle") : statusText}</span>
         </div>
 
         <div className="mt-4 flex flex-wrap items-center justify-center gap-1.5">
@@ -588,12 +663,12 @@ export default function App() {
             {job.status === "applied" ? (
               <>Done. Your files are in <b>{displayPath(health, settings.source)}{settings.outputMode === "direct" ? "" : `/${settings.outputDir || "Organized"}`}/</b>.</>
             ) : job.status === "undone" ? (
-              <>Undone. Every file is back where it was.</>
+              <>{t("apply.undone")}</>
             ) : (
               <>
-                {fmt(planned)} files planned into <b>{stats.folders}</b> folders
-                {stats.duplicates ? <>, <b>{stats.duplicates}</b> duplicates set aside</> : null}
-                {job.errors ? <>, {job.errors} unreadable skipped</> : null}. Nothing has been touched yet.
+                {t("apply.summary", { n: fmt(planned), folders: stats.folders })}{" "}
+                {stats.duplicates ? <>{t("apply.dups", { n: stats.duplicates })} </> : null}
+                {t("apply.untouched")}
               </>
             )}
             {job.usage && (
@@ -605,11 +680,11 @@ export default function App() {
           </div>
           <div className="flex gap-2">
             <Button variant="soft" onClick={startSort}>
-              <RefreshCw size={14} /> Re-run
+              <RefreshCw size={14} /> {t("rerun")}
             </Button>
             {job.status === "done" && (
               <Button onClick={applyPlan} disabled={applying}>
-                {applying ? "Applying…" : settings.applyMode === "copy" ? "Apply · copy files" : "Apply · move files"}
+                {applying ? t("apply.applying") : settings.applyMode === "copy" ? t("apply.copy") : t("apply.move")}
               </Button>
             )}
             {job.status === "applied" && job.runId && (
@@ -693,7 +768,7 @@ export default function App() {
       >
         <section className="order-2 lg:order-1">
           <h2 className="mb-3 flex items-center gap-2 font-serif text-[22px] italic text-plum/80">
-            <span className="h-1.5 w-1.5 rounded-full bg-petal" /> Photos
+            <span className="h-1.5 w-1.5 rounded-full bg-petal" /> {t("col.photos")}
           </h2>
           <div className={"grid gap-3 " + (noVideos ? "grid-cols-2 xl:grid-cols-3" : "grid-cols-2")}>
             {showGhosts &&
@@ -706,6 +781,7 @@ export default function App() {
                 index={i}
                 name={c.name}
                 emoji={c.emoji}
+                cover={c.cover}
                 count={landed[cardKey(c.id, "image")] ?? 0}
                 total={c.photos}
                 slotRef={slotRef(cardKey(c.id, "image"))}
@@ -727,7 +803,7 @@ export default function App() {
 
         <section className="order-3">
           <h2 className="mb-3 flex items-center gap-2 font-serif text-[22px] italic text-plum/80">
-            <span className="h-1.5 w-1.5 rounded-full bg-plum" /> Videos
+            <span className="h-1.5 w-1.5 rounded-full bg-plum" /> {t("col.videos")}
           </h2>
           <div className="grid grid-cols-2 gap-3">
             {showGhosts && [0, 1].map((i) => <GhostCard key={i} index={i} />)}
@@ -745,7 +821,7 @@ export default function App() {
               />
             ))}
             {!showGhosts && job.categories.length > 0 && videoCats.length === 0 && (
-              <p className="col-span-2 text-xs text-plum/45">No videos in this folder.</p>
+              <p className="col-span-2 text-xs text-plum/45">{t("col.novideos")}</p>
             )}
             {dupCat && (
               <div className="col-span-2">
@@ -769,7 +845,7 @@ export default function App() {
 
       <footer className="mt-16 flex flex-wrap items-center justify-between gap-2 text-[11px] text-plum/45">
         <span>
-          Auto Image Organizer v{health?.version ?? "…"} · runs locally · nothing is moved until you press Apply
+          Auto Image Organizer v{health?.version ?? "…"} · {t("footer")}
         </span>
         <a
           className="inline-flex items-center gap-1 hover:text-plum"
@@ -835,7 +911,23 @@ export default function App() {
       <HistoryDrawer open={drawer === "history"} onClose={() => setDrawer(null)} onUndone={(id) => {
         setJob((j) => (j.runId === id ? { ...j, status: "undone" } : j));
       }} />
-      <FilesDrawer title={filesFor?.title ?? null} items={filesItems} onClose={() => setFilesFor(null)} />
+      <FilesDrawer
+        title={filesFor?.title ?? null}
+        items={filesItems}
+        onClose={() => setFilesFor(null)}
+        onRename={
+          job.status === "done" && filesFor && filesFor.catId !== DUP && job.id
+            ? async (name: string) => {
+                const r = await api.renameCategory(job.id!, filesFor.catId, name);
+                setJob((j) => ({ ...j, categories: r.categories }));
+                const byId = new Map(r.plan.map((p) => [p.file_id, p]));
+                setPlan((old) => old.map((p) => byId.get(p.file_id) ?? p));
+                setFilesFor((f) => (f ? { ...f, title: `${name}${f.kind ? (f.kind === "image" ? " · photos" : " · videos") : ""}` } : f));
+                message.success(t("rename.ok"));
+              }
+            : undefined
+        }
+      />
     </div>
   );
 }

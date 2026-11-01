@@ -218,6 +218,23 @@ PRESETS += [
         ],
     },
     {
+        "id": "boudoir-session",
+        "name": "Boudoir session · poses & light",
+        "description": "One boudoir shoot split by pose, framing and light: what a photographer delivers and edits by.",
+        "categories": [
+            _c("face", "Face & close-ups", "👄", "a close-up portrait of a woman's face", "a sensual close-up of lips and eyes", "a tight crop of face and shoulders"),
+            _c("standing", "Standing full body", "🧍\u200d♀️", "a woman standing in lingerie, full body", "a full-length pose against a wall", "a standing pose by the window"),
+            _c("lying", "Lying on the bed", "🛏️", "a woman lying on a bed", "a model lying on white sheets", "a reclining pose on the bed"),
+            _c("sitting", "Sitting & kneeling", "🪑", "a woman sitting on the edge of a bed", "a woman kneeling on the bed", "a seated pose on a chair"),
+            _c("back", "Back & curves", "🌙", "a woman's back in lingerie", "a pose seen from behind", "the curve of the back and hips"),
+            _c("window", "Window light", "🪟", "soft window light falling on a woman", "a silhouette by the window", "a pose next to curtains"),
+            _c("sheets", "Sheets & implied", "🤍", "a woman wrapped in white sheets", "an implied pose covered by fabric", "a sheet draped over the body"),
+            _c("mirror", "Mirror", "🪞", "a woman posing in front of a mirror", "a reflection in a mirror"),
+            _c("bw", "Black & white", "⚫", "a black and white boudoir photo", "a monochrome sensual portrait"),
+            _c("details", "Details", "💍", "a close-up of lace and fabric", "hands and jewelry detail", "high heels and legs detail"),
+        ],
+    },
+    {
         "id": "family",
         "name": "Family & kids",
         "description": "Home life: kids, family moments, holidays, school, pets.",

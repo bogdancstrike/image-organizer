@@ -49,11 +49,17 @@ Status: `[x]` done · `[ ]` open. Each task lists the specs it covers and its "d
 - [x] T34 Perf: thread caps (KMeans 13× faster), workers `min(8, CPUs)`, memory peak 6.1 → 2.2 GB, keyframe-only video decoding.
 - [x] T35 Benchmarks + README performance & hardware section.
 
+## M7 Guided & smarter (done)
+- [x] T36 Recipes + `/api/suggest`: the app samples the folder and recommends how to sort it (pre-selected).
+- [x] T37 By person: YuNet + SFace identities, agglomerative clustering, avatars, rename folders.
+- [x] T38 SigLIP 2 model option with per-model cache; OCR signal (RapidOCR) + searchable text.
+- [x] T39 i18n: en, ro, es, de, fr (main surfaces; English fallback).
+- [x] T40 Boudoir session preset (poses & light); benchmarks on a 1,029-photo shoot.
+
 ## Backlog (good first issues)
 - [ ] OCR signal (RapidOCR) to strengthen "Text & captions" and "Documents".
 - [ ] Speech-activity signal for "Talking to camera" videos.
 - [ ] Write star ratings / labels to XMP for Lightroom & Capture One.
-- [ ] Face clustering: sort by person.
 - [ ] Local vision-LLM engine (vLLM, OpenAI-compatible) for zero-token AI.
 - [ ] GPU image variant (onnxruntime-gpu).
 - [ ] Larger CLIP models (SigLIP 2) as an option.

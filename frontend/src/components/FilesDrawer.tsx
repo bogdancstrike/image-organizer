@@ -1,4 +1,6 @@
-import { Drawer, Empty, Tooltip } from "antd";
+import { useState } from "react";
+import { Button, Drawer, Empty, Input, Tooltip } from "antd";
+import { useI18n } from "@/i18n";
 import { Film, Paperclip } from "lucide-react";
 import type { PlanItem } from "@/api";
 import { FLAG, FileDetails, useMediaViewer } from "./MediaViewer";
@@ -39,11 +41,31 @@ export function Thumb({ p, onOpen, size = "md" }: { p: PlanItem; onOpen: () => v
 }
 
 /** Files of one folder card. Click a photo to open the full-size viewer (zoom, rotate, ← → to browse). */
-export function FilesDrawer({ title, items, onClose }: { title: string | null; items: PlanItem[]; onClose: () => void }) {
+export function FilesDrawer({
+  title,
+  items,
+  onClose,
+  onRename,
+}: {
+  title: string | null;
+  items: PlanItem[];
+  onClose: () => void;
+  onRename?: (name: string) => Promise<void>;
+}) {
   const viewer = useMediaViewer(items);
+  const { t } = useI18n();
+  const [name, setName] = useState("");
   return (
     <Drawer open={!!title} onClose={onClose} title={title} size={560}>
       {items.length === 0 && <Empty description="Files appear here when the sort finishes" />}
+      {onRename && items[0] && (
+        <div className="mb-3 flex gap-2">
+          <Input placeholder={items[0].category} value={name} onChange={(e) => setName(e.target.value)} maxLength={60} />
+          <Button disabled={!name.trim()} onClick={() => onRename(name.trim()).then(() => setName("")).catch(() => {})}>
+            {t("rename")}
+          </Button>
+        </div>
+      )}
       {items[0] && <div className="mb-3 truncate text-xs text-plum/55">→ {items[0].destination}/ · click a photo to view it large</div>}
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
         {items.map((p) => (
