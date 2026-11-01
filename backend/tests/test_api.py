@@ -349,3 +349,14 @@ def test_ai_assist_all_files_custom_prompt_and_category_hint(settings, fake_embe
     assert all("Red things: anything mostly red" in t and "Green things: green" in t for t in texts)
     assert all(t.rstrip().endswith("in order.") for t in texts)
     assert all(p["source"] == "ai" for p in job["plan"] if p["category"] == "Red things")
+
+
+def test_places_samples_and_path_thumbs(client, settings):
+    (settings.library_root / "Pictures").mkdir()
+    make_image(settings.library_root / "Pictures" / "a.jpg", COLORS["red"], fmt="JPEG")
+    assert {"kind": "pictures", "name": "Pictures", "path": "Pictures"} in client.get("/api/places").json()
+    d = client.get("/api/folders", params={"path": "Pictures"}).json()
+    assert d["samples"] == ["Pictures/a.jpg"]
+    r = client.get("/api/thumb", params={"path": "Pictures/a.jpg"})
+    assert r.status_code == 200 and r.headers["content-type"] == "image/webp"
+    assert client.get("/api/thumb", params={"path": "../etc/passwd"}).status_code == 404

@@ -152,6 +152,20 @@ export interface JobSnapshot {
   plan?: PlanItem[];
 }
 
+export interface FolderListing {
+  path: string;
+  name: string;
+  media_count: number;
+  folders: Folder[];
+  samples?: string[];
+}
+
+export interface Place {
+  kind: "pictures" | "downloads" | "desktop" | "documents" | "videos" | "dcim";
+  name: string;
+  path: string;
+}
+
 export interface Folder {
   name: string;
   path: string;
@@ -267,6 +281,8 @@ export interface Stats {
   recent: StatsRow[];
 }
 
+export const thumbUrl = (path: string) => `/api/thumb?path=${encodeURIComponent(path)}`;
+
 export const previewUrl = (relPath: string) => `/api/preview?path=${encodeURIComponent(relPath)}`;
 
 export const api = {
@@ -278,7 +294,7 @@ export const api = {
       ? req<CategorySet>(`/api/category-sets/${id}`, { method: "PUT", body: JSON.stringify(body) })
       : req<CategorySet>("/api/category-sets", { method: "POST", body: JSON.stringify(body) }),
   deleteSet: (id: string) => req<void>(`/api/category-sets/${id}`, { method: "DELETE" }),
-  folders: (path: string) => req<{ path: string; name: string; media_count: number; folders: Folder[] }>(
+  folders: (path: string) => req<FolderListing>(
     `/api/folders?path=${encodeURIComponent(path)}`,
   ),
   startJob: (body: JobRequest) => req<{ id: string }>("/api/jobs", { method: "POST", body: JSON.stringify(body) }),
@@ -296,6 +312,7 @@ export const api = {
     }),
   emptyTrash: (runId: string) =>
     req<{ deleted: number; freed_bytes: number }>(`/api/runs/${runId}/empty-trash`, { method: "POST" }),
+  places: () => req<Place[]>("/api/places"),
   faces: () => req<FaceRef[]>("/api/faces"),
   addFace: async (file: File, name: string) => {
     const res = await fetch(`/api/faces?name=${encodeURIComponent(name)}`, { method: "POST", body: file, headers: { "Content-Type": file.type || "application/octet-stream" } });

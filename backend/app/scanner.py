@@ -154,6 +154,7 @@ def list_folders(root: Path, rel: str | None, output_dir_name: str = "Organized"
     base = resolve_in_library(root, rel)
     folders = []
     media_here = 0
+    samples: list[str] = []
     try:
         entries = sorted(os.scandir(base), key=lambda e: e.name.lower())
     except OSError as exc:
@@ -184,5 +185,31 @@ def list_folders(root: Path, rel: str | None, output_dir_name: str = "Organized"
             })
         elif media_kind(e.name):
             media_here += 1
+            if len(samples) < 8 and media_kind(e.name) == "image":
+                samples.append(Path(e.path).relative_to(root).as_posix())
     rel_path = "" if base == root else base.relative_to(root).as_posix()
-    return {"path": rel_path, "name": base.name if rel_path else "Library", "media_count": media_here, "folders": folders}
+    return {"path": rel_path, "name": base.name if rel_path else "Library", "media_count": media_here, "folders": folders,
+            "samples": samples}
+
+
+# Well-known folders (incl. common localized names) shown as "Places" in the folder picker
+PLACES = [
+    ("pictures", ("Pictures", "Imagini", "Bilder", "Images", "Imágenes", "Photos")),
+    ("downloads", ("Downloads", "Descărcări", "Téléchargements", "Descargas")),
+    ("desktop", ("Desktop", "Birou", "Schreibtisch", "Bureau", "Escritorio")),
+    ("documents", ("Documents", "Documente", "Dokumente", "Documentos")),
+    ("videos", ("Videos", "Video", "Videoclipuri", "Vidéos", "Vídeos")),
+    ("dcim", ("DCIM",)),
+]
+
+
+def list_places(root: Path) -> list[dict]:
+    root = root.resolve()
+    out = []
+    for kind, names in PLACES:
+        for n in names:
+            p = root / n
+            if p.is_dir() and not p.is_symlink():
+                out.append({"kind": kind, "name": n, "path": n})
+                break
+    return out

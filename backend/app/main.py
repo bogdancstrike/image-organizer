@@ -28,7 +28,7 @@ from .media import open_any
 from .ocr import get_text_reader
 from .people import get_face_identifier
 from .presets import RECIPES, RECIPES_BY_ID, SHOOT_THEMES, THEME_TO_RECIPE
-from .scanner import PathError, list_folders, media_kind, resolve_in_library, scan
+from .scanner import PathError, list_folders, list_places, media_kind, resolve_in_library, scan
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 SHA_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -217,6 +217,35 @@ def create_app(settings: Settings | None = None, embedder_factory=None, llm_fact
             return list_folders(s.library_root, path, s.output_dir_name)
         except PathError as exc:
             raise HTTPException(400, str(exc)) from exc
+
+    @app.get("/api/places")
+    def places():
+        return list_places(s.library_root)
+
+    @app.get("/api/thumb")
+    def thumb_by_path(path: str = Query(..., min_length=1)):
+        """Small cached thumbnail (≤ 320 px WebP) for any photo in the library: folder previews, search results."""
+        root = s.library_root
+        p = (root / path.lstrip("/")).resolve()
+        if root not in p.parents or not p.is_file() or media_kind(p.name) != "image":
+            raise HTTPException(404, "not found")
+        st = p.stat()
+        key = hashlib.sha1(f"{p}|{st.st_size}|{st.st_mtime}".encode()).hexdigest()
+        out = s.data_dir / "previews" / "t" / key[:2] / f"{key}.webp"
+        if not out.exists():
+            try:
+                with open_any(p) as im:
+                    if im.format == "JPEG":
+                        im.draft("RGB", (640, 640))
+                    im = ImageOps.exif_transpose(im).convert("RGB")
+                    im.thumbnail((320, 320), Image.Resampling.LANCZOS)
+                    out.parent.mkdir(parents=True, exist_ok=True)
+                    tmp = out.with_suffix(".tmp")
+                    im.save(tmp, "WEBP", quality=78)
+                    tmp.replace(out)
+            except Exception as exc:  # noqa: BLE001
+                raise HTTPException(422, f"cannot render thumbnail: {exc}") from exc
+        return FileResponse(out, media_type="image/webp", headers={"Cache-Control": "public, max-age=86400"})
 
     # ---------------------------------------------------------- categories
     @app.get("/api/presets")
