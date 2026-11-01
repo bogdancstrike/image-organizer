@@ -22,7 +22,7 @@ from .config import Settings, load_settings
 from .embedder import get_clip_embedder
 from .jobs import BusyError, JobManager
 from .llm import LLMClient
-from .db import AppDB, summarize
+from .db import OUTCOMES, AppDB, history, summarize
 from .library import Library
 from .organizer import empty_trash, list_runs, undo_run
 from .media import open_any
@@ -545,6 +545,12 @@ def create_app(settings: Settings | None = None, embedder_factory=None, llm_fact
             j.unlink(missing_ok=True)
         log.warning("factory reset done (cache wiped: %s)", body.include_cache)
         return {"ok": True}
+
+    @app.get("/api/history")
+    def get_history(outcome: str = Query("all"), limit: int = Query(20, ge=1, le=100), offset: int = Query(0, ge=0)):
+        if outcome != "all" and outcome not in OUTCOMES:
+            raise HTTPException(400, "unknown outcome")
+        return history(db, outcome, limit, offset)
 
     @app.get("/api/stats")
     def stats():

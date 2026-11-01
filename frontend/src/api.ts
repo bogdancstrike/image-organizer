@@ -185,6 +185,35 @@ export interface Run {
   undo?: { restored: number; problems: { file: string; error: string }[] } | null;
 }
 
+export interface HistoryItem {
+  job_id: string | null;
+  finished_at: number | null;
+  source: string | null;
+  strategy: string | null;
+  model: string | null;
+  files: number | null;
+  photos?: number;
+  videos?: number;
+  embedded?: number;
+  duplicates?: number;
+  folders?: number;
+  wall?: number;
+  phases?: Record<string, number>;
+  usage?: { input_tokens?: number; output_tokens?: number } | null;
+  outcome: "applied" | "undone" | "not_applied" | "cancelled" | "failed";
+  run: (Run & { in_trash: number }) | null;
+  categories: { name: string; count: number }[];
+  reopen: boolean;
+}
+
+export interface HistoryPage {
+  items: HistoryItem[];
+  total: number;
+  limit: number;
+  offset: number;
+  counts: Record<"all" | "applied" | "undone" | "not_applied" | "cancelled" | "failed", number>;
+}
+
 export interface JobEvent {
   seq: number;
   type: string;
@@ -360,6 +389,8 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ file_ids: fileIds, category_id: categoryId }),
     }),
+  history: (outcome: string, limit: number, offset: number) =>
+    req<HistoryPage>(`/api/history?${new URLSearchParams({ outcome, limit: String(limit), offset: String(offset) })}`),
   emptyTrash: (runId: string) =>
     req<{ deleted: number; freed_bytes: number }>(`/api/runs/${runId}/empty-trash`, { method: "POST" }),
   libStatus: (folder: string, model: string) =>

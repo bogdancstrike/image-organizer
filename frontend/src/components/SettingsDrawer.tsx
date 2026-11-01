@@ -155,7 +155,7 @@ function DangerZone() {
           Also clear the analysis cache (thumbnails, embeddings, faces, OCR: the next sort re-analyzes everything)
         </Checkbox>
         <p className="mb-1.5 mt-4 text-[13px]">
-          To confirm, type <b className="select-all font-mono">{RESET_PHRASE}</b>:
+          To confirm, type <b className="select-all font-mono">{RESET_PHRASE}</b>
         </p>
         <Input value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={RESET_PHRASE} status={typed && !ok ? "warning" : undefined} autoFocus />
         {error && <p className="mt-2 text-[12px] text-red-500">{error}</p>}

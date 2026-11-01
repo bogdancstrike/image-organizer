@@ -12,7 +12,8 @@ import { SettingsDrawer, SettingsPanel } from "./components/SettingsDrawer";
 import { ReviewTab } from "./components/ReviewTab";
 import { CategoriesTab } from "./components/CategoriesTab";
 import { CategoryEditor } from "./components/CategoryEditor";
-import { HistoryDrawer, HistoryList } from "./components/HistoryDrawer";
+import { HistoryDrawer } from "./components/HistoryDrawer";
+import { HistoryTab } from "./components/HistoryTab";
 import { Segmented } from "antd";
 import { LayoutGrid, TableProperties, Tags, Settings2, BarChart3, RotateCcw, Images } from "lucide-react";
 import { FilesDrawer } from "./components/FilesDrawer";
@@ -569,7 +570,7 @@ export default function App() {
   }, [settings.source, settings.recursive, health?.library_ok, recipes.length]);
 
   return (
-    <div className="mx-auto max-w-[1400px] px-4 pb-8 pt-5 sm:px-8">
+    <div className="mx-auto flex min-h-dvh w-full max-w-[2200px] flex-col px-4 pb-6 pt-5 sm:px-8 lg:w-[80vw] lg:px-0">
       {/* header */}
       <header className="flex flex-wrap items-center justify-between gap-3">
         <Logo />
@@ -618,7 +619,7 @@ export default function App() {
 
       <div className={tab === "sort" ? "" : "hidden"}>
       {/* hero: what is sorted, one big obvious button, how */}
-      <section className="mx-auto mt-2 flex max-w-4xl flex-col items-center text-center">
+      <section className={"mx-auto flex max-w-5xl flex-col items-center text-center " + (job.status === "idle" ? "mt-8" : "mt-2")}>
         <h1 className="text-[32px] font-semibold leading-[1.08] tracking-tight sm:text-[44px]">
           {t("hero.before")}{" "}
           <button
@@ -701,9 +702,11 @@ export default function App() {
         </div>
       </section>
 
-      <div className="mt-4">
-        <Stats values={stats} />
-      </div>
+      {job.status !== "idle" && (
+        <div className="mt-4">
+          <Stats values={stats} />
+        </div>
+      )}
 
       </div>
       {(tab === "sort" || tab === "review") && (
@@ -789,7 +792,18 @@ export default function App() {
       )}
       {tab === "history" && (
         <Card className="mt-8 max-w-3xl p-4">
-          <HistoryList active={tab === "history"} onUndone={(id) => setJob((j) => (j.runId === id ? { ...j, status: "undone" } : j))} />
+          <HistoryTab
+            active={tab === "history"}
+            onUndone={(id) => setJob((j) => (j.runId === id ? { ...j, status: "undone" } : j))}
+            onReopen={(jobId) => {
+              try {
+                localStorage.setItem("aio.lastJob", jobId);
+              } catch {
+                /* storage unavailable */
+              }
+              window.location.assign("/sort"); // the sort page restores that plan
+            }}
+          />
         </Card>
       )}
       {tab === "library" && (
@@ -826,12 +840,12 @@ export default function App() {
         </div>
       )}
 
-      <div className={tab === "sort" ? "" : "hidden"}>
+      <div className={tab === "sort" ? "flex flex-1 flex-col" : "hidden"}>
       {/* stage */}
       <div
         ref={stageRef}
         className={
-          "relative mt-4 grid gap-6 " +
+          "relative mt-4 grid gap-6 " + (job.categories.length ? "" : "flex-1 ") +
           (manyFolders
             ? "lg:grid-cols-[minmax(0,2.4fr)_minmax(0,1fr)]"
             : "lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)_minmax(0,1fr)]")

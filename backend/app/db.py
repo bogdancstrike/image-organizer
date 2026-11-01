@@ -124,6 +124,49 @@ class AppDB:
         return [json.loads(r[0]) for r in rows]
 
 
+OUTCOMES = ("applied", "undone", "not_applied", "cancelled", "failed")
+
+
+def history(db: "AppDB", outcome: str | None = None, limit: int = 20, offset: int = 0) -> dict:
+    """Every sort, accepted or not: what was sorted, how, how long, and what happened to the plan."""
+    runs = db.runs(limit=5000)
+    by_job = {r.get("job_id"): r for r in runs if r.get("job_id")}
+    with db._lock:
+        saved = {i: json.loads(d) for i, d in db._db.execute("SELECT id, data FROM jobs").fetchall()}
+    items: list[dict] = []
+    seen_runs: set[str] = set()
+    for s in db.job_stats(limit=5000):
+        run = by_job.get(s["job_id"])
+        if run:
+            seen_runs.add(run["run_id"])
+        st = s.get("status")
+        out = ("failed" if st == "error" else "cancelled" if st == "cancelled" else
+               (run["status"] if run and run.get("status") in ("applied", "undone") else "not_applied"))
+        snap = saved.get(s["job_id"]) or {}
+        cats = sorted(({"name": c.get("name"), "count": (c.get("photos") or 0) + (c.get("videos") or 0)}
+                       for c in snap.get("categories") or []), key=lambda c: -c["count"])
+        items.append({**{k: s.get(k) for k in ("job_id", "finished_at", "source", "strategy", "model", "files", "photos", "videos",
+                                                 "embedded", "duplicates", "folders", "wall", "phases", "usage")},
+                      "outcome": out, "run": run, "categories": cats[:12], "reopen": bool(snap) and out in ("not_applied", "undone")})
+    for r in runs:  # applies made before statistics existed
+        if r["run_id"] in seen_runs:
+            continue
+        ts = r.get("created_at") or ""
+        try:
+            from datetime import datetime
+            t = datetime.fromisoformat(ts).timestamp() if ts else 0
+        except ValueError:
+            t = 0
+        items.append({"job_id": r.get("job_id"), "finished_at": t, "source": r.get("source"), "strategy": None, "model": None,
+                      "files": r.get("moved"), "outcome": r.get("status") if r.get("status") in ("applied", "undone") else "applied",
+                      "run": r, "categories": [], "reopen": False})
+    items.sort(key=lambda x: -(x.get("finished_at") or 0))
+    counts = {o: sum(1 for i in items if i["outcome"] == o) for o in OUTCOMES}
+    counts["all"] = len(items)
+    rows = [i for i in items if not outcome or outcome == "all" or i["outcome"] == outcome]
+    return {"items": rows[offset: offset + limit], "total": len(rows), "counts": counts, "limit": limit, "offset": offset}
+
+
 def summarize(stats: list[dict], runs: list[dict]) -> dict:
     """Aggregates for the Statistics tab."""
     done = [s for s in stats if s.get("status") == "done"]

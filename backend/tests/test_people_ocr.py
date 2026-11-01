@@ -188,3 +188,21 @@ def test_finished_sort_survives_restart(settings, fake_embedder):
         c.post(f"/api/runs/{run['run_id']}/undo")
     with TestClient(create_app(settings, embedder_factory=lambda: fake_embedder, llm_factory=lambda: None)) as c:
         assert c.get(f"/api/jobs/{job['id']}").json()["status"] == "done"  # undone → editable plan again
+
+
+def test_history_lists_every_sort_with_outcome_and_pages(settings, fake_embedder):
+    for i in range(3):
+        make_image(settings.library_root / f"h{i}.jpg", COLORS["green"], fmt="JPEG", noise_seed=70 + i)
+    with TestClient(create_app(settings, embedder_factory=lambda: fake_embedder, llm_factory=lambda: None)) as c:
+        a = wait(c, c.post("/api/jobs", json={"strategy": "date"}).json()["id"])
+        b = wait(c, c.post("/api/jobs", json={"strategy": "date"}).json()["id"])
+        c.post(f"/api/jobs/{b['id']}/apply", json={"mode": "copy"})
+        import time as _t
+        _t.sleep(0.2)
+        h = c.get("/api/history").json()
+        assert h["counts"]["applied"] == 1 and h["counts"]["not_applied"] == 1 and h["total"] == 2
+        assert {i["job_id"]: i["outcome"] for i in h["items"]} == {a["id"]: "not_applied", b["id"]: "applied"}
+        assert next(i for i in h["items"] if i["job_id"] == a["id"])["reopen"] is True
+        page = c.get("/api/history", params={"outcome": "applied", "limit": 1}).json()
+        assert page["total"] == 1 and page["items"][0]["run"]["moved"] == 3
+        assert c.get("/api/history", params={"outcome": "nope"}).status_code == 400
