@@ -41,6 +41,9 @@ export function FileDetails({ p }: { p: PlanItem }) {
           {q.flags.length ? ` · ${q.flags.map((f) => FLAG[f]?.label ?? f).join(", ")}` : ""}
         </div>
       )}
+      {p.pick?.picked && (
+        <div className="opacity-90">★ Pick{p.pick.reasons.length ? `: ${p.pick.reasons.join(" · ")}` : ""}</div>
+      )}
       {p.sidecars?.length ? <div className="opacity-75">+ {p.sidecars.map((s) => s.split("/").pop()).join(", ")}</div> : null}
     </div>
   );

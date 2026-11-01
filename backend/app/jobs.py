@@ -23,12 +23,13 @@ from .dedupe import DupItem, find_duplicates
 from .embedder import Embedder, normalize
 from .llm import LLMClient, contact_sheet, load_thumb
 from .media import Analysis, MediaError, decode, load_for_quality
-from .quality import REASONS, Quality, QualityRules, analyze_image, find_bursts, get_face_analyzer, score, stars, summary, verdict
+from .quality import QUALITY_VERSION, REASONS, Quality, QualityRules, analyze_image, find_bursts, get_face_analyzer, score, stars, summary, verdict
 from .ocr import get_text_reader, text_category
 from .organizer import apply_plan
 from PIL import Image, ImageOps
 
 from .library import add_places, locate_files, trips_for
+from . import picks as picks_mod
 
 from .people import (FaceID, assign_by_appearance, cluster_people, face_crop_webp, get_face_identifier, man_probability,
                      person_presence, text_bank)
@@ -536,6 +537,7 @@ class JobManager:
                 "sidecars": list(f.sidecars),
                 "quality": summary(quality[f.id], rules) if f.id in quality else None,
                 "burst": bursts.get(f.id),
+                "pick": getattr(self, "_pick_info", {}).get(f.id),
                 "text": (texts.get(f.id) or {}).get("text") or None,
                 "also": [destination(source_rel, out_dir, f.kind, cats_by_id[c], split) for c in sorted(getattr(self, "_extra", {}).get(f.id, ()))
                          if c in cats_by_id] or None,
@@ -573,7 +575,7 @@ class JobManager:
             if job.cancel_requested:
                 return f, None
             cached = self.cache.get_quality(str(f.path), f.size, f.mtime)
-            if cached and "noise" in cached and (cached.get("faces_checked") or not fa.available):
+            if cached and cached.get("v", 1) >= QUALITY_VERSION and (cached.get("faces_checked") or not fa.available):
                 return f, Quality.from_dict(cached)
             try:
                 q = analyze_image(load_for_quality(f.path), fa)
@@ -882,6 +884,7 @@ class JobManager:
     def _categorize(self, job: Job, keep, embedder, quality=None, rules=None, bursts=None, faces=None) -> tuple[dict, list[dict]]:
         req, opts = job.request, job.request.get("options", {})
         strategy = req["strategy"]
+        self._pick_info: dict[str, dict] = {}
         assignment: dict[str, tuple[str | None, float, str]] = {}
         if not keep:
             return assignment, []
@@ -923,11 +926,18 @@ class JobManager:
                 assignment[f.id] = (cid, 1.0, "quality")
                 used.add(cid)
             if picks_pct > 0:
-                kept = [f.id for f, _, _ in keep if assignment[f.id][0] in ("keepers", "smiling") and f.id in (quality or {})]
-                n_picks = max(1, round(len(kept) * picks_pct / 100)) if kept else 0
-                for fid in sorted(kept, key=lambda i: -score(quality[i], rules))[:n_picks]:
-                    assignment[fid] = ("picks", 1.0, "quality")
-                    used.add("picks")
+                kept = [(f.id, e) for f, _, e in keep if assignment[f.id][0] in ("keepers", "smiling") and f.id in (quality or {})]
+                if kept:
+                    ids = [k[0] for k in kept]
+                    E = np.vstack([k[1] for k in kept]).astype(np.float32)
+                    ranking = picks_mod.rank(ids, quality, E, embedder, rules)
+                    n_picks = max(1, round(len(ids) * picks_pct / 100))
+                    chosen = set(picks_mod.select(ids, ranking, E, n_picks))
+                    for fid, pi in ranking.info.items():
+                        self._pick_info[fid] = {"score": pi.score, "reasons": pi.reasons, "picked": fid in chosen, "parts": pi.parts}
+                    for fid in chosen:
+                        assignment[fid] = ("picks", ranking.info[fid].score, "quality")
+                        used.add("picks")
             return assignment, [c for c in cats if c["id"] in used]
 
         if strategy in ("trips", "places"):

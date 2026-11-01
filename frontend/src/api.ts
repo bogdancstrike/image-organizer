@@ -56,6 +56,7 @@ export interface JobCategory extends Category {
 }
 
 export interface PlanItem {
+  pick?: { score: number; reasons: string[]; picked: boolean } | null;
   file_id: string;
   rel_path: string;
   name: string;

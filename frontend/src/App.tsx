@@ -15,7 +15,7 @@ import { CategoryEditor } from "./components/CategoryEditor";
 import { HistoryDrawer } from "./components/HistoryDrawer";
 import { HistoryTab } from "./components/HistoryTab";
 import { Segmented } from "antd";
-import { LayoutGrid, TableProperties, Tags, Settings2, BarChart3, RotateCcw, Images } from "lucide-react";
+import { LayoutGrid, TableProperties, Tags, Settings2, BarChart3, RotateCcw, Images, TriangleAlert } from "lucide-react";
 import { FilesDrawer } from "./components/FilesDrawer";
 import { FolderPicker, displayPath } from "./components/FolderPicker";
 import { Button } from "./components/ui/button";
@@ -305,7 +305,7 @@ export default function App() {
   // fetch the full plan once a job is done
   useEffect(() => {
     if (job.status === "done" && job.id) api.job(job.id).then((s) => setPlan(s.plan ?? [])).catch(() => {});
-    if (job.status === "error" && job.error) message.error(job.error);
+    // errors are shown inline (themed card under the Sort button), not as a toast
   }, [job.status, job.id, job.error, message]);
 
   const clearStage = () => {
@@ -674,6 +674,27 @@ export default function App() {
           {(running || job.status === "idle") && (
             <span className="text-xs text-plum/55">{running ? statusText : t("hint.idle")}</span>
           )}
+          {job.status === "error" && job.error && (
+            <Card role="alert" className="mt-3 flex w-full max-w-xl items-start gap-3 p-4 text-left">
+              <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-tint text-plum">
+                <TriangleAlert size={16} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="text-[14px] font-medium text-plum">
+                  {/already running/i.test(job.error) ? "Another sort is still running" : "This sort couldn't finish"}
+                </div>
+                <p className="mt-0.5 text-[12px] text-plum/60">
+                  {/already running/i.test(job.error)
+                    ? "Only one sort runs at a time (an index from the Library tab counts too). Wait a moment, or stop it, then try again."
+                    : job.error}
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button size="sm" onClick={startSort}>Try again</Button>
+                  <Button size="sm" variant="ghost" onClick={resetAll}>Dismiss</Button>
+                </div>
+              </div>
+            </Card>
+          )}
         </div>
 
         <div className="mt-3 flex flex-wrap items-center justify-center gap-1.5">
@@ -702,7 +723,7 @@ export default function App() {
         </div>
       </section>
 
-      {job.status !== "idle" && (
+      {(running || job.categories.length > 0) && (
         <div className="mt-4">
           <Stats values={stats} />
         </div>
@@ -791,7 +812,7 @@ export default function App() {
         </div>
       )}
       {tab === "history" && (
-        <div className="mx-auto mt-10 w-full max-w-4xl">
+        <div className="mt-8">
           <HistoryTab
             active={tab === "history"}
             onUndone={(id) => setJob((j) => (j.runId === id ? { ...j, status: "undone" } : j))}
@@ -826,7 +847,7 @@ export default function App() {
         </div>
       )}
       {tab === "settings" && (
-        <div className="mx-auto mt-8 w-full max-w-6xl">
+        <div className="mt-8">
           <SettingsPanel
             layout="page"
             gpsAvailable={(suggestion?.gps_share ?? 0) > 0}

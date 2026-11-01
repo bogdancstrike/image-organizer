@@ -35,6 +35,8 @@ class Face:
     smile: float  # 0..1
     area: float  # share of the image area
     box: tuple[float, float, float, float]  # x0, y0, x1, y1 normalized
+    # expression (MediaPipe blendshapes + head pose), 0..1: gaze away from camera, mouth open (mid-word), frown, squint, head turn
+    expr: dict | None = None
 
 
 @dataclass
@@ -47,6 +49,7 @@ class Quality:
     faces_checked: bool = False
     noise: float = 0.0  # Immerkær noise sigma (0..1), edges excluded
     tilt: float | None = None  # degrees of a consistent near-horizontal line structure, None if there is none
+    v: int = 1  # analysis version: cached entries older than QUALITY_VERSION are recomputed
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -55,7 +58,34 @@ class Quality:
     def from_dict(cls, d: dict) -> "Quality":
         faces = [Face(**{**f, "box": tuple(f["box"])}) for f in d.get("faces", [])]
         return cls(d["sharpness"], d["brightness"], d["dark_clip"], d["bright_clip"], faces, d.get("faces_checked", False),
-                   d.get("noise", 0.0), d.get("tilt"))
+                   d.get("noise", 0.0), d.get("tilt"), d.get("v", 1))
+
+
+QUALITY_VERSION = 2  # 2: per-face expression (gaze, mouth, frown, squint, head turn)
+
+
+def _expression(sc: dict, lms) -> dict:
+    """Expression signals from MediaPipe blendshapes; head turn (yaw) from the nose tip vs. the eye corners."""
+    gaze = max(
+        (sc.get("eyeLookOutLeft", 0) + sc.get("eyeLookInRight", 0)) / 2,
+        (sc.get("eyeLookInLeft", 0) + sc.get("eyeLookOutRight", 0)) / 2,
+        (sc.get("eyeLookUpLeft", 0) + sc.get("eyeLookUpRight", 0)) / 2,
+        (sc.get("eyeLookDownLeft", 0) + sc.get("eyeLookDownRight", 0)) / 2,
+    )
+    yaw = 0.0
+    try:
+        nose, le, re = lms[1], lms[33], lms[263]
+        span = abs(re.x - le.x) or 1e-6
+        yaw = min(1.0, abs((nose.x - (le.x + re.x) / 2) / span) * 2)
+    except (IndexError, AttributeError):
+        pass
+    return {
+        "gaze": round(float(gaze), 3),
+        "mouth": round(float(sc.get("jawOpen", 0)), 3),
+        "frown": round(float((sc.get("mouthFrownLeft", 0) + sc.get("mouthFrownRight", 0)) / 2 + sc.get("browDownLeft", 0) * 0.25), 3),
+        "squint": round(float((sc.get("eyeSquintLeft", 0) + sc.get("eyeSquintRight", 0)) / 2), 3),
+        "yaw": round(float(yaw), 3),
+    }
 
 
 def _lap_var(gray: np.ndarray) -> float:
@@ -167,6 +197,7 @@ class FaceAnalyzer:
                 (min(xs), min(ys), max(xs), max(ys)),
                 (sc.get("eyeBlinkLeft", 0) + sc.get("eyeBlinkRight", 0)) / 2,
                 (sc.get("mouthSmileLeft", 0) + sc.get("mouthSmileRight", 0)) / 2,
+                _expression(sc, lms),
             ))
         return out
 
@@ -176,7 +207,7 @@ class FaceAnalyzer:
         H, W = rgb.shape[:2]
         found: list[Face] = []
 
-        def add(box, blink, smile):
+        def add(box, blink, smile, expr=None):
             x0, y0, x1, y1 = (max(0.0, box[0]), max(0.0, box[1]), min(1.0, box[2]), min(1.0, box[3]))
             area = (x1 - x0) * (y1 - y0)
             if area < MIN_FACE_AREA:
@@ -184,15 +215,15 @@ class FaceAnalyzer:
             for i, f in enumerate(found):
                 if _iou(f.box, (x0, y0, x1, y1)) > 0.3:
                     if area > f.area:  # keep the better-resolved detection
-                        found[i] = Face(round(blink, 3), round(smile, 3), round(area, 5), (x0, y0, x1, y1))
+                        found[i] = Face(round(blink, 3), round(smile, 3), round(area, 5), (x0, y0, x1, y1), expr)
                     return
-            found.append(Face(round(blink, 3), round(smile, 3), round(area, 5), (x0, y0, x1, y1)))
+            found.append(Face(round(blink, 3), round(smile, 3), round(area, 5), (x0, y0, x1, y1), expr))
 
         full = Image.fromarray(rgb)
         small = full.copy()
         small.thumbnail((ANALYSIS_SIZE, ANALYSIS_SIZE))
-        for box, blink, smile in self._detect_one(np.asarray(small)):
-            add(box, blink, smile)
+        for box, blink, smile, expr in self._detect_one(np.asarray(small)):
+            add(box, blink, smile, expr)
         for n in (2, 3):
             tw, th = W / n, H / n
             ox, oy = tw * 0.25, th * 0.25  # 25% overlap
@@ -202,9 +233,9 @@ class FaceAnalyzer:
                     x1, y1 = min(W, int((j + 1) * tw + ox)), min(H, int((i + 1) * th + oy))
                     tile = full.crop((x0, y0, x1, y1))
                     tile.thumbnail((ANALYSIS_SIZE, ANALYSIS_SIZE))
-                    for (bx0, by0, bx1, by1), blink, smile in self._detect_one(np.asarray(tile)):
+                    for (bx0, by0, bx1, by1), blink, smile, expr in self._detect_one(np.asarray(tile)):
                         cw, ch = x1 - x0, y1 - y0
-                        add(((x0 + bx0 * cw) / W, (y0 + by0 * ch) / H, (x0 + bx1 * cw) / W, (y0 + by1 * ch) / H), blink, smile)
+                        add(((x0 + bx0 * cw) / W, (y0 + by0 * ch) / H, (x0 + bx1 * cw) / W, (y0 + by1 * ch) / H), blink, smile, expr)
         for f in found:
             f.box = tuple(round(v, 4) for v in f.box)
         return found
@@ -257,6 +288,7 @@ def analyze_image(img: Image.Image, faces: FaceAnalyzer | None) -> Quality:
         bright_clip=round(float((lum > 0.97).mean()), 4),
         faces=found,
         faces_checked=checked,
+        v=QUALITY_VERSION,
     )
 
 
