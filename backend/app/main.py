@@ -41,6 +41,21 @@ class QualityOptions(BaseModel):
     blink_threshold: float = Field(0.5, ge=0.05, le=1.0)
     smile_threshold: float = Field(0.5, ge=0.05, le=1.0)
     action: Literal["reject", "tag"] = "reject"  # reject = move to _Rejects/<reason>
+    faces_rule: Literal["any", "main"] = "any"  # whose eyes/smile count: any face, or the main (largest) face
+    dark_threshold: float = Field(0.18, ge=0.0, le=0.5)
+    bright_threshold: float = Field(0.85, ge=0.5, le=1.0)
+    bursts: bool = True  # best-of-burst: keep the best of near-identical shots seconds apart
+    burst_seconds: float = Field(2.0, ge=0.2, le=30.0)
+    burst_similarity: float = Field(0.9, ge=0.75, le=0.99)
+    keeper_min_stars: int = Field(0, ge=0, le=5)  # cull: keepers below this go to "Maybe" (0 = off)
+
+
+class AIOptions(BaseModel):
+    model: str | None = Field(None, pattern=r"^[A-Za-z0-9._:-]{1,64}$")  # None = server default
+    reasoning_effort: Literal["minimal", "low", "medium", "high"] | None = None
+    naming_instructions: str = Field("", max_length=1500)  # extra guidance for naming auto groups
+    assist_instructions: str = Field("", max_length=1500)  # extra guidance for AI assist
+    assist_batch: int = Field(12, ge=1, le=24)  # thumbnails per assist request
 
 
 class JobOptions(BaseModel):
@@ -52,6 +67,9 @@ class JobOptions(BaseModel):
     ai_max_files: int = Field(200, ge=1, le=2000)
     date_granularity: Literal["year", "month", "day"] = "month"
     max_clusters: int = Field(12, ge=2, le=30)
+    focus: Literal["auto", "scene", "framing", "outfit", "lighting", "subject"] = "auto"  # what auto groups by
+    granularity: Literal["coarse", "normal", "fine"] = "normal"
+    ai: AIOptions = Field(default_factory=AIOptions)
     # where the category folders go: None = server default (OUTPUT_DIR_NAME), "" = directly in the chosen folder
     output_dir: str | None = Field(None, max_length=60, pattern=r'^[^/\\:*?"<>|]*$')
     recursive: bool = True
@@ -116,6 +134,25 @@ def create_app(settings: Settings | None = None, embedder_factory=None, llm_fact
             "faces_available": Path(os.environ.get("FACE_MODEL", "/models/face_landmarker.task")).exists(),
             "output_dir": s.output_dir_name,
         }
+
+    _models_cache: dict = {}
+
+    @app.get("/api/ai/models")
+    def ai_models():
+        """Vision-capable chat models the configured key can use (cached), for the Settings → AI picker."""
+        if not s.ai_available:
+            return {"default": None, "models": []}
+        if "models" not in _models_cache:
+            try:
+                from openai import OpenAI
+
+                ids = [m.id for m in OpenAI(api_key=s.openai_api_key, timeout=15).models.list().data]
+                keep = [i for i in ids if i.startswith(("gpt-5", "gpt-6", "gpt-4o", "gpt-4.1", "o4"))
+                        and not any(x in i for x in ("audio", "realtime", "tts", "search", "transcribe", "image"))]
+                _models_cache["models"] = sorted(set(keep), reverse=True)
+            except Exception as exc:  # noqa: BLE001
+                return {"default": s.openai_model, "models": [s.openai_model], "error": str(exc)}
+        return {"default": s.openai_model, "models": _models_cache["models"]}
 
     @app.get("/api/folders")
     def folders(path: str = Query("")):

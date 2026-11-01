@@ -7,7 +7,7 @@ from datetime import datetime
 import numpy as np
 
 from .embedder import Embedder, normalize
-from .presets import VOCABULARY
+from .presets import FACETS, THEMES, VOCABULARY
 
 LOGIT_SCALE = 100.0
 STRICT_SCREENSHOT = 0.6
@@ -100,7 +100,7 @@ def classify_with_set(
     return out
 
 
-def choose_k(embs: np.ndarray, max_k: int, seed: int = 0) -> tuple[np.ndarray, np.ndarray]:
+def choose_k(embs: np.ndarray, max_k: int, seed: int = 0, bias: float = 0.002) -> tuple[np.ndarray, np.ndarray]:
     """KMeans with k chosen by silhouette. Returns (labels, normalized centroids)."""
     from sklearn.cluster import KMeans
     from sklearn.metrics import silhouette_score
@@ -116,7 +116,7 @@ def choose_k(embs: np.ndarray, max_k: int, seed: int = 0) -> tuple[np.ndarray, n
             continue
         score = silhouette_score(embs, km.labels_, metric="cosine", sample_size=min(n, 2000), random_state=seed)
         # Small bias toward more folders: users prefer finer sorting
-        score += 0.002 * k
+        score += bias * k
         if best is None or score > best[0]:
             best = (score, km)
     if best is None:
@@ -165,3 +165,70 @@ def date_category(ts: float, granularity: str = "month") -> str:
     if granularity == "day":
         return f"{d.year}/{d.month:02d}/{d.year}-{d.month:02d}-{d.day:02d}"
     return f"{d.year}/{d.month:02d} - {calendar.month_name[d.month]}"
+
+
+# ------------------------------------------------------------ context-aware auto discovery
+def facet_bank(embedder: Embedder, facets: list[str]) -> tuple[list[str], np.ndarray, list[str]]:
+    labels, prompts, facet_of = [], [], []
+    for f in facets:
+        for label, prompt in FACETS[f]:
+            labels.append(label)
+            prompts.append(prompt)
+            facet_of.append(f)
+    return labels, embedder.embed_texts(prompts), facet_of
+
+
+def facet_features(embs: np.ndarray, bank: np.ndarray) -> np.ndarray:
+    """z-scored similarity of each photo to each prompt: 'how much more X than the rest of this folder'."""
+    s = embs @ bank.T
+    return (s - s.mean(axis=0)) / (s.std(axis=0) + 1e-6)
+
+
+def describe_clusters(z: np.ndarray, labels: np.ndarray, n: int, names: list[str], facet_of: list[str]) -> list[list[str]]:
+    """Name candidates per cluster, best first: what makes the group stand out, from up to two facets."""
+    out = []
+    for c in range(n):
+        members = labels == c
+        if not members.any():
+            out.append([f"Group {c + 1}"])
+            continue
+        m = z[members].mean(axis=0)
+        order = [int(i) for i in np.argsort(-m)]
+        top, seen = [], set()
+        for i in order:
+            if facet_of[i] not in seen:
+                top.append(i)
+                seen.add(facet_of[i])
+            if len(top) == 3:
+                break
+        cands = []
+        if len(top) >= 2:
+            cands.append(f"{names[top[0]]} · {names[top[1]]}")
+        cands.append(names[top[0]])
+        if len(top) >= 3:
+            cands.append(f"{names[top[0]]} · {names[top[2]]}")
+            cands.append(f"{names[top[1]]} · {names[top[2]]}")
+        cands += [f"{names[i]}" for i in order[1:6]]
+        out.append(cands)
+    return out
+
+
+def unique_names(candidates: list[list[str]]) -> list[str]:
+    used: set[str] = set()
+    result = []
+    for i, cands in enumerate(candidates):
+        pick = next((c for c in cands if c.lower() not in used), f"{cands[0]} {i + 1}")
+        used.add(pick.lower())
+        result.append(pick)
+    return result
+
+
+def collection_theme(embs: np.ndarray, embedder: Embedder) -> tuple[str, float]:
+    """What kind of collection the whole folder is (e.g. 'Trash the dress'), with a softmax confidence."""
+    if len(embs) == 0:
+        return "", 0.0
+    mean = normalize(embs.mean(axis=0))
+    t = embedder.embed_texts([p for _, p in THEMES])
+    probs = softmax(LOGIT_SCALE * (mean[None, :] @ t.T))[0]
+    i = int(probs.argmax())
+    return THEMES[i][0], float(probs[i])

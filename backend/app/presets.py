@@ -306,3 +306,77 @@ VOCABULARY: list[tuple[str, str]] = [
     ("Cartoons & Illustrations", "🖍️"), ("Logos & Icons", "🔷"), ("Patterns & Textures", "🧵"), ("Black & White", "⚫"),
     ("Videos of People Talking", "🎙️"),
 ]
+
+# ------------------------------------------------------------ auto-discovery facets
+# Each facet is a bank of (label, CLIP prompt). Auto mode clusters on the chosen facets and names a group
+# by what distinguishes it from the rest of the folder (z-scored prompt similarity).
+FACETS: dict[str, list[tuple[str, str]]] = {
+    "subject": [
+        ("Portraits", "a portrait photo of one person"), ("Couple", "a romantic couple together"),
+        ("Group", "a group of people posing together"), ("Kids", "children playing"),
+        ("Pets", "a dog or a cat"), ("Food", "a plate of food"), ("Cars & moto", "a car or a motorcycle"),
+        ("Landscape", "a landscape with no people"), ("Architecture", "buildings and architecture"),
+        ("Products", "a product photo"), ("Screenshots", "a screenshot of a phone screen"),
+        ("Text", "an image with written text"), ("Flowers", "flowers close up"), ("Animals", "wild animals"),
+    ],
+    "scene": [
+        ("Studio", "a photo studio with a plain seamless backdrop"), ("Indoors", "inside a house or apartment"),
+        ("Bedroom", "a bedroom with a bed"), ("Mountains", "mountains and rocky peaks"),
+        ("Forest", "a forest with trees"), ("Meadow", "a green meadow with grass"),
+        ("Beach & sea", "a beach by the sea"), ("Pool", "a swimming pool"), ("City", "a city street with buildings"),
+        ("Night", "a scene at night"), ("Snow", "snow and winter"), ("Venue", "a decorated event hall"),
+        ("Car / garage", "next to a car or motorcycle"), ("Desert", "a desert with sand dunes"),
+    ],
+    "framing": [
+        ("Close-up", "a tight close-up of a face"), ("Half-body", "a waist-up portrait"),
+        ("Full-body", "a full-body photo of a standing person"), ("Wide", "a wide shot with a small person in a big landscape"),
+        ("Details", "a close-up detail of hands, shoes, jewelry or fabric"), ("From behind", "a person seen from behind"),
+        ("Sitting", "a person sitting"), ("Lying down", "a person lying down"), ("Walking", "a person walking"),
+        ("Dancing", "people dancing or twirling"), ("Overhead", "a photo taken from above"),
+    ],
+    "lighting": [
+        ("Golden hour", "warm golden hour sunlight"), ("Daylight", "bright even daylight"),
+        ("Overcast", "soft overcast light and grey sky"), ("Window light", "soft window light indoors"),
+        ("High-key", "a bright high-key studio photo with white background"), ("Low-key", "a dark low-key photo with deep shadows"),
+        ("Neon", "neon and colored lights"), ("Black & white", "a black and white photo"),
+        ("Backlit", "backlit silhouette against the light"), ("Flash", "direct flash photography at night"),
+    ],
+    "outfit": [
+        ("Wedding dress", "a white wedding dress"), ("Evening gown", "an elegant evening gown"),
+        ("Suit", "a man in a suit"), ("Casual", "casual jeans and t-shirt"), ("Streetwear", "streetwear with sneakers and hoodie"),
+        ("Sportswear", "sportswear and leggings"), ("Swimwear", "a bikini or swimsuit"), ("Lingerie", "lingerie"),
+        ("Costume", "a halloween costume"), ("Leather", "a black leather jacket"), ("Winter coat", "a winter coat and scarf"),
+        ("Summer dress", "a light summer dress"),
+    ],
+}
+
+FOCUS_FACETS: dict[str, list[str]] = {
+    "auto": ["subject", "scene", "framing", "lighting"],
+    "scene": ["scene"],
+    "framing": ["framing"],
+    "outfit": ["outfit"],
+    "lighting": ["lighting"],
+    "subject": ["subject"],
+}
+
+FOCUS_HINT = {
+    "auto": "whatever best separates the groups",
+    "scene": "the scene / location",
+    "framing": "framing and pose (close-up, full-body, sitting, details…)",
+    "outfit": "the outfit / clothing",
+    "lighting": "the lighting and mood",
+    "subject": "the main subject",
+}
+
+# What kind of collection is this? (shown in the UI and given to the AI as context)
+THEMES: list[tuple[str, str]] = [
+    ("Wedding", "a wedding with a bride and groom"), ("Trash the dress", "a bride in a wedding dress posing in wild nature or mountains"),
+    ("Engagement", "an engagement photoshoot of a couple"), ("Studio fashion", "a fashion photoshoot in a studio"),
+    ("Boudoir", "an intimate boudoir photoshoot"), ("Halloween", "halloween costumes and decorations"),
+    ("Moto", "a photoshoot with motorcycles"), ("Pool & beach", "a swimwear photoshoot by the pool or beach"),
+    ("Travel", "travel photos of places and landmarks"), ("Family", "family photos with children"),
+    ("Sport & fitness", "sport and fitness photos"), ("Christmas", "christmas celebration"),
+    ("Product", "product photography"), ("Real estate", "interior and real estate photos"),
+    ("Street fashion", "street style fashion outfits in the city"), ("Everyday", "everyday phone photos and selfies"),
+    ("Event", "an event or party"), ("Nature", "nature and landscape photography"),
+]

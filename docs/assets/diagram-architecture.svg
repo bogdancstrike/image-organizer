@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 1000 620" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="aio-architecture-title aio-architecture-desc">
+      <title id="aio-architecture-title">Auto Image Organizer architecture</title>
+      <desc id="aio-architecture-desc">The browser UI talks to a FastAPI service in one Docker container. Its sort pipeline scans your folders, analyzes photos with local CLIP and MediaPipe models backed by a SQLite cache, optionally asks OpenAI to name groups, and hands a plan to an apply-and-undo step that moves files in the mounted library.</desc>
+      <defs>
+        <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap');</style>
+        <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#a1a1aa"/></marker>
+        <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#ec7fae"/></marker>
+        <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#7c9cff"/></marker>
+      </defs>
+
+      <rect width="100%" height="100%" fill="#09090b"/>
+
+      <!-- zone: docker container -->
+      <rect x="240" y="48" width="736" height="356" rx="8" fill="#fafafa" fill-opacity="0.02" stroke="#fafafa" stroke-opacity="0.14" stroke-width="0.8" stroke-dasharray="4,4"/>
+      <rect x="252" y="40" width="128" height="16" rx="2" fill="#09090b"/>
+      <text x="316" y="52" fill="#fafafa" fill-opacity="0.45" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.14em">DOCKER CONTAINER</text>
+
+      <!-- ===== arrows (drawn before nodes) ===== -->
+      <line x1="200" y1="192" x2="268" y2="192" stroke="#a1a1aa" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <rect x="216" y="168" width="40" height="12" rx="2" fill="#09090b"/>
+      <text x="236" y="177" fill="#71717a" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">REST</text>
+      <line x1="272" y1="216" x2="204" y2="216" stroke="#7c9cff" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow-link)"/>
+      <rect x="216" y="224" width="40" height="12" rx="2" fill="#09090b"/>
+      <text x="236" y="233" fill="#7c9cff" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">SSE</text>
+      <line x1="424" y1="200" x2="460" y2="200" stroke="#a1a1aa" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <path d="M464,500 H448 Q440,500 440,492 V240 Q440,232 448,232 H460" fill="none" stroke="#a1a1aa" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <rect x="392" y="412" width="40" height="12" rx="2" fill="#09090b"/>
+      <text x="412" y="421" fill="#71717a" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">SCAN</text>
+      <path d="M696,176 H708 Q716,176 716,168 V132 Q716,124 724,124 H740" fill="none" stroke="#a1a1aa" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <path d="M696,224 H708 Q716,224 716,232 V268 Q716,276 724,276 H740" fill="none" stroke="#a1a1aa" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <path d="M696,256 H708 a8,8 0 0,1 16,0 H728 Q736,256 736,264 V432 Q736,440 744,440 H840 Q848,440 848,448 V464" fill="none" stroke="#7c9cff" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow-link)"/>
+      <rect x="756" y="416" width="72" height="12" rx="2" fill="#09090b"/>
+      <text x="792" y="425" fill="#7c9cff" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">NAME GROUPS</text>
+      <line x1="580" y1="264" x2="580" y2="308" stroke="#ec7fae" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+      <rect x="588" y="280" width="32" height="12" rx="2" fill="#09090b"/>
+      <text x="604" y="289" fill="#ec7fae" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">PLAN</text>
+      <line x1="580" y1="384" x2="580" y2="464" stroke="#a1a1aa" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <rect x="588" y="428" width="72" height="12" rx="2" fill="#09090b"/>
+      <text x="624" y="437" fill="#71717a" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">MOVE · UNDO</text>
+
+      <!-- ===== nodes ===== -->
+      <rect x="24" y="160" width="176" height="80" rx="6" fill="#09090b"/>
+      <rect x="24" y="160" width="176" height="80" rx="6" fill="#a1a1aa" fill-opacity="0.10" stroke="#71717a" stroke-width="1"/>
+      <rect x="32" y="166" width="32" height="12" rx="2" fill="none" stroke="#a1a1aa" stroke-opacity="0.4" stroke-width="0.8"/>
+      <text x="48" y="175" fill="#a1a1aa" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">UI</text>
+      <text x="112" y="204" fill="#fafafa" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Web UI</text>
+      <text x="112" y="220" fill="#a1a1aa" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">react · antd · canvas</text>
+
+      <rect x="272" y="160" width="152" height="80" rx="6" fill="#09090b"/>
+      <rect x="272" y="160" width="152" height="80" rx="6" fill="#18181b" stroke="#fafafa" stroke-width="1"/>
+      <rect x="280" y="166" width="32" height="12" rx="2" fill="none" stroke="#fafafa" stroke-opacity="0.4" stroke-width="0.8"/>
+      <text x="296" y="175" fill="#fafafa" fill-opacity="0.8" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">API</text>
+      <text x="348" y="204" fill="#fafafa" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">FastAPI</text>
+      <text x="348" y="220" fill="#a1a1aa" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">:8000 · jobs · thumbs</text>
+
+      <rect x="464" y="136" width="232" height="128" rx="6" fill="#09090b"/>
+      <rect x="464" y="136" width="232" height="128" rx="6" fill="#ec7fae" fill-opacity="0.10" stroke="#ec7fae" stroke-width="1.2"/>
+      <rect x="472" y="142" width="40" height="12" rx="2" fill="none" stroke="#ec7fae" stroke-opacity="0.5" stroke-width="0.8"/>
+      <text x="492" y="151" fill="#ec7fae" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">CORE</text>
+      <text x="580" y="184" fill="#fafafa" font-size="16" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Sort pipeline</text>
+      <text x="580" y="208" fill="#d4d4d8" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">scan → analyze → quality</text>
+      <text x="580" y="224" fill="#d4d4d8" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">→ dedupe → categorize → plan</text>
+      <text x="580" y="248" fill="#a1a1aa" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">thread pool · photos first</text>
+
+      <rect x="744" y="88" width="208" height="72" rx="6" fill="#09090b"/>
+      <rect x="744" y="88" width="208" height="72" rx="6" fill="#fafafa" fill-opacity="0.05" stroke="#a1a1aa" stroke-width="1"/>
+      <text x="848" y="120" fill="#fafafa" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Local models</text>
+      <text x="848" y="138" fill="#a1a1aa" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">CLIP ViT-B/32 ONNX · MediaPipe</text>
+
+      <rect x="744" y="240" width="208" height="72" rx="6" fill="#09090b"/>
+      <rect x="744" y="240" width="208" height="72" rx="6" fill="#fafafa" fill-opacity="0.05" stroke="#a1a1aa" stroke-width="1"/>
+      <text x="848" y="272" fill="#fafafa" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Analysis cache</text>
+      <text x="848" y="290" fill="#a1a1aa" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">SQLite · WebP thumbs · /data</text>
+
+      <rect x="464" y="312" width="232" height="72" rx="6" fill="#09090b"/>
+      <rect x="464" y="312" width="232" height="72" rx="6" fill="#18181b" stroke="#fafafa" stroke-width="1"/>
+      <text x="580" y="344" fill="#fafafa" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Apply · Undo</text>
+      <text x="580" y="362" fill="#a1a1aa" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">move or copy · JSON journal</text>
+
+      <rect x="464" y="468" width="232" height="64" rx="6" fill="#09090b"/>
+      <rect x="464" y="468" width="232" height="64" rx="6" fill="#fafafa" fill-opacity="0.05" stroke="#a1a1aa" stroke-width="1"/>
+      <text x="580" y="496" fill="#fafafa" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Your folders</text>
+      <text x="580" y="514" fill="#a1a1aa" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">bind mount → /library</text>
+
+      <rect x="744" y="468" width="208" height="64" rx="6" fill="#09090b"/>
+      <rect x="744" y="468" width="208" height="64" rx="6" fill="#fafafa" fill-opacity="0.02" stroke="#fafafa" stroke-opacity="0.25" stroke-width="1" stroke-dasharray="4,3"/>
+      <text x="848" y="496" fill="#fafafa" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">OpenAI Luna</text>
+      <text x="848" y="514" fill="#a1a1aa" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">optional · reasoning: low</text>
+
+      <!-- ===== legend ===== -->
+      <line x1="24" y1="560" x2="976" y2="560" stroke="#fafafa" stroke-opacity="0.10" stroke-width="0.8"/>
+      <text x="24" y="588" fill="#a1a1aa" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">LEGEND</text>
+      <rect x="96" y="578" width="20" height="12" rx="2" fill="#ec7fae" fill-opacity="0.10" stroke="#ec7fae" stroke-width="1"/>
+      <text x="124" y="588" fill="#d4d4d8" font-size="9" font-family="'Geist', sans-serif">focal</text>
+      <rect x="176" y="578" width="20" height="12" rx="2" fill="#18181b" stroke="#fafafa" stroke-width="1"/>
+      <text x="204" y="588" fill="#d4d4d8" font-size="9" font-family="'Geist', sans-serif">service</text>
+      <rect x="264" y="578" width="20" height="12" rx="2" fill="#fafafa" fill-opacity="0.05" stroke="#a1a1aa" stroke-width="1"/>
+      <text x="292" y="588" fill="#d4d4d8" font-size="9" font-family="'Geist', sans-serif">data / store</text>
+      <rect x="372" y="578" width="20" height="12" rx="2" fill="none" stroke="#fafafa" stroke-opacity="0.25" stroke-width="1" stroke-dasharray="4,3"/>
+      <text x="400" y="588" fill="#d4d4d8" font-size="9" font-family="'Geist', sans-serif">optional external</text>
+      <line x1="500" y1="584" x2="528" y2="584" stroke="#a1a1aa" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <text x="536" y="588" fill="#d4d4d8" font-size="9" font-family="'Geist', sans-serif">data flow</text>
+      <line x1="604" y1="584" x2="632" y2="584" stroke="#7c9cff" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow-link)"/>
+      <text x="640" y="588" fill="#d4d4d8" font-size="9" font-family="'Geist', sans-serif">stream / optional call</text>
+    </svg>

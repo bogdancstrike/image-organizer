@@ -69,7 +69,7 @@ def settings(tmp_path: Path) -> Settings:
         data_dir=tmp_path / "data",
         model_dir=None,
         openai_api_key=None,
-        openai_model="gpt-5.6-luna",
+        openai_model="gpt-6-luna",
         reasoning_effort="low",
         workers=4,
         output_dir_name="Organized",

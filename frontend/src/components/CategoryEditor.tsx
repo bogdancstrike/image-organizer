@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
-import { App, Button, Empty, Form, Input, Modal, Popconfirm, Select } from "antd";
-import { Plus, Trash2, Copy, RotateCcw } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { App, Button, Empty, Form, Input, Modal, Popconfirm, Segmented, Select, Tag } from "antd";
+import { ArrowDown, ArrowUp, Copy, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { api, type CategorySet } from "@/api";
 import { cn } from "@/lib/utils";
 
@@ -14,23 +14,26 @@ interface Props {
   initial?: { set: CategorySet | null; mode: "edit" | "copy" | "new" } | null;
 }
 
+type Media = "any" | "image" | "video";
 type FormValues = {
   name: string;
   description?: string;
-  categories: { name: string; emoji?: string; prompts?: string[]; media?: "any" | "image" | "video" }[];
+  categories: { name: string; emoji?: string; prompts?: string[]; media?: Media }[];
 };
 
 const BLANK: FormValues = { name: "My folders", categories: [{ name: "", emoji: "📁", prompts: [], media: "any" }] };
 
-/** Create / edit / delete custom category sets (REQ-UI-4, REQ-CAT-2). */
+/** Create / edit / delete category sets, built-in presets included (REQ-UI-4, REQ-CAT-2). */
 export function CategoryEditor({ open, onClose, presets, customSets, onSaved, initial }: Props) {
   const { message } = App.useApp();
   const [form] = Form.useForm<FormValues>();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const count = Form.useWatch("categories", form)?.length ?? 0;
 
   const load = (s: CategorySet | null, asCopy = false) => {
     setEditingId(s && !asCopy ? s.id : null);
+    form.resetFields();
     form.setFieldsValue(
       s
         ? {
@@ -49,8 +52,16 @@ export function CategoryEditor({ open, onClose, presets, customSets, onSaved, in
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  const editingPreset = useMemo(() => presets.find((p) => p.id === editingId), [presets, editingId]);
+
   const save = async () => {
-    const values = await form.validateFields();
+    let values: FormValues;
+    try {
+      values = await form.validateFields();
+    } catch {
+      message.error("Fix the highlighted fields first");
+      return;
+    }
     setSaving(true);
     try {
       const saved = await api.saveSet(editingId, {
@@ -58,7 +69,7 @@ export function CategoryEditor({ open, onClose, presets, customSets, onSaved, in
         description: values.description,
         categories: values.categories.map((c) => ({
           id: "",
-          name: c.name,
+          name: c.name.trim(),
           emoji: c.emoji || undefined,
           prompts: c.prompts ?? [],
           media: c.media ?? "any",
@@ -74,7 +85,6 @@ export function CategoryEditor({ open, onClose, presets, customSets, onSaved, in
     }
   };
 
-  const editingPreset = presets.find((p) => p.id === editingId);
   const remove = async () => {
     if (!editingId) return;
     await api.deleteSet(editingId);
@@ -89,81 +99,129 @@ export function CategoryEditor({ open, onClose, presets, customSets, onSaved, in
     load(null);
   };
 
+  const setOptions = [
+    ...customSets.map((s) => ({ value: `c:${s.id}`, label: `${s.name} · ${s.categories.length}` })),
+    ...presets.map((p) => ({ value: `p:${p.id}`, label: `${p.name} (preset)${p.modified ? " · edited" : ""}` })),
+  ];
+  const pick = (v: string) => {
+    const [kind, id] = [v.slice(0, 1), v.slice(2)];
+    load((kind === "c" ? customSets : presets).find((s) => s.id === id) ?? null);
+  };
+
   return (
     <Modal
       open={open}
       onCancel={onClose}
-      title={editingPreset ? `Edit preset · ${editingPreset.name}` : "My categories"}
-      width={860}
-      footer={
-        <div className="flex items-center justify-between">
-          {editingPreset ? (
-            editingPreset.modified ? (
-              <Popconfirm title="Discard your edits and restore the built-in folders?" onConfirm={remove}>
-                <Button type="text" icon={<RotateCcw size={14} />}>Reset to default</Button>
-              </Popconfirm>
-            ) : (
-              <span className="text-xs text-plum/50">Editing a built-in preset. You can reset it anytime.</span>
-            )
-          ) : editingId ? (
-            <Popconfirm title="Delete this set?" onConfirm={remove}>
-              <Button danger type="text" icon={<Trash2 size={14} />}>Delete set</Button>
-            </Popconfirm>
-          ) : (
-            <span />
+      centered
+      width="min(1080px, 96vw)"
+      title={
+        <div className="flex flex-wrap items-center gap-2 pr-6">
+          <span>{editingPreset ? "Edit preset" : editingId ? "Edit category set" : "New category set"}</span>
+          {editingPreset && (
+            <Tag color="gold" className="m-0">
+              built-in{editingPreset.modified ? " · edited" : ""}
+            </Tag>
           )}
+          <span className="text-xs font-normal text-plum/50">{count} folders</span>
+        </div>
+      }
+      styles={{ body: { maxHeight: "72vh", overflowY: "auto", overflowX: "hidden", paddingRight: 4 } }}
+      footer={
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            {editingPreset ? (
+              editingPreset.modified ? (
+                <Popconfirm title="Discard your edits and restore the built-in folders?" onConfirm={remove}>
+                  <Button type="text" icon={<RotateCcw size={14} />}>
+                    Reset to default
+                  </Button>
+                </Popconfirm>
+              ) : (
+                <span className="text-xs text-plum/50">Built-in preset. Your edits can be reset anytime.</span>
+              )
+            ) : editingId ? (
+              <Popconfirm title="Delete this set?" onConfirm={remove}>
+                <Button danger type="text" icon={<Trash2 size={14} />}>
+                  Delete set
+                </Button>
+              </Popconfirm>
+            ) : null}
+          </div>
           <div className="flex gap-2">
             <Button onClick={onClose}>Close</Button>
-            <Button type="primary" loading={saving} onClick={save}>Save set</Button>
+            <Button type="primary" loading={saving} onClick={save}>
+              Save
+            </Button>
           </div>
         </div>
       }
     >
-      <div className="grid gap-5 md:grid-cols-[200px_1fr]">
-        <aside className="space-y-1.5">
-          <Button block icon={<Plus size={14} />} onClick={() => load(null)}>New set</Button>
-          <Select
-            className="w-full"
-            placeholder={<span className="inline-flex items-center gap-1"><Copy size={12} /> Start from preset</span>}
-            value={null}
-            onChange={(id) => load(presets.find((p) => p.id === id) ?? null, true)}
-            options={presets.map((p) => ({ value: p.id, label: p.name }))}
-          />
-          <div className="pt-2 label-caps">Saved sets</div>
-          {customSets.length === 0 && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="None yet" />}
+      <div className="grid gap-6 md:grid-cols-[210px_minmax(0,1fr)]">
+        {/* sets: sidebar on desktop, dropdown on mobile */}
+        <aside className="hidden space-y-1 md:block">
+          <Button block icon={<Plus size={14} />} onClick={() => load(null)}>
+            New set
+          </Button>
+          <div className="pt-3 label-caps">My sets</div>
+          {customSets.length === 0 && <Empty className="!my-2" image={Empty.PRESENTED_IMAGE_SIMPLE} description="None yet" />}
           {customSets.map((s) => (
             <button
               key={s.id}
               onClick={() => load(s)}
               className={cn(
-                "block w-full truncate rounded-lg px-2.5 py-1.5 text-left text-[13px] text-plum hover:bg-tint",
+                "block w-full cursor-pointer truncate rounded-lg px-2.5 py-1.5 text-left text-[13px] text-plum hover:bg-tint",
                 editingId === s.id && "bg-tint font-medium",
               )}
             >
               {s.name} <span className="text-plum/40">· {s.categories.length}</span>
             </button>
           ))}
+          <div className="pt-3 label-caps">Presets</div>
+          <div className="max-h-72 overflow-y-auto pr-1">
+            {presets.map((p) => (
+              <div key={p.id} className={cn("group flex items-center rounded-lg hover:bg-tint", editingId === p.id && "bg-tint")}>
+                <button
+                  onClick={() => load(p)}
+                  className={cn(
+                    "min-w-0 flex-1 cursor-pointer truncate px-2.5 py-1.5 text-left text-[13px] text-plum/80",
+                    editingId === p.id && "font-medium text-plum",
+                  )}
+                  title="Edit this preset"
+                >
+                  {p.name}
+                  {p.modified && <span className="ml-1 text-[10px] text-amber-500">●</span>}
+                </button>
+                <button
+                  onClick={() => load(p, true)}
+                  className="cursor-pointer px-2 text-plum/40 opacity-0 transition-opacity hover:text-plum group-hover:opacity-100 focus:opacity-100"
+                  title="Copy into a new set"
+                  aria-label={`Copy ${p.name}`}
+                >
+                  <Copy size={13} />
+                </button>
+              </div>
+            ))}
+          </div>
         </aside>
+        <div className="flex gap-2 md:hidden">
+          <Select className="flex-1" placeholder="Open a set or preset…" options={setOptions} onChange={pick} value={null} />
+          <Button icon={<Plus size={14} />} onClick={() => load(null)} aria-label="New set" />
+        </div>
 
-        <Form form={form} layout="vertical" requiredMark={false} initialValues={BLANK}>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Form.Item name="name" label="Set name" rules={[{ required: true, max: 60 }]}>
-              <Input placeholder="Wedding" />
+        <Form form={form} layout="vertical" requiredMark={false} initialValues={BLANK} className="min-w-0">
+          <div className="grid gap-x-4 sm:grid-cols-2">
+            <Form.Item name="name" label="Set name" rules={[{ required: true, whitespace: true, max: 60 }]}>
+              <Input placeholder="e.g. Wedding, My Instagram" />
             </Form.Item>
             <Form.Item name="description" label="Description">
               <Input placeholder="optional" maxLength={200} />
             </Form.Item>
           </div>
-          <div className="mb-2 grid grid-cols-[52px_1fr_1.5fr_96px_32px] gap-2 label-caps">
-            <span>Icon</span>
-            <span>Folder name</span>
-            <span>Describe it (optional, improves accuracy)</span>
-            <span>Applies to</span>
-            <span />
-          </div>
-          <p className="mb-2 text-[11px] text-plum/50">
-            Tip: if some folders are set to <b>Videos</b>, every video goes only to those (e.g. “video indoor” / “video outdoor”).
+          <p className="-mt-2 mb-3 text-xs text-plum/55">
+            Each folder needs a <b>name</b>. Add a few <b>descriptions</b> of what its photos look like (press Enter after each)
+            to improve accuracy. If some folders accept only <b>Videos</b>, every video goes only to those.
           </p>
+
           <Form.List
             name="categories"
             rules={[
@@ -173,42 +231,63 @@ export function CategoryEditor({ open, onClose, presets, customSets, onSaved, in
                   if (cats.length > 40) throw new Error("At most 40 folders");
                   const names = cats.map((c) => (c?.name || "").trim().toLowerCase()).filter(Boolean);
                   const dup = names.find((n, i) => names.indexOf(n) !== i);
-                  if (dup) throw new Error(`Duplicate folder name “${dup}”`);
+                  if (dup) throw new Error(`Two folders are called “${dup}”`);
                 },
               },
             ]}
           >
-            {(fields, { add, remove }, { errors }) => (
-              <div className="max-h-[46vh] space-y-2 overflow-y-auto pr-1">
-                {fields.map((f) => (
-                  <div key={f.key} className="grid grid-cols-[52px_1fr_1.5fr_96px_32px] items-start gap-2">
-                    <Form.Item name={[f.name, "emoji"]} noStyle>
-                      <Input className="text-center" maxLength={4} />
-                    </Form.Item>
-                    <Form.Item
-                      name={[f.name, "name"]}
-                      noStyle
-                      rules={[
-                        { required: true, whitespace: true, message: "Name required" },
-                        { pattern: /^[^/\\:*?"<>|]+$/, message: "Invalid character" },
-                        { max: 40 },
-                      ]}
-                    >
-                      <Input placeholder="e.g. Dance floor" />
-                    </Form.Item>
-                    <Form.Item name={[f.name, "prompts"]} noStyle>
-                      <Select mode="tags" placeholder="people dancing at a party, disco lights" tokenSeparators={[","]} maxCount={8} open={false} />
-                    </Form.Item>
-                    <Form.Item name={[f.name, "media"]} noStyle initialValue="any">
-                      <Select
-                        options={[
-                          { value: "any", label: "Any" },
-                          { value: "image", label: "Photos" },
-                          { value: "video", label: "Videos" },
+            {(fields, { add, remove, move }, { errors }) => (
+              <div className="space-y-2.5">
+                {fields.map((f, idx) => (
+                  <div key={f.key} className="rounded-xl border border-line bg-surface/70 p-3">
+                    <div className="flex flex-wrap items-start gap-2">
+                      <Form.Item name={[f.name, "emoji"]} className="!mb-0 w-14 shrink-0">
+                        <Input className="text-center" maxLength={4} aria-label="Icon" />
+                      </Form.Item>
+                      <Form.Item
+                        name={[f.name, "name"]}
+                        className="!mb-0 min-w-44 flex-1"
+                        rules={[
+                          { required: true, whitespace: true, message: "Name required" },
+                          { pattern: /^[^/\\:*?"<>|]+$/, message: 'Not allowed: / \\ : * ? " < > |' },
+                          { max: 40 },
                         ]}
+                      >
+                        <Input placeholder="Folder name, e.g. Dance floor" aria-label="Folder name" />
+                      </Form.Item>
+                      <Form.Item name={[f.name, "media"]} className="!mb-0" initialValue="any">
+                        <Segmented
+                          options={[
+                            { value: "any", label: "Any" },
+                            { value: "image", label: "Photos" },
+                            { value: "video", label: "Videos" },
+                          ]}
+                        />
+                      </Form.Item>
+                      <div className="ml-auto flex">
+                        <Button type="text" disabled={idx === 0} icon={<ArrowUp size={14} />} onClick={() => move(idx, idx - 1)} aria-label="Move up" />
+                        <Button
+                          type="text"
+                          disabled={idx === fields.length - 1}
+                          icon={<ArrowDown size={14} />}
+                          onClick={() => move(idx, idx + 1)}
+                          aria-label="Move down"
+                        />
+                        <Button type="text" danger icon={<Trash2 size={14} />} onClick={() => remove(f.name)} aria-label="Remove folder" />
+                      </div>
+                    </div>
+                    <Form.Item name={[f.name, "prompts"]} className="!mb-0 !mt-2">
+                      <Select
+                        mode="tags"
+                        className="w-full"
+                        placeholder="Describe it: “people dancing at a party”, “disco lights”… (Enter after each)"
+                        tokenSeparators={[","]}
+                        maxCount={8}
+                        open={false}
+                        suffixIcon={null}
+                        aria-label="Descriptions"
                       />
                     </Form.Item>
-                    <Button type="text" icon={<Trash2 size={14} />} onClick={() => remove(f.name)} aria-label="Remove folder" />
                   </div>
                 ))}
                 <Button type="dashed" block icon={<Plus size={14} />} onClick={() => add({ name: "", emoji: "📁", prompts: [], media: "any" })}>

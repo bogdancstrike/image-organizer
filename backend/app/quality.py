@@ -227,6 +227,7 @@ REASONS = {
     "eyes-closed": ("Eyes closed", "😑"),
     "too-dark": ("Too dark", "🌑"),
     "too-bright": ("Too bright", "☀️"),
+    "burst": ("Burst extras", "🎞️"),  # not a verdict flag: assigned by best-of-burst selection
 }
 
 
@@ -240,6 +241,13 @@ class QualityRules:
     smile_threshold: float = 0.5
     dark_threshold: float = 0.18  # mean luminance below (and lots of crushed blacks)
     bright_threshold: float = 0.85
+    faces_rule: str = "any"  # "any" face or only the "main" (largest) face counts for eyes/smile
+
+
+def _faces(q: Quality, r: QualityRules) -> list[Face]:
+    if r.faces_rule == "main" and q.faces:
+        return [max(q.faces, key=lambda f: f.area)]
+    return q.faces
 
 
 def verdict(q: Quality, r: QualityRules) -> tuple[str | None, list[str], bool]:
@@ -247,20 +255,69 @@ def verdict(q: Quality, r: QualityRules) -> tuple[str | None, list[str], bool]:
     flags = []
     if r.blur and q.sharpness < r.blur_threshold:
         flags.append("blurry")
-    if r.eyes_closed and any(f.blink >= r.blink_threshold for f in q.faces):
+    faces = _faces(q, r)
+    if r.eyes_closed and any(f.blink >= r.blink_threshold for f in faces):
         flags.append("eyes-closed")
     if r.exposure:
         if q.brightness < r.dark_threshold and q.dark_clip > 0.25:
             flags.append("too-dark")
         elif q.brightness > r.bright_threshold and q.bright_clip > 0.25:
             flags.append("too-bright")
-    smiling = bool(q.faces) and all(f.smile >= r.smile_threshold for f in q.faces)
+    smiling = bool(faces) and all(f.smile >= r.smile_threshold for f in faces)
     return (flags[0] if flags else None), flags, smiling
+
+
+def score(q: Quality, r: QualityRules) -> float:
+    """0..1 overall keeper score: sharpness, exposure, eyes open, smile. Rejected shots are halved."""
+    sharp = min(1.0, max(0.0, (q.sharpness - 0.3) / 0.5))
+    exposure = (1 - min(1.0, abs(q.brightness - 0.45) / 0.45)) * (1 - min(0.5, q.dark_clip + q.bright_clip))
+    faces = _faces(q, r)
+    if faces:
+        eyes = 1 - max(f.blink for f in faces)
+        smile = sum(f.smile for f in faces) / len(faces)
+        s = 0.45 * sharp + 0.15 * exposure + 0.25 * eyes + 0.15 * smile
+    else:
+        s = 0.7 * sharp + 0.3 * exposure
+    if verdict(q, r)[0]:
+        s *= 0.5
+    return round(max(0.0, min(1.0, s)), 3)
+
+
+def stars(s: float) -> int:
+    return max(1, min(5, 1 + round(s * 4)))
+
+
+def find_bursts(items: list[tuple[str, str, float, "np.ndarray"]], seconds: float, similarity: float) -> dict[str, int]:
+    """items: (id, folder, timestamp, embedding). Consecutive shots in the same folder taken within `seconds`
+    of each other and looking alike (CLIP cosine >= similarity) form a burst. Returns {id: group} for bursts of 2+."""
+    order = sorted(items, key=lambda t: (t[1], t[2]))
+    groups: dict[str, int] = {}
+    gid = 0
+    run: list[str] = []
+    for prev, cur in zip([None] + order[:-1], order):
+        linked = (
+            prev is not None and prev[1] == cur[1] and abs(cur[2] - prev[2]) <= seconds
+            and float(np.dot(prev[3], cur[3])) >= similarity
+        )
+        if linked:
+            run.append(cur[0])
+        else:
+            if len(run) > 1:
+                gid += 1
+                groups.update({i: gid for i in run})
+            run = [cur[0]]
+    if len(run) > 1:
+        gid += 1
+        groups.update({i: gid for i in run})
+    return groups
 
 
 def summary(q: Quality, r: QualityRules) -> dict:
     reason, flags, smiling = verdict(q, r)
+    sc = score(q, r)
     return {
+        "score": sc,
+        "stars": stars(sc),
         "sharpness": q.sharpness,
         "brightness": q.brightness,
         "faces": len(q.faces),

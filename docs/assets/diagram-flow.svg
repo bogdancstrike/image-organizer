@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 1000 232" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="aio-flow-title aio-flow-desc">
+      <title id="aio-flow-title">How a sort works</title>
+      <desc id="aio-flow-desc">Five steps: pick a folder, sort it locally into a plan, review and edit the plan, apply it by moving or copying files, and undo any applied run to restore every file.</desc>
+      <defs>
+        <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap');</style>
+        <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#a1a1aa"/></marker>
+        <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#ec7fae"/></marker>
+        <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#7c9cff"/></marker>
+      </defs>
+      <rect width="100%" height="100%" fill="#09090b"/>
+
+      <!-- arrows -->
+      <line x1="196" y1="100" x2="224" y2="100" stroke="#a1a1aa" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <line x1="388" y1="100" x2="416" y2="100" stroke="#a1a1aa" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <line x1="580" y1="100" x2="608" y2="100" stroke="#ec7fae" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+      <line x1="772" y1="100" x2="800" y2="100" stroke="#a1a1aa" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <!-- undo: restore (dashed, back under the row) -->
+      <path d="M884,136 V160 Q884,168 876,168 H124 Q116,168 116,160 V140" fill="none" stroke="#7c9cff" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow-link)"/>
+      <rect x="452" y="176" width="96" height="12" rx="2" fill="#09090b"/>
+      <text x="500" y="185" fill="#7c9cff" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">RESTORE EVERY FILE</text>
+
+      <!-- steps -->
+      <g font-family="'Geist', sans-serif" text-anchor="middle">
+        <rect x="36" y="64" width="160" height="72" rx="6" fill="#a1a1aa" fill-opacity="0.10" stroke="#71717a" stroke-width="1"/>
+        <text x="116" y="96" fill="#fafafa" font-size="12" font-weight="600">1 · Pick a folder</text>
+        <text x="116" y="114" fill="#a1a1aa" font-size="9" font-family="'Geist Mono', monospace">any folder you mount</text>
+
+        <rect x="228" y="64" width="160" height="72" rx="6" fill="#18181b" stroke="#fafafa" stroke-width="1"/>
+        <text x="308" y="96" fill="#fafafa" font-size="12" font-weight="600">2 · Sort</text>
+        <text x="308" y="114" fill="#a1a1aa" font-size="9" font-family="'Geist Mono', monospace">local CLIP · seconds</text>
+
+        <rect x="420" y="64" width="160" height="72" rx="6" fill="#ec7fae" fill-opacity="0.10" stroke="#ec7fae" stroke-width="1.2"/>
+        <text x="500" y="96" fill="#fafafa" font-size="12" font-weight="600">3 · Review &amp; edit</text>
+        <text x="500" y="114" fill="#d4d4d8" font-size="9" font-family="'Geist Mono', monospace">table · lightbox · reassign</text>
+
+        <rect x="612" y="64" width="160" height="72" rx="6" fill="#18181b" stroke="#fafafa" stroke-width="1"/>
+        <text x="692" y="96" fill="#fafafa" font-size="12" font-weight="600">4 · Apply</text>
+        <text x="692" y="114" fill="#a1a1aa" font-size="9" font-family="'Geist Mono', monospace">move or copy</text>
+
+        <rect x="804" y="64" width="160" height="72" rx="6" fill="#fafafa" fill-opacity="0.05" stroke="#a1a1aa" stroke-width="1"/>
+        <text x="884" y="96" fill="#fafafa" font-size="12" font-weight="600">5 · Undo anytime</text>
+        <text x="884" y="114" fill="#a1a1aa" font-size="9" font-family="'Geist Mono', monospace">journal replay</text>
+      </g>
+
+      <text x="36" y="40" fill="#71717a" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">NOTHING ON DISK CHANGES BEFORE STEP 4</text>
+    </svg>

@@ -16,7 +16,7 @@ services:
       LIBRARY_HOST_PATH: ${LIBRARY_PATH:-${HOME}}
       PUID: ${PUID:-1000}
       PGID: ${PGID:-1000}
-      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.6-luna}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-6-luna}
       OPENAI_REASONING_EFFORT: ${OPENAI_REASONING_EFFORT:-low}
       OUTPUT_DIR_NAME: ${OUTPUT_DIR_NAME:-Organized}
       WORKERS: ${WORKERS:-}

@@ -147,14 +147,15 @@ class _FakeResponses:
         n = sum(1 for c in kw["input"][0]["content"] if c["type"] == "input_image")
         text = kw["input"][0]["content"][0]["text"]
         if "contact sheets" in text:
-            out = {"groups": [{"i": i + 1, "name": f"Group Name {i + 1}", "emoji": "✨"} for i in range(n)]}
+            groups = n - 1  # first image is the overview sheet
+            out = {"collection": "Test shoot", "groups": [{"i": i + 1, "name": f"Group Name {i + 1}", "emoji": "✨"} for i in range(groups)]}
         else:
             out = {"labels": ["Red things"] * n}
         return SimpleNamespace(output_text=json.dumps(out), usage=SimpleNamespace(input_tokens=10, output_tokens=5))
 
 
 def _llm_app(settings, fake_embedder, responses):
-    llm = LLMClient("k", "gpt-5.6-luna", client=SimpleNamespace(responses=responses))
+    llm = LLMClient("k", "gpt-6-luna", client=SimpleNamespace(responses=responses))
     return create_app(settings, embedder_factory=lambda: fake_embedder, llm_factory=lambda: llm)
 
 
@@ -165,10 +166,11 @@ def test_auto_with_llm_makes_exactly_one_naming_call(settings, fake_embedder):
         job = wait(c, c.post("/api/jobs", json={"strategy": "auto"}).json()["id"])
     assert job["status"] == "done" and len(fr.calls) == 1
     call = fr.calls[0]
-    assert call["model"] == "gpt-5.6-luna" and call["reasoning"] == {"effort": "low"}
+    assert call["model"] == "gpt-6-luna" and call["reasoning"] == {"effort": "low"}
     assert all(x.get("detail") == "low" for x in call["input"][0]["content"] if x["type"] == "input_image")
     assert any(c["name"].startswith("Group Name") for c in job["categories"])
     assert job["usage"]["calls"] == 1
+    assert job["context"]["theme"] == "Test shoot"
 
 
 def test_llm_failure_falls_back_with_warning(settings, fake_embedder):
@@ -266,3 +268,26 @@ def test_edit_and_reset_builtin_preset(client):
     assert client.delete("/api/category-sets/lifestyle").status_code == 204  # reset
     life = next(p for p in client.get("/api/presets").json() if p["id"] == "lifestyle")
     assert not life.get("modified") and len(life["categories"]) == 12
+
+
+def test_auto_focus_and_granularity_local(client, settings):
+    build_library(settings.library_root)
+    for focus in ("scene", "framing", "lighting"):
+        body = {"strategy": "auto", "options": {"focus": focus, "granularity": "fine"}}
+        job = wait(client, client.post("/api/jobs", json=body).json()["id"])
+        assert job["status"] == "done", job
+        assert job["context"]["theme"] and job["context"]["focus"] == focus
+        names = [c["name"] for c in job["categories"] if not c["id"].startswith("_")]
+        assert names and len(names) == len(set(names))
+
+
+def test_ai_overrides_reach_the_model(settings, fake_embedder):
+    build_library(settings.library_root)
+    fr = _FakeResponses()
+    with TestClient(_llm_app(settings, fake_embedder, fr)) as c:
+        body = {"strategy": "auto", "options": {"ai": {"model": "gpt-5.6-luna", "reasoning_effort": "minimal",
+                                                       "naming_instructions": "Use Romanian names"}}}
+        wait(c, c.post("/api/jobs", json=body).json()["id"])
+    call = fr.calls[0]
+    assert call["model"] == "gpt-5.6-luna" and call["reasoning"] == {"effort": "minimal"}
+    assert "Use Romanian names" in call["input"][0]["content"][0]["text"]

@@ -21,10 +21,10 @@ from .dedupe import DupItem, find_duplicates
 from .embedder import Embedder, normalize
 from .llm import LLMClient, contact_sheet, load_thumb
 from .media import Analysis, MediaError, decode, load_for_quality
-from .quality import REASONS, Quality, QualityRules, analyze_image, get_face_analyzer, summary, verdict
+from .quality import REASONS, Quality, QualityRules, analyze_image, find_bursts, get_face_analyzer, score, stars, summary, verdict
 from .organizer import apply_plan
 from .planner import DUPLICATES, UNSORTED, destination
-from .presets import VOCABULARY
+from .presets import FOCUS_FACETS, FOCUS_HINT, VOCABULARY
 from .scanner import MediaFile, resolve_in_library, scan
 
 log = logging.getLogger(__name__)
@@ -50,6 +50,7 @@ class Job:
     warnings: list[str] = field(default_factory=list)
     errors: list[dict] = field(default_factory=list)
     usage: dict | None = None
+    context: dict | None = None
     run_id: str | None = None
     error: str | None = None
     created_at: float = field(default_factory=time.time)
@@ -83,6 +84,7 @@ class Job:
             "warnings": self.warnings,
             "errors": self.errors,
             "usage": self.usage,
+            "context": self.context,
             "run_id": self.run_id,
             "error": self.error,
             "created_at": self.created_at,
@@ -318,6 +320,20 @@ class JobManager:
         quality: dict[str, Quality] = self._quality(job, ordered) if need_quality else {}
         if job.cancel_requested:
             return
+        # best-of-burst: near-identical shots seconds apart -> keep the best, mark the rest as extras
+        bursts: dict[str, dict] = {}
+        if need_quality and qopts.get("bursts", True):
+            cand = [(f.id, str(Path(f.rel_path).parent), a.captured_at, e) for f, a, e in ordered
+                    if f.kind == "image" and f.id in quality]
+            groups = find_bursts(cand, float(qopts.get("burst_seconds", 2.0)), float(qopts.get("burst_similarity", 0.9)))
+            members: dict[int, list[str]] = {}
+            for fid, g in groups.items():
+                members.setdefault(g, []).append(fid)
+            for g, ids in members.items():
+                best = max(ids, key=lambda i: (verdict(quality[i], rules)[0] is None, score(quality[i], rules)))
+                for i in ids:
+                    bursts[i] = {"group": g, "size": len(ids), "best": i == best}
+            job.stats["bursts"] = len(members)
 
         # 3. duplicates
         self._phase(job, "deduplicating")
@@ -334,7 +350,7 @@ class JobManager:
         # 4. categorize
         self._phase(job, "categorizing")
         keep = [(f, a, e) for f, a, e in ordered if f.id not in dup_map]
-        assignment, categories = self._categorize(job, keep, embedder, quality, rules)
+        assignment, categories = self._categorize(job, keep, embedder, quality, rules, bursts)
         if job.cancel_requested:
             return
         # reject overlay: bad shots leave their category for _Rejects/<reason>
@@ -343,6 +359,8 @@ class JobManager:
             for f, _, _ in keep:
                 q = quality.get(f.id)
                 reason = verdict(q, rules)[0] if q else None
+                if not reason and f.id in bursts and not bursts[f.id]["best"]:
+                    reason = "burst"
                 if reason:
                     assignment[f.id] = (f"_reject-{reason}", 1.0, "quality")
                     used.add(reason)
@@ -375,6 +393,7 @@ class JobManager:
                 "duplicate_of": dup_map.get(f.id),
                 "sidecars": list(f.sidecars),
                 "quality": summary(quality[f.id], rules) if f.id in quality else None,
+                "burst": bursts.get(f.id),
             })
         counts: dict[str, dict[str, int]] = {}
         for p in plan:
@@ -430,7 +449,7 @@ class JobManager:
             job.emit("warning", message=job.warnings[-1])
         return out
 
-    def _categorize(self, job: Job, keep, embedder, quality=None, rules=None) -> tuple[dict, list[dict]]:
+    def _categorize(self, job: Job, keep, embedder, quality=None, rules=None, bursts=None) -> tuple[dict, list[dict]]:
         req, opts = job.request, job.request.get("options", {})
         strategy = req["strategy"]
         assignment: dict[str, tuple[str | None, float, str]] = {}
@@ -441,9 +460,11 @@ class JobManager:
         if strategy == "cull":
             qopts = opts.get("quality") or {}
             smiles = qopts.get("smiles", True)
+            min_stars = int(qopts.get("keeper_min_stars", 0))
             cats = [{"id": "keepers", "name": "Keepers", "emoji": "✅"}]
             if smiles:
                 cats.append({"id": "smiling", "name": "Smiling", "emoji": "😄"})
+            cats.append({"id": "maybe", "name": "Maybe", "emoji": "🤔"})
             for reason, (name, emoji) in REASONS.items():
                 cats.append({"id": reason, "name": name, "emoji": emoji})
             cats.append({"id": "videos", "name": "Videos", "emoji": "🎬", "media": "video"})
@@ -454,7 +475,15 @@ class JobManager:
                 else:
                     q = (quality or {}).get(f.id)
                     reason, _, smiling = verdict(q, rules) if q else (None, [], False)
-                    cid = reason or ("smiling" if smiles and smiling else "keepers")
+                    b = (bursts or {}).get(f.id)
+                    if not reason and b and not b["best"]:
+                        reason = "burst"
+                    if reason:
+                        cid = reason
+                    elif min_stars and q and stars(score(q, rules)) < min_stars:
+                        cid = "maybe"
+                    else:
+                        cid = "smiling" if smiles and smiling else "keepers"
                 assignment[f.id] = (cid, 1.0, "quality")
                 used.add(cid)
             return assignment, [c for c in cats if c["id"] in used]
@@ -470,8 +499,22 @@ class JobManager:
             return assignment, cats
 
         if strategy == "auto":
-            labels, cents = classify.choose_k(embs, int(opts.get("max_clusters", 12)))
-            names = self._name_clusters(job, keep, embs, labels, cents, embedder)
+            focus = opts.get("focus", "auto")
+            gran = opts.get("granularity", "normal")
+            max_k = int(opts.get("max_clusters", 12))
+            max_k, bias = {"coarse": (min(max_k, 6), -0.002), "fine": (max_k + 6, 0.01)}.get(gran, (max_k, 0.003))
+            # 1) what is this collection? (context for naming, shown in the UI)
+            theme, theme_conf = classify.collection_theme(embs, embedder)
+            job.context = {"theme": theme, "confidence": round(theme_conf, 3), "focus": focus}
+            job.emit("context", **job.context)
+            # 2) cluster on raw CLIP (auto) or on z-scored facet features (scene / framing / outfit / lighting …)
+            bank_labels, bank, facet_of = classify.facet_bank(embedder, FOCUS_FACETS.get(focus, FOCUS_FACETS["auto"]))
+            z = classify.facet_features(embs, bank)
+            X = embs if focus == "auto" else normalize(z)
+            labels, cents = classify.choose_k(X, max_k, bias=bias)
+            # 3) local names = what makes each group stand out within this folder
+            local = classify.unique_names(classify.describe_clusters(z, labels, len(cents), bank_labels, facet_of))
+            names = self._name_clusters(job, keep, X, labels, cents, local, theme, focus)
             cats: list[dict] = []
             by_name: dict[str, str] = {}
             label_to_cat: dict[int, str] = {}
@@ -484,9 +527,9 @@ class JobManager:
                     by_name[key] = cid
                     cats.append({"id": cid, "name": name, "emoji": emoji or "📁"})
                 label_to_cat[ci] = by_name[key]
-            for i, (f, _, e) in enumerate(keep):
+            for i, (f, _, _) in enumerate(keep):
                 ci = int(labels[i])
-                assignment[f.id] = (label_to_cat[ci], float(e @ cents[ci]), "cluster")
+                assignment[f.id] = (label_to_cat[ci], float(max(0.0, X[i] @ cents[ci])), "cluster")
             return assignment, cats
 
         # preset / custom
@@ -506,27 +549,44 @@ class JobManager:
 
     def _llm(self, job: Job) -> LLMClient | None:
         try:
-            return self.llm_factory()
+            llm = self.llm_factory()
+            ai = (job.request.get("options") or {}).get("ai") or {}
+            if llm is not None:
+                if ai.get("model"):
+                    llm.model = ai["model"]
+                if ai.get("reasoning_effort"):
+                    llm.effort = ai["reasoning_effort"]
+                llm.naming_instructions = ai.get("naming_instructions") or ""
+                llm.assist_instructions = ai.get("assist_instructions") or ""
+                llm.assist_batch = int(ai.get("assist_batch") or llm.assist_batch)
+            return llm
         except Exception as exc:  # noqa: BLE001
             job.warnings.append(f"AI unavailable: {exc}")
             return None
 
-    def _name_clusters(self, job, keep, embs, labels, cents, embedder) -> list[tuple[str, str]]:
-        vocab_names = classify.name_by_vocabulary(cents, embedder)
+    def _name_clusters(self, job, keep, X, labels, cents, local, theme, focus) -> list[tuple[str, str]]:
+        fallback = [(n, "📁") for n in local]
         llm = self._llm(job)
         if not llm:
-            return vocab_names
+            return fallback
         try:
-            reps = classify.representatives(embs, labels, cents)
+            reps = classify.representatives(X, labels, cents)
             sheets = [contact_sheet([self.thumb_path(keep[i][1].sha256) for i in r]) for r in reps]
-            ai = llm.name_clusters(sheets)
+            rng = random.Random(job.id)
+            sample = rng.sample(range(len(keep)), min(12, len(keep)))
+            overview = contact_sheet([self.thumb_path(keep[i][1].sha256) for i in sample], cols=4, rows=3, cell=96)
+            collection, ai = llm.name_clusters(sheets, overview=overview, theme_hint=theme, focus_hint=FOCUS_HINT.get(focus, ""),
+                                               local_hints=local)
             job.usage = dict(llm.usage, model=llm.model)
-            return [(n, e) if n else vocab_names[i] for i, (n, e) in enumerate(ai)]
+            if collection:
+                job.context = {**(job.context or {}), "theme": collection, "source": "ai"}
+                job.emit("context", **job.context)
+            return [(n, e) if n else fallback[i] for i, (n, e) in enumerate(ai)]
         except Exception as exc:  # noqa: BLE001 - REQ-CAT-9 graceful fallback
             log.warning("cluster naming failed: %s", exc)
             job.warnings.append(f"AI naming failed, used local names ({type(exc).__name__})")
             job.emit("warning", message=job.warnings[-1])
-            return vocab_names
+            return fallback
 
     def _assist(self, job, keep, assignment, cats, max_files: int) -> None:
         unsure = [(f, a) for f, a, _ in keep if assignment[f.id][0] is None][:max_files]

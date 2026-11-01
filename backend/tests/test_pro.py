@@ -75,3 +75,66 @@ def test_cull_strategy_and_reject_overlay(settings, fake_embedder):
         dest = {p["name"]: p["destination"] for p in job["plan"]}
         assert dest["soft.jpg"] == "Organized/_Rejects/Blurry"
         assert not dest["sharp.jpg"].startswith("Organized/_Rejects")
+
+
+# ---------------------------------------------------------------- pro culling
+from app.quality import find_bursts, score, stars  # noqa: E402
+
+
+def test_score_and_stars_rank_shots():
+    r = QualityRules()
+    great = _q(sharp=0.85, faces=[Face(0.05, 0.9, 0.05, (0, 0, 1, 1))])
+    blinked = _q(sharp=0.85, faces=[Face(0.9, 0.9, 0.05, (0, 0, 1, 1))])
+    soft = _q(sharp=0.35)
+    assert score(great, r) > score(blinked, r) > 0 and score(great, r) > score(soft, r)
+    assert stars(score(great, r)) >= 4 and 1 <= stars(score(soft, r)) <= 2
+
+
+def test_main_face_rule_ignores_background_blinks():
+    main = Face(0.05, 0.8, 0.10, (0.3, 0.2, 0.6, 0.6))
+    bystander = Face(0.95, 0.0, 0.002, (0.9, 0.1, 0.95, 0.15))
+    q = _q(faces=[main, bystander])
+    assert verdict(q, QualityRules(faces_rule="any"))[0] == "eyes-closed"
+    assert verdict(q, QualityRules(faces_rule="main")) == (None, [], True)
+
+
+def test_find_bursts():
+    e = np.array([1.0, 0.0])
+    other = np.array([0.0, 1.0])
+    items = [
+        ("a", "shoot", 10.0, e), ("b", "shoot", 10.5, e), ("c", "shoot", 11.4, e),  # one burst
+        ("d", "shoot", 30.0, e),                                                   # too late
+        ("e", "other", 10.2, e),                                                   # other folder
+        ("f", "shoot", 30.5, other),                                               # different content
+    ]
+    g = find_bursts(items, seconds=2, similarity=0.9)
+    assert g["a"] == g["b"] == g["c"] and len(g) == 3
+
+
+def test_cull_best_of_burst_and_maybe(settings, fake_embedder):
+    import os
+
+    from app.main import create_app
+
+    lib = settings.library_root
+    for i in range(3):  # three sharp frames of a burst, 0.5 s apart
+        _noise(lib / f"burst_{i}.jpg", 10 + i)
+        os.utime(lib / f"burst_{i}.jpg", (1000 + i * 0.5, 1000 + i * 0.5))
+    _noise(lib / "solo.jpg", 99)
+    os.utime(lib / "solo.jpg", (5000, 5000))
+    opts = {"near_duplicates": False, "quality": {"bursts": True, "burst_seconds": 2}}
+    with TestClient(create_app(settings, embedder_factory=lambda: fake_embedder, llm_factory=lambda: None)) as c:
+        job = wait(c, c.post("/api/jobs", json={"strategy": "cull", "options": opts}).json()["id"])
+        cat = {p["name"]: p["category"] for p in job["plan"]}
+        burst = [cat[f"burst_{i}.jpg"] for i in range(3)]
+        assert sorted(burst) == ["Burst extras", "Burst extras", "Keepers"], burst
+        assert job["stats"]["bursts"] == 1
+        best = next(p for p in job["plan"] if p["burst"] and p["burst"]["best"])
+        assert best["quality"]["stars"] >= 1 and 0 <= best["quality"]["score"] <= 1
+
+        # a soft (but not rejected) frame scores below 5 stars -> "Maybe" when keepers need 5 stars
+        Image.open(lib / "solo.jpg").filter(ImageFilter.GaussianBlur(3)).save(lib / "soft.jpg")
+        opts = {"near_duplicates": False, "quality": {"bursts": False, "blur": False, "keeper_min_stars": 5}}
+        job = wait(c, c.post("/api/jobs", json={"strategy": "cull", "options": opts}).json()["id"])
+        cat = {p["name"]: p["category"] for p in job["plan"]}
+        assert cat["soft.jpg"] == "Maybe" and cat["solo.jpg"] == "Keepers"

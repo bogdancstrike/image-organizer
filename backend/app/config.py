@@ -42,7 +42,7 @@ def load_settings() -> Settings:
         data_dir=Path(env.get("DATA_DIR", "/data")),
         model_dir=Path(model_dir) if model_dir else None,
         openai_api_key=(env.get("OPENAI_API_KEY") or "").strip() or None,
-        openai_model=env.get("OPENAI_MODEL", "gpt-5.6-luna"),
+        openai_model=env.get("OPENAI_MODEL", "gpt-6-luna"),
         reasoning_effort=env.get("OPENAI_REASONING_EFFORT", "low"),
         workers=max(1, int(env.get("WORKERS") or os.cpu_count() or 4)),
         output_dir_name=env.get("OUTPUT_DIR_NAME", "Organized"),
