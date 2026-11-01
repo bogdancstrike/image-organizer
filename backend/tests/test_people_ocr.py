@@ -89,3 +89,48 @@ def test_recipes_and_suggest(client, settings):
     assert sug["photos"] == 6 and 1 <= len(sug["suggestions"]) <= 3
     assert all(s["recipe"] in {r["id"] for r in rec} and "key" in s["reason"] for s in sug["suggestions"])
     assert client.get("/api/suggest", params={"path": "../.."}).status_code == 400
+
+
+def test_stats_settings_history_in_db(client, settings):
+    for i in range(3):
+        make_image(settings.library_root / f"s{i}.jpg", COLORS["green"], fmt="JPEG", noise_seed=40 + i)
+    job = wait(client, client.post("/api/jobs", json={"strategy": "date"}).json()["id"])
+    import time as _t
+    for _ in range(50):
+        st = client.get("/api/stats").json()
+        if st["sorts"]:
+            break
+        _t.sleep(0.05)
+    assert st["sorts"] == 1 and st["files_processed"] == 3 and "analyzing" in st["phase_seconds"]
+    run = client.post(f"/api/jobs/{job['id']}/apply", json={"mode": "move"}).json()
+    assert client.get("/api/runs").json()[0]["run_id"] == run["run_id"]
+    client.post(f"/api/runs/{run['run_id']}/undo")
+    assert client.get("/api/runs").json()[0]["status"] == "undone"
+    assert client.put("/api/settings", json={"strategy": "cull"}).json()["ok"]
+    assert client.get("/api/settings").json() == {"strategy": "cull"}
+
+
+class TwoPeople(FakeIdentifier):
+    def identify(self, img):
+        r, g, b = np.asarray(img.convert("RGB").resize((4, 4))).reshape(-1, 3).mean(axis=0)
+        if r > 200 and g > 200:  # yellow = person A (big) + person B (smaller)
+            return [FaceID(0.06, (0.1, 0.2, 0.3, 0.5), _vec(1)), FaceID(0.04, (0.6, 0.2, 0.8, 0.5), _vec(2))]
+        return super().identify(img)
+
+
+def test_people_copy_into_every_person(settings, fake_embedder, monkeypatch):
+    monkeypatch.setattr(jobs_mod, "get_face_identifier", lambda: TwoPeople())
+    lib = settings.library_root
+    for i in range(3):
+        Image.new("RGB", (200, 200), (220, 20, 20)).save(lib / f"anna{i}.jpg", quality=90 - i)
+        Image.new("RGB", (200, 200), (20, 220, 20)).save(lib / f"bob{i}.jpg", quality=90 - i)
+    Image.new("RGB", (200, 200), (230, 230, 20)).save(lib / "both.jpg")
+    with TestClient(create_app(settings, embedder_factory=lambda: fake_embedder, llm_factory=lambda: None)) as c:
+        body = {"strategy": "people", "options": {"near_duplicates": False, "people_min_photos": 2, "people_multi": "copy"}}
+        job = wait(c, c.post("/api/jobs", json=body).json()["id"])
+        both = next(p for p in job["plan"] if p["name"] == "both.jpg")
+        assert both["also"] and len(both["also"]) == 1 and both["also"][0] != both["destination"]
+        run = c.post(f"/api/jobs/{job['id']}/apply", json={"mode": "move"}).json()
+        assert len(list(lib.rglob("both.jpg"))) == 2
+        c.post(f"/api/runs/{run['run_id']}/undo")
+        assert [p.relative_to(lib).as_posix() for p in lib.rglob("both.jpg")] == ["both.jpg"]

@@ -60,6 +60,7 @@ class Job:
     created_at: float = field(default_factory=time.time)
     finished_at: float | None = None
     cancel_requested: bool = False
+    phase_times: list = field(default_factory=list)  # [(phase, started_at)]
     cond: threading.Condition = field(default_factory=threading.Condition, repr=False)
 
     def emit(self, type: str, **data: Any) -> None:
@@ -168,7 +169,7 @@ class JobManager:
             journal = apply_plan(
                 self.s.library_root,
                 [{"rel_path": p["rel_path"], "destination": p["destination"], "sidecars": p.get("sidecars") or [],
-                  "xmp": p.get("xmp")} for p in job.plan],
+                  "xmp": p.get("xmp"), "also": p.get("also") or []} for p in job.plan],
                 mode,
                 self.s.journals_dir,
                 job.id,
@@ -256,8 +257,32 @@ class JobManager:
             job.finished_at = time.time()
             with job.cond:
                 job.cond.notify_all()
+            self._record_stats(job)
+
+    def _record_stats(self, job: Job) -> None:
+        """Per-sort statistics (Statistics tab): wall time, time per phase, counts, model, AI usage."""
+        if not getattr(self, "db", None):
+            return
+        phases: dict[str, float] = {}
+        marks = job.phase_times + [("_end", job.finished_at or time.time())]
+        for (name, t0), (_, t1) in zip(marks, marks[1:]):
+            phases[name] = round(phases.get(name, 0.0) + (t1 - t0), 3)
+        st = job.stats or {}
+        opts = job.request.get("options", {})
+        try:
+            self.db.add_job_stats(job.id, {
+                "job_id": job.id, "finished_at": job.finished_at, "status": job.status if job.status != "applying" else "done",
+                "strategy": job.request.get("strategy"), "model": opts.get("model", "clip"),
+                "source": job.request.get("source") or "", "files": st.get("total", 0), "photos": st.get("photos", 0),
+                "videos": st.get("videos", 0), "embedded": st.get("embedded", 0), "duplicates": st.get("duplicates", 0),
+                "folders": st.get("folders", 0), "wall": round((job.finished_at or time.time()) - job.created_at, 3),
+                "phases": phases, "usage": job.usage,
+            })
+        except Exception as exc:  # noqa: BLE001 - statistics must never break a sort
+            log.warning("could not record stats: %s", exc)
 
     def _phase(self, job: Job, phase: str) -> None:
+        job.phase_times.append((phase, time.time()))
         job.phase = phase
         job.emit("phase", phase=phase)
 
@@ -412,6 +437,8 @@ class JobManager:
                                        "path": f"_Rejects/{name}"})
 
         # 5. plan
+        if req["strategy"] != "people":
+            self._extra = {}
         cats_by_id = {c["id"]: c for c in categories}
         if any(cid is None for cid, _, _ in assignment.values()):
             cats_by_id[UNSORTED["id"]] = dict(UNSORTED)
@@ -456,6 +483,8 @@ class JobManager:
                 "quality": summary(quality[f.id], rules) if f.id in quality else None,
                 "burst": bursts.get(f.id),
                 "text": (texts.get(f.id) or {}).get("text") or None,
+                "also": [destination(source_rel, out_dir, f.kind, cats_by_id[c], split) for c in sorted(getattr(self, "_extra", {}).get(f.id, ()))
+                         if c in cats_by_id] or None,
                 "xmp": self._xmp_for(f.id, cid, quality, rules, bursts) if qopts.get("write_xmp") and f.kind == "image" else None,
             })
         counts: dict[str, dict[str, int]] = {}
@@ -588,6 +617,7 @@ class JobManager:
 
     def _people(self, job, keep, faces, opts) -> tuple[dict, list[dict]]:
         """One folder per recurring person (by the photo's main face); Groups, Other people, No people, Videos."""
+        multi = opts.get("people_multi", "main")  # "main" = only the biggest face decides; "copy" = every person gets a copy
         min_photos = int(opts.get("people_min_photos", 3))
         threshold = float(opts.get("people_similarity", 0.363))
         group_size = int(opts.get("people_group_size", 3))
@@ -611,6 +641,7 @@ class JobManager:
         people = sorted((m for m in members.values() if len(m) >= min_photos), key=len, reverse=True)
         cats: list[dict] = []
         assignment: dict[str, tuple[str | None, float, str]] = {}
+        self._extra: dict[str, set] = {}
         by_id = {f.id: f for f, _, _ in keep}
         for n, m in enumerate(people, 1):
             cid = f"person-{n}"
@@ -629,6 +660,21 @@ class JobManager:
             cats.append({"id": cid, "name": f"Person {n}", "emoji": "🙂", "cover": cover})
             for fid in m:
                 assignment[fid] = (cid, 1.0, "faces")
+        if multi == "copy":
+            # every other sizable face that matches a person → extra copy of the photo into that person's folder
+            protos = {f"person-{n}": np.vstack([main[i].emb for i in m]).mean(axis=0) for n, m in enumerate(people, 1)}
+            for f, _, _ in keep:
+                fs = faces.get(f.id) or []
+                if len(fs) < 2:
+                    continue
+                biggest = max(fs, key=lambda x: x.area)
+                for x in fs:
+                    if x is biggest or x.area < biggest.area * 0.25:
+                        continue
+                    best = max(protos.items(), key=lambda kv: float(x.emb @ (kv[1] / (np.linalg.norm(kv[1]) or 1))), default=None)
+                    if best and float(x.emb @ (best[1] / (np.linalg.norm(best[1]) or 1))) >= threshold:
+                        if assignment.get(f.id, (None,))[0] != best[0]:
+                            self._extra.setdefault(f.id, set()).add(best[0])
         extra = [("groups", "Groups", "👥"), ("other-people", "Other people", "🧑‍🤝‍🧑"), ("no-people", "No people", "🏞️"),
                  ("videos", "Videos", "🎬")]
         for f, _, _ in keep:

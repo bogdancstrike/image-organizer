@@ -109,6 +109,23 @@ def apply_plan(
                 d = d.parent
             dst_dir.mkdir(parents=True, exist_ok=True)
             created_dirs.extend(p.relative_to(root).as_posix() for p in reversed(missing))
+            # extra copies (e.g. a photo with two people → each person's folder), made before the original moves
+            for extra in it.get("also") or []:
+                xdir = root / extra
+                if not _inside(root, xdir):
+                    continue
+                miss = []
+                d = xdir
+                while not d.exists():
+                    miss.append(d)
+                    d = d.parent
+                xdir.mkdir(parents=True, exist_ok=True)
+                created_dirs.extend(p.relative_to(root).as_posix() for p in reversed(miss))
+                xdst = _unique(xdir / src.name)
+                shutil.copy2(str(src), str(xdst))
+                xs = xdst.stat()
+                journal["ops"].append({"src": it["rel_path"], "dst": xdst.relative_to(root).as_posix(), "copy": True,
+                                       "size": xs.st_size, "mtime": xs.st_mtime})
             # the photo and its sidecars (RAW twin, .xmp, …) share one collision-free stem
             sides = [root / sp for sp in it.get("sidecars") or [] if (root / sp).exists() and _inside(root, root / sp)]
             names = _group_names(dst_dir, src.name, [sp.name for sp in sides])
@@ -166,7 +183,7 @@ def undo_run(library_root: Path, journals_dir: Path, run_id: str) -> dict:
             if not dst.exists():
                 problems.append({"file": op["dst"], "error": "no longer exists"})
                 continue
-            if journal["mode"] == "move":
+            if journal["mode"] == "move" and not op.get("copy"):
                 if src.exists():
                     problems.append({"file": op["src"], "error": "original path is occupied"})
                     continue

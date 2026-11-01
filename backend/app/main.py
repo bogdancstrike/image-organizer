@@ -22,6 +22,7 @@ from .config import Settings, load_settings
 from .embedder import get_clip_embedder
 from .jobs import BusyError, JobManager
 from .llm import LLMClient
+from .db import AppDB, summarize
 from .organizer import empty_trash, list_runs, undo_run
 from .media import open_any
 from .ocr import get_text_reader
@@ -90,6 +91,7 @@ class JobOptions(BaseModel):
     people_min_photos: int = Field(3, ge=1, le=100)  # by person: smaller groups go to "Other people"
     people_similarity: float = Field(0.363, ge=0.2, le=0.8)  # SFace cosine: higher = stricter "same person"
     people_group_size: int = Field(3, ge=2, le=20)  # this many sizable faces = "Groups"
+    people_multi: Literal["main", "copy"] = "main"  # several people in a photo: main face only, or a copy per person
     focus: Literal["auto", "scene", "framing", "outfit", "lighting", "subject"] = "auto"  # what auto groups by
     granularity: Literal["coarse", "normal", "fine"] = "normal"
     ai: AIOptions = Field(default_factory=AIOptions)
@@ -143,6 +145,16 @@ def create_app(settings: Settings | None = None, embedder_factory=None, llm_fact
             return LLMClient(s.openai_api_key, s.openai_model, s.reasoning_effort)
 
     manager = JobManager(s, embedder_factory, store, llm_factory)
+    db = AppDB(s.data_dir / "app.db")
+    manager.db = db
+    if not db.has_runs():  # first start after upgrade: import History from the journals
+        for r in list_runs(s.journals_dir):
+            db.upsert_run(r)
+
+    def _sync_run(run_id: str) -> None:
+        for r in list_runs(s.journals_dir):
+            if r["run_id"] == run_id:
+                db.upsert_run(r)
     app = FastAPI(title="Auto Image Organizer", version=__version__)
     app.state.manager = manager
     app.state.settings = s
@@ -375,6 +387,7 @@ def create_app(settings: Settings | None = None, embedder_factory=None, llm_fact
         _job(job_id)
         try:
             journal = await run_in_threadpool(manager.apply, job_id, body.mode)
+            _sync_run(journal["run_id"])
         except BusyError as exc:
             raise HTTPException(409, str(exc)) from exc
         return {k: journal[k] for k in ("run_id", "mode", "status", "created_at")} | {
@@ -384,7 +397,22 @@ def create_app(settings: Settings | None = None, embedder_factory=None, llm_fact
     # --------------------------------------------------------------- runs
     @app.get("/api/runs")
     def runs():
-        return list_runs(s.journals_dir)
+        return db.runs()
+
+    @app.get("/api/settings")
+    def get_settings():
+        return db.get_setting("ui", {})
+
+    @app.put("/api/settings")
+    def put_settings(body: dict):
+        if len(json.dumps(body)) > 200_000:
+            raise HTTPException(413, "settings too large")
+        db.set_setting("ui", body)
+        return {"ok": True}
+
+    @app.get("/api/stats")
+    def stats():
+        return summarize(db.job_stats(), db.runs())
 
     @app.post("/api/runs/{run_id}/undo")
     async def undo(run_id: str):
@@ -392,6 +420,7 @@ def create_app(settings: Settings | None = None, embedder_factory=None, llm_fact
             raise HTTPException(400, "bad run id")
         try:
             j = await run_in_threadpool(undo_run, s.library_root, s.journals_dir, run_id)
+            _sync_run(run_id)
         except FileNotFoundError as exc:
             raise HTTPException(404, "run not found") from exc
         return {"run_id": run_id, "status": j["status"], "undo": j.get("undo")}
@@ -402,7 +431,9 @@ def create_app(settings: Settings | None = None, embedder_factory=None, llm_fact
         if not re.fullmatch(r"[0-9A-Za-z-]+", run_id):
             raise HTTPException(400, "bad run id")
         try:
-            return await run_in_threadpool(empty_trash, s.library_root, s.journals_dir, run_id)
+            res = await run_in_threadpool(empty_trash, s.library_root, s.journals_dir, run_id)
+            _sync_run(run_id)
+            return res
         except FileNotFoundError as exc:
             raise HTTPException(404, "run not found") from exc
 
