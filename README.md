@@ -61,6 +61,11 @@ Open **http://localhost:8080**, click the folder name in *"Sorting my **…** fo
 
 ## 🧩 Features
 
+### 🔎 Library: find anything
+- **Natural-language search:** “red dress at the beach”, “dog in the snow”. Uses the embeddings every sort already computed, plus text inside photos (OCR). ~20 ms per query.
+- **Find similar:** open any photo → every look-alike in the folder.
+- **Trips & map:** GPS + dates → trips, and a map of where your photos were taken (place names offline, tiles © OpenStreetMap).
+
 ### Organize any way you like
 
 | Mode | What you get | Good for |
@@ -69,7 +74,9 @@ Open **http://localhost:8080**, click the folder name in *"Sorting my **…** fo
 | **My categories** | Your own folders, each described in a few words (and *Photos-only / Videos-only*) | Your Instagram system, client workflows |
 | **Auto-discover** | Groups found automatically, named by **what makes them different** inside your folder | Unknown dumps, a studio shoot, a wedding |
 | **By date** | `2025/07 - July` from EXIF / video metadata | Archives |
-| **By person** | One folder per recognized person + Groups, Other people, No people. Group photos: main face only, or a copy for every person. Or **upload a face** and move only that person's photos | Families, events, model shoots |
+| **By person** | One folder per recognized person + Groups, Other people, No people. People whose face isn't visible (back, far away, hands, veil) are matched by look and gender. Group photos: main face only, or a copy for every person. Or **upload a face** and move only that person's photos | Families, events, model shoots |
+| **By trip** | Trips from GPS + dates, named like *Rome · May 2025*, plus *Everyday* | Phone camera rolls, travel |
+| **By place** | One folder per country or city (offline reverse geocoding) | Travel archives |
 | **Cull** | Picks ★ · Keepers · Smiling · Maybe · Blurry · Eyes closed · Too dark/bright · Noisy · Burst extras | Photographers |
 
 **Presets:** Lifestyle · People & Style · Boudoir & glamour · Boudoir session (poses & light) · Photoshoot themes (wedding, halloween, moto, pool, studio …) · Wedding day ·
@@ -136,8 +143,8 @@ Without a key, everything works offline. With `OPENAI_API_KEY`, the app uses **`
 | <img src="docs/assets/screenshot-categories.png" alt="Categories" /> | <img src="docs/assets/screenshot-settings-ai.png" alt="AI settings" /> |
 | **Pro culling settings** | **Light theme** |
 | <img src="docs/assets/screenshot-settings.png" alt="Culling settings" /> | <img src="docs/assets/screenshot-light.png" alt="Light theme" /> |
-| **Statistics: time per sort and per phase** | |
-| <img src="docs/assets/screenshot-statistics.png" alt="Statistics" /> | |
+| **Statistics: time per sort and per phase** | **Library: natural-language search** |
+| <img src="docs/assets/screenshot-statistics.png" alt="Statistics" /> | <img src="docs/assets/screenshot-library.png" alt="Library search" /> |
 
 ## ⚙️ How it works
 
@@ -251,8 +258,12 @@ React 19 · TypeScript · Vite · antd 6 · Tailwind 4 · shadcn/ui-style compon
 
 ## 🗺 Roadmap
 
-Write star ratings to XMP for Lightroom · face clustering ("by person") · local vision LLM engine (vLLM, zero tokens) ·
-watch-folder mode · GPU image · desktop app (Tauri) · i18n. See [docs/tasks.md](docs/tasks.md), and ideas are welcome!
+**Shipped:** XMP star ratings · by person (incl. faceless matching, upload a face) · SigLIP 2 · OCR · 5 languages ·
+natural-language search & find similar · trips, places & map · statistics · SQLite persistence.
+
+**Next:** stronger Picks (aesthetics, expression, story) · prompt rules (“boudoir → boudoir/01.11.2026, the rest → others/…”) ·
+cleanup assistant & storage report · expression scoring & group-shot check · portfolio picker · local vision LLM (vLLM, zero tokens) ·
+watch-folder mode · GPU image · desktop app (Tauri). See [docs/tasks.md](docs/tasks.md), and ideas are welcome!
 
 ## 🤝 Contributing
 
