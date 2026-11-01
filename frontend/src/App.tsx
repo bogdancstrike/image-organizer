@@ -654,8 +654,9 @@ export default function App() {
         </Card>
       )}
       {tab === "settings" && (
-        <Card className="mt-8 max-w-2xl p-5">
+        <div className="mt-8">
           <SettingsPanel
+            layout="page"
             settings={settings}
             onChange={setSettings}
             presets={presets}
@@ -664,7 +665,7 @@ export default function App() {
             onEditCategories={() => setDrawer("editor")}
             onPickFolder={() => setDrawer("folder")}
           />
-        </Card>
+        </div>
       )}
 
       <div className={tab === "sort" ? "" : "hidden"}>
