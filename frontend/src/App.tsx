@@ -791,7 +791,7 @@ export default function App() {
         </div>
       )}
       {tab === "history" && (
-        <div className="mx-auto mt-8 w-full max-w-6xl">
+        <div className="mx-auto mt-10 w-full max-w-4xl">
           <HistoryTab
             active={tab === "history"}
             onUndone={(id) => setJob((j) => (j.runId === id ? { ...j, status: "undone" } : j))}

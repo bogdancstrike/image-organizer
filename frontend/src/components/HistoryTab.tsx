@@ -1,113 +1,158 @@
-import { useCallback, useEffect, useState } from "react";
-import { App, Button, Empty, Pagination, Popconfirm, Segmented, Spin, Tag } from "antd";
-import { ChevronDown, Clock, FolderOpen, RotateCcw, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { App, Button, Drawer, Empty, Pagination, Popconfirm, Segmented, Spin } from "antd";
+import { ChevronRight, FolderOpen, RotateCcw, Trash2 } from "lucide-react";
 import { api, type HistoryItem, type HistoryPage } from "@/api";
-import { Card } from "./ui/card";
 import { cn, fmt } from "@/lib/utils";
 
-const OUTCOME: Record<string, { label: string; color?: string; hint: string }> = {
-  applied: { label: "Applied", color: "green", hint: "files were moved or copied" },
-  undone: { label: "Undone", color: "blue", hint: "applied, then put back" },
-  not_applied: { label: "Not applied", color: "gold", hint: "planned only, nothing moved" },
-  cancelled: { label: "Cancelled", hint: "stopped before it finished" },
-  failed: { label: "Failed", color: "red", hint: "an error stopped it" },
+const OUTCOME: Record<string, { label: string; dot: string; hint: string }> = {
+  applied: { label: "Applied", dot: "bg-emerald-500", hint: "Files were moved or copied." },
+  undone: { label: "Undone", dot: "bg-sky-500", hint: "Applied, then every file was put back." },
+  not_applied: { label: "Plan only", dot: "bg-plum/30", hint: "Sorted and reviewed, nothing was moved." },
+  cancelled: { label: "Cancelled", dot: "bg-plum/20", hint: "Stopped before it finished." },
+  failed: { label: "Failed", dot: "bg-red-500", hint: "An error stopped it." },
 };
 const STRATEGY: Record<string, string> = {
-  preset: "Preset", custom: "My categories", auto: "Auto-discover", date: "By date", cull: "Culling",
-  people: "By person", trips: "By trip", places: "By place",
+  preset: "preset", custom: "my categories", auto: "auto-discover", date: "by date", cull: "culling",
+  people: "by person", trips: "by trip", places: "by place",
 };
-const PAGE = 15;
+const PAGE = 40;
 const dur = (s?: number | null) => (!s ? "–" : s >= 60 ? `${(s / 60).toFixed(1)} min` : `${s.toFixed(1)} s`);
+const folderName = (src?: string | null) => (src || "").split("/").filter(Boolean).pop() || "Library";
 
-function Row({ it, onUndo, onTrash, onReopen, busy }: {
+function dayLabel(ts: number) {
+  const d = new Date(ts * 1000);
+  const today = new Date();
+  const y = new Date();
+  y.setDate(today.getDate() - 1);
+  if (d.toDateString() === today.toDateString()) return "Today";
+  if (d.toDateString() === y.toDateString()) return "Yesterday";
+  return d.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: d.getFullYear() === today.getFullYear() ? undefined : "numeric" });
+}
+
+/** Consecutive, identical plan-only sorts (same folder + strategy) collapse into one line "×N". */
+type Entry = { item: HistoryItem; repeats: number };
+function collapse(items: HistoryItem[]): Entry[] {
+  const out: Entry[] = [];
+  for (const it of items) {
+    const prev = out[out.length - 1];
+    if (
+      prev &&
+      it.outcome === "not_applied" &&
+      prev.item.outcome === "not_applied" &&
+      prev.item.source === it.source &&
+      prev.item.strategy === it.strategy &&
+      dayLabel(prev.item.finished_at ?? 0) === dayLabel(it.finished_at ?? 0)
+    ) {
+      prev.repeats += 1;
+      continue;
+    }
+    out.push({ item: it, repeats: 1 });
+  }
+  return out;
+}
+
+function Details({ it, onUndo, onTrash, onReopen, busy }: {
   it: HistoryItem;
   onUndo: (runId: string) => void;
   onTrash: (runId: string) => void;
   onReopen: (jobId: string) => void;
   busy: boolean;
 }) {
-  const [open, setOpen] = useState(false);
-  const o = OUTCOME[it.outcome] ?? { label: it.outcome, hint: "" };
+  const o = OUTCOME[it.outcome];
   const run = it.run;
-  const phases = Object.entries(it.phases ?? {}).filter(([k]) => k !== "done");
+  const phases = Object.entries(it.phases ?? {}).filter(([k, v]) => k !== "done" && v > 0.05);
+  const maxPhase = Math.max(0.001, ...phases.map(([, v]) => v));
+  const facts: [string, string][] = [
+    ["When", it.finished_at ? new Date(it.finished_at * 1000).toLocaleString() : "–"],
+    ["Folder", it.source || "/"],
+    ["How", it.strategy ? STRATEGY[it.strategy] ?? it.strategy : "–"],
+    ["Model", it.model ?? "–"],
+    ["Files", `${fmt(it.photos ?? 0)} photos · ${fmt(it.videos ?? 0)} videos`],
+    ["Duplicates", fmt(it.duplicates ?? 0)],
+    ["Took", dur(it.wall)],
+  ];
+  if (run) facts.push([run.mode === "copy" ? "Copied" : "Moved", `${fmt(run.moved)} files${run.failed ? ` · ${run.failed} failed` : ""}`]);
+  if (run?.undo) facts.push(["Put back", `${fmt(run.undo.restored)} files`]);
+  if (it.usage) facts.push(["AI tokens", fmt((it.usage.input_tokens ?? 0) + (it.usage.output_tokens ?? 0))]);
+
   return (
-    <Card className="p-4">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <button onClick={() => setOpen((v) => !v)} className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left" aria-expanded={open}>
-          <ChevronDown size={16} className={cn("shrink-0 text-plum/40 transition", open && "rotate-180")} />
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2 text-[14px] font-medium text-plum">
-              <span className="truncate">{(it.source || "/").split("/").pop() || "Library"}</span>
-              <Tag color={o.color} className="m-0" title={o.hint}>{o.label}</Tag>
-              {it.strategy && <Tag className="m-0">{STRATEGY[it.strategy] ?? it.strategy}</Tag>}
-            </div>
-            <div className="mt-0.5 flex flex-wrap gap-x-3 text-[11px] text-plum/55">
-              <span><Clock size={11} className="mr-1 inline" />{it.finished_at ? new Date(it.finished_at * 1000).toLocaleString() : "–"}</span>
-              {it.files != null && <span>{fmt(it.files)} files → {it.folders ?? "?"} folders</span>}
-              {it.wall != null && <span>{dur(it.wall)}</span>}
-              {run && <span>{run.mode === "copy" ? "copied" : "moved"} {fmt(run.moved)}{run.failed ? ` · ${run.failed} failed` : ""}</span>}
-            </div>
-          </div>
-        </button>
+    <div className="space-y-7">
+      <div className="flex items-center gap-2 text-[13px] text-plum/70">
+        <span className={cn("h-2 w-2 rounded-full", o?.dot)} /> {o?.label} · {o?.hint}
+      </div>
+
+      {(it.reopen || run?.status === "applied") && (
         <div className="flex flex-wrap gap-2">
           {it.reopen && it.job_id && (
-            <Button size="small" icon={<FolderOpen size={13} />} onClick={() => onReopen(it.job_id!)}>
-              Open plan
+            <Button type="primary" icon={<FolderOpen size={14} />} onClick={() => onReopen(it.job_id!)}>
+              Open this plan
             </Button>
           )}
-          {run && run.status === "applied" && (
+          {run?.status === "applied" && (
             <Popconfirm title="Put every file back where it was?" onConfirm={() => onUndo(run.run_id)}>
-              <Button size="small" icon={<RotateCcw size={13} />} loading={busy}>Undo</Button>
+              <Button icon={<RotateCcw size={14} />} loading={busy}>Undo</Button>
             </Popconfirm>
           )}
-          {run && run.status === "applied" && run.in_trash > 0 && (
+          {run?.status === "applied" && run.in_trash > 0 && (
             <Popconfirm title={`Delete ${run.in_trash} trashed duplicates for good? This can't be undone.`} onConfirm={() => onTrash(run.run_id)}>
-              <Button size="small" danger icon={<Trash2 size={13} />}>Empty trash ({run.in_trash})</Button>
+              <Button danger icon={<Trash2 size={14} />}>Empty trash ({run.in_trash})</Button>
             </Popconfirm>
           )}
-        </div>
-      </div>
-      {open && (
-        <div className="mt-4 grid gap-4 border-t border-line pt-4 md:grid-cols-3">
-          <div>
-            <div className="label-caps mb-2">Folders</div>
-            {it.categories.length ? (
-              <ul className="space-y-1 text-[12px] text-plum/75">
-                {it.categories.map((c) => (
-                  <li key={c.name} className="flex justify-between gap-2"><span className="truncate">{c.name}</span><span className="tabular-nums">{fmt(c.count)}</span></li>
-                ))}
-              </ul>
-            ) : <p className="text-[12px] text-plum/45">Not kept (only the last 20 sorts keep their full plan).</p>}
-          </div>
-          <div>
-            <div className="label-caps mb-2">Details</div>
-            <dl className="grid grid-cols-2 gap-y-1 text-[12px] text-plum/75">
-              <dt>Folder</dt><dd className="truncate text-right" title={it.source ?? ""}>{it.source || "/"}</dd>
-              <dt>Photos / videos</dt><dd className="text-right tabular-nums">{fmt(it.photos ?? 0)} / {fmt(it.videos ?? 0)}</dd>
-              <dt>Analyzed fresh</dt><dd className="text-right tabular-nums">{fmt(it.embedded ?? 0)}</dd>
-              <dt>Duplicates</dt><dd className="text-right tabular-nums">{fmt(it.duplicates ?? 0)}</dd>
-              <dt>Model</dt><dd className="text-right">{it.model ?? "–"}</dd>
-              {it.usage && <><dt>AI tokens</dt><dd className="text-right tabular-nums">{fmt((it.usage.input_tokens ?? 0) + (it.usage.output_tokens ?? 0))}</dd></>}
-              {run?.undo && <><dt>Restored</dt><dd className="text-right tabular-nums">{fmt(run.undo.restored)}</dd></>}
-            </dl>
-          </div>
-          <div>
-            <div className="label-caps mb-2">Time per step</div>
-            {phases.length ? (
-              <ul className="space-y-1 text-[12px] text-plum/75">
-                {phases.map(([k, v]) => (
-                  <li key={k} className="flex justify-between"><span className="capitalize">{k}</span><span className="tabular-nums">{dur(v)}</span></li>
-                ))}
-              </ul>
-            ) : <p className="text-[12px] text-plum/45">–</p>}
-          </div>
         </div>
       )}
-    </Card>
+
+      <section>
+        <h4 className="label-caps mb-3">Folders</h4>
+        {it.categories.length ? (
+          <div className="space-y-2">
+            {it.categories.map((c) => (
+              <div key={c.name} className="flex items-center gap-3 text-[13px]">
+                <span className="w-40 truncate text-plum/85">{c.name}</span>
+                <div className="h-1.5 flex-1 rounded-full bg-tint">
+                  <div className="h-1.5 rounded-full bg-plum/50" style={{ width: `${(c.count / Math.max(1, it.categories[0].count)) * 100}%` }} />
+                </div>
+                <span className="w-10 text-right tabular-nums text-plum/60">{fmt(c.count)}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-[12px] text-plum/45">Only the latest 20 sorts keep their folder list.</p>
+        )}
+      </section>
+
+      <section>
+        <h4 className="label-caps mb-3">Details</h4>
+        <dl className="divide-y divide-line/60 text-[13px]">
+          {facts.map(([k, v]) => (
+            <div key={k} className="flex justify-between gap-4 py-1.5">
+              <dt className="text-plum/55">{k}</dt>
+              <dd className="min-w-0 truncate text-right text-plum/85" title={v}>{v}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
+
+      {phases.length > 0 && (
+        <section>
+          <h4 className="label-caps mb-3">Time per step</h4>
+          <div className="space-y-2">
+            {phases.map(([k, v]) => (
+              <div key={k} className="flex items-center gap-3 text-[12px]">
+                <span className="w-28 capitalize text-plum/70">{k}</span>
+                <div className="h-1.5 flex-1 rounded-full bg-tint">
+                  <div className="h-1.5 rounded-full bg-plum/40" style={{ width: `${(v / maxPhase) * 100}%` }} />
+                </div>
+                <span className="w-14 text-right tabular-nums text-plum/60">{dur(v)}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
   );
 }
 
-/** History: every sort (applied or not) with outcome, details, undo, empty trash and "open plan". */
+/** History: a calm, day-grouped list of every sort; details and actions open in a side panel. */
 export function HistoryTab({ active, onUndone, onReopen }: { active: boolean; onUndone: (runId: string) => void; onReopen: (jobId: string) => void }) {
   const { message } = App.useApp();
   const [outcome, setOutcome] = useState("all");
@@ -115,6 +160,7 @@ export function HistoryTab({ active, onUndone, onReopen }: { active: boolean; on
   const [data, setData] = useState<HistoryPage | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  const [selected, setSelected] = useState<HistoryItem | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -136,6 +182,7 @@ export function HistoryTab({ active, onUndone, onReopen }: { active: boolean; on
       if (problems) message.warning(`Restored ${r.undo?.restored} files, ${problems} could not be restored`);
       else message.success(`Restored ${r.undo?.restored} files`);
       onUndone(runId);
+      setSelected(null);
       load();
     } catch (e) {
       message.error((e as Error).message);
@@ -147,48 +194,111 @@ export function HistoryTab({ active, onUndone, onReopen }: { active: boolean; on
     try {
       await api.emptyTrash(runId);
       message.success("Trash emptied");
+      setSelected(null);
       load();
     } catch (e) {
       message.error((e as Error).message);
     }
   };
 
+  const groups = useMemo(() => {
+    const out: { day: string; entries: Entry[] }[] = [];
+    for (const e of collapse(data?.items ?? [])) {
+      const day = dayLabel(e.item.finished_at ?? 0);
+      if (out.length && out[out.length - 1].day === day) out[out.length - 1].entries.push(e);
+      else out.push({ day, entries: [e] });
+    }
+    return out;
+  }, [data]);
+
   const c = data?.counts;
   return (
-    <div className="space-y-4">
-      <Segmented
-        value={outcome}
-        onChange={(v) => {
-          setOutcome(String(v));
-          setPage(1);
-        }}
-        options={[
-          { value: "all", label: `All${c ? ` · ${c.all}` : ""}` },
-          { value: "applied", label: `Applied${c ? ` · ${c.applied}` : ""}` },
-          { value: "not_applied", label: `Not applied${c ? ` · ${c.not_applied}` : ""}` },
-          { value: "undone", label: `Undone${c ? ` · ${c.undone}` : ""}` },
-          { value: "failed", label: `Failed${c ? ` · ${c.failed}` : ""}` },
-          { value: "cancelled", label: `Cancelled${c ? ` · ${c.cancelled}` : ""}` },
-        ]}
-      />
+    <div>
+      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h2 className="text-[26px] font-semibold tracking-tight text-plum">History</h2>
+          {c && (
+            <p className="mt-1 text-[13px] text-plum/55">
+              {fmt(c.all)} sorts · {fmt(c.applied)} applied · {fmt(c.not_applied)} plans not applied
+              {c.undone ? ` · ${fmt(c.undone)} undone` : ""}
+            </p>
+          )}
+        </div>
+        <Segmented
+          size="small"
+          value={outcome}
+          onChange={(v) => {
+            setOutcome(String(v));
+            setPage(1);
+          }}
+          options={[
+            { value: "all", label: "All" },
+            { value: "applied", label: "Applied" },
+            { value: "not_applied", label: "Plans" },
+            { value: "undone", label: "Undone" },
+            { value: "failed", label: "Failed" },
+          ]}
+        />
+      </div>
+
       {loading && !data ? (
-        <div className="flex justify-center py-16"><Spin /></div>
-      ) : !data || data.items.length === 0 ? (
-        <Empty className="py-16" description="No sorts here yet" />
+        <div className="flex justify-center py-20"><Spin /></div>
+      ) : !groups.length ? (
+        <Empty className="py-20" description={outcome === "all" ? "Your sorts will show up here." : "Nothing here."} />
       ) : (
-        <>
-          <div className={cn("space-y-2", loading && "opacity-60")}>
-            {data.items.map((it, i) => (
-              <Row key={`${it.job_id ?? it.run?.run_id}-${i}`} it={it} onUndo={undo} onTrash={trash} onReopen={onReopen} busy={busy === it.run?.run_id} />
-            ))}
-          </div>
-          {data.total > PAGE && (
-            <div className="flex justify-center">
-              <Pagination current={page} pageSize={PAGE} total={data.total} onChange={setPage} showSizeChanger={false} />
+        <div className={cn("space-y-8", loading && "opacity-60")}>
+          {groups.map((g) => (
+            <section key={g.day}>
+              <h3 className="mb-2 px-3 text-[12px] font-medium text-plum/45">{g.day}</h3>
+              <ul>
+                {g.entries.map(({ item: it, repeats }, i) => {
+                  const o = OUTCOME[it.outcome];
+                  return (
+                    <li key={`${it.job_id ?? it.run?.run_id}-${i}`}>
+                      <button
+                        onClick={() => setSelected(it)}
+                        className="group flex w-full cursor-pointer items-center gap-4 rounded-xl px-3 py-3 text-left transition hover:bg-tint/60"
+                      >
+                        <span className={cn("h-2 w-2 shrink-0 rounded-full", o?.dot)} title={o?.label} />
+                        <span className="min-w-0 flex-1 truncate text-[14px] text-plum">
+                          <span className="font-medium">{folderName(it.source)}</span>
+                          <span className="text-plum/45"> · {it.strategy ? STRATEGY[it.strategy] ?? it.strategy : "applied"}</span>
+                          {repeats > 1 && <span className="ml-2 rounded-full bg-tint px-1.5 py-0.5 text-[11px] text-plum/55">×{repeats}</span>}
+                        </span>
+                        <span className="hidden w-44 shrink-0 text-right text-[12px] tabular-nums text-plum/50 sm:block">
+                          {it.files == null ? "" : it.folders != null ? `${fmt(it.files)} files → ${it.folders} folders` : `${fmt(it.files)} files`}
+                        </span>
+                        {it.outcome !== "not_applied" && (
+                          <span className="hidden w-20 shrink-0 text-right text-[12px] text-plum/60 md:block">{o?.label}</span>
+                        )}
+                        {it.outcome === "not_applied" && <span className="hidden w-20 shrink-0 md:block" />}
+                        <span className="w-20 shrink-0 whitespace-nowrap text-right text-[12px] tabular-nums text-plum/40">
+                          {it.finished_at ? new Date(it.finished_at * 1000).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : ""}
+                        </span>
+                        <ChevronRight size={15} className="shrink-0 text-plum/25 transition group-hover:text-plum/60" />
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ))}
+          {data && data.total > PAGE && (
+            <div className="flex justify-center pt-2">
+              <Pagination size="small" current={page} pageSize={PAGE} total={data.total} onChange={setPage} showSizeChanger={false} />
             </div>
           )}
-        </>
+        </div>
       )}
+
+      <Drawer
+        open={!!selected}
+        onClose={() => setSelected(null)}
+        size={520}
+        title={selected ? <span className="font-semibold">{folderName(selected.source)}</span> : null}
+      >
+        {selected && <Details it={selected} onUndo={undo} onTrash={trash} onReopen={onReopen} busy={busy === selected.run?.run_id} />}
+      </Drawer>
     </div>
   );
 }
