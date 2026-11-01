@@ -125,6 +125,8 @@ def test_destinations():
     assert destination("trip", "Organized", "video", cat, True) == "trip/Organized/Videos/Food & cafés"
     assert destination("", "Organized", "image", cat, False) == "Organized/Food & cafés"
     assert destination("", "Organized", "image", DUPLICATES, True) == "Organized/_Duplicates"
+    assert destination("", "", "image", DUPLICATES, True) == "_Duplicates"
+    assert destination("", "", "image", cat, False) == "Food & cafés"
     assert destination("", "Organized", "image", {"id": "x", "name": "2025/07 - July"}, True) == "Organized/Photos/2025/07 - July"
     assert destination("", "Organized", "image", {"id": "x", "name": '../../etc'}, True) == "Organized/Photos/etc"
 
@@ -140,3 +142,23 @@ def test_custom_set_validation_and_store(tmp_path):
     assert store.get("custom-wedding")["name"] == "Wedding"
     assert store.get("lifestyle")["id"] == "lifestyle"
     assert store.delete("custom-wedding") and store.get("custom-wedding") is None
+
+
+def test_media_specific_folders():
+    cats = [
+        {"id": "r", "name": "Red things", "prompts": ["red"]},
+        {"id": "vid", "name": "video red", "prompts": ["red"], "media": "video"},
+        {"id": "g", "name": "Green things", "prompts": ["green"]},
+    ]
+    embs = _embs([(230, 10, 10), (230, 10, 10), (10, 230, 10)])
+    res = classify.classify_with_set(embs, [False] * 3, cats, FakeEmbedder(), 0.3, kinds=["image", "video", "video"])
+    # photos never land in the video-only folder; videos go only to video folders
+    assert [r[0] for r in res[:2]] == ["r", "vid"]
+    assert res[2][0] in ("vid", None)
+
+
+def test_custom_set_keeps_media():
+    s = CategorySetIn(name="IG", categories=[{"name": "video indoor", "media": "video"}, {"name": "selfies"}])
+    from app.categories import to_set_dict
+    d = to_set_dict("x", s)
+    assert [c["media"] for c in d["categories"]] == ["video", "any"]

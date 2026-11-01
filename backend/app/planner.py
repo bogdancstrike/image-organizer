@@ -26,10 +26,12 @@ def safe_folder(name: str) -> str:
 
 def destination(source_rel: str, output_dir: str, kind: str, category: dict, split_media: bool) -> str:
     """Library-relative destination folder for a file."""
-    root = "/".join(p for p in (source_rel.strip("/"), safe_segment(output_dir)) if p)
+    # empty output_dir = put the category folders directly into the chosen folder
+    out = safe_segment(output_dir) if output_dir and output_dir.strip() else ""
+    root = [p for p in (source_rel.strip("/"), out) if p]
     if category["id"] == DUPLICATES["id"]:
-        return f"{root}/_Duplicates"
+        return "/".join(root + ["_Duplicates"])
     folder = safe_folder(category["name"])
     if split_media:
-        return f"{root}/{'Photos' if kind == 'image' else 'Videos'}/{folder}"
-    return f"{root}/{folder}"
+        return "/".join(root + ["Photos" if kind == "image" else "Videos", folder])
+    return "/".join(root + [folder])

@@ -30,7 +30,7 @@ export function FilesDrawer({ title, items, onClose }: { title: string | null; i
               </div>
             }
           >
-            <div className="group relative aspect-square overflow-hidden rounded-xl border-2 border-white bg-rose-50 shadow-sm">
+            <div className="group relative aspect-square overflow-hidden rounded-xl border-2 border-white bg-tint shadow-sm">
               <img src={p.thumb} alt={p.name} loading="lazy" className="h-full w-full object-cover" />
               {p.kind === "video" && (
                 <Film size={14} className="absolute right-1.5 top-1.5 text-white drop-shadow" />

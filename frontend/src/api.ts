@@ -7,6 +7,7 @@ export interface Health {
   model: string | null;
   library_ok: boolean;
   library_name: string;
+  library_host_path: string | null;
   output_dir: string;
 }
 
@@ -15,6 +16,7 @@ export interface Category {
   name: string;
   emoji?: string;
   prompts?: string[];
+  media?: "any" | "image" | "video";
 }
 
 export interface CategorySet {
@@ -100,6 +102,8 @@ export interface JobRequest {
     ai_assist: boolean;
     date_granularity: "year" | "month" | "day";
     max_clusters: number;
+    output_dir: string;
+    recursive: boolean;
   };
 }
 

@@ -6,6 +6,8 @@ import re
 import threading
 from pathlib import Path
 
+from typing import Literal
+
 from pydantic import BaseModel, Field, field_validator
 
 from .presets import PRESETS, PRESETS_BY_ID
@@ -20,6 +22,7 @@ class CategoryIn(BaseModel):
     name: str = Field(min_length=1, max_length=40)
     emoji: str | None = Field(default=None, max_length=8)
     prompts: list[str] = Field(default_factory=list, max_length=8)
+    media: Literal["any", "image", "video"] = "any"  # which files this folder accepts
 
     @field_validator("name")
     @classmethod
@@ -63,7 +66,7 @@ def to_set_dict(set_id: str, data: CategorySetIn) -> dict:
             cid = f"{base}-{n}"
             n += 1
         used.add(cid)
-        cats.append({"id": cid, "name": c.name, "emoji": c.emoji or "📁", "prompts": c.prompts})
+        cats.append({"id": cid, "name": c.name, "emoji": c.emoji or "📁", "prompts": c.prompts, "media": c.media})
     return {"id": set_id, "name": data.name.strip(), "description": data.description, "categories": cats, "custom": True}
 
 

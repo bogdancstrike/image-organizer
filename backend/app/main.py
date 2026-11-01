@@ -10,7 +10,7 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from . import __version__
 from .categories import CategorySetIn, CategoryStore, all_presets
@@ -34,6 +34,16 @@ class JobOptions(BaseModel):
     ai_max_files: int = Field(200, ge=1, le=2000)
     date_granularity: Literal["year", "month", "day"] = "month"
     max_clusters: int = Field(12, ge=2, le=30)
+    # where the category folders go: None = server default (OUTPUT_DIR_NAME), "" = directly in the chosen folder
+    output_dir: str | None = Field(None, max_length=60, pattern=r'^[^/\\:*?"<>|]*$')
+    recursive: bool = True
+
+    @field_validator("output_dir")
+    @classmethod
+    def _no_dots(cls, v: str | None) -> str | None:
+        if v is not None and v.strip() in (".", ".."):
+            raise ValueError("invalid folder name")
+        return v
 
 
 class JobRequest(BaseModel):
@@ -77,6 +87,7 @@ def create_app(settings: Settings | None = None, embedder_factory=None, llm_fact
             "model": s.openai_model if s.ai_available else None,
             "library_ok": s.library_root.is_dir(),
             "library_name": s.library_name,
+            "library_host_path": s.library_host_path,
             "output_dir": s.output_dir_name,
         }
 

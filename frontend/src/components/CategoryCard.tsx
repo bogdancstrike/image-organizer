@@ -23,7 +23,7 @@ export function CategoryCard({ name, emoji, count, total, slotRef, onClick, vari
       style={{ animationDelay: `${Math.min(index, 16) * 45}ms` }}
       className={cn(
         "pop-in group relative overflow-hidden transition-shadow",
-        onClick && "cursor-pointer hover:shadow-[0_14px_34px_-18px_rgba(120,40,80,.55)]",
+        onClick && "cursor-pointer hover:shadow-[var(--card-shadow-hover)]",
         variant === "ghost" && "opacity-55",
       )}
       title={total > count ? `${total} files` : undefined}

@@ -15,10 +15,10 @@ interface Props {
 type FormValues = {
   name: string;
   description?: string;
-  categories: { name: string; emoji?: string; prompts?: string[] }[];
+  categories: { name: string; emoji?: string; prompts?: string[]; media?: "any" | "image" | "video" }[];
 };
 
-const BLANK: FormValues = { name: "My folders", categories: [{ name: "", emoji: "📁", prompts: [] }] };
+const BLANK: FormValues = { name: "My folders", categories: [{ name: "", emoji: "📁", prompts: [], media: "any" }] };
 
 /** Create / edit / delete custom category sets (REQ-UI-4, REQ-CAT-2). */
 export function CategoryEditor({ open, onClose, presets, customSets, onSaved }: Props) {
@@ -34,7 +34,7 @@ export function CategoryEditor({ open, onClose, presets, customSets, onSaved }: 
         ? {
             name: asCopy ? `${s.name} (mine)` : s.name,
             description: s.description ?? undefined,
-            categories: s.categories.map((c) => ({ name: c.name, emoji: c.emoji, prompts: c.prompts ?? [] })),
+            categories: s.categories.map((c) => ({ name: c.name, emoji: c.emoji, prompts: c.prompts ?? [], media: c.media ?? "any" })),
           }
         : BLANK,
     );
@@ -57,6 +57,7 @@ export function CategoryEditor({ open, onClose, presets, customSets, onSaved }: 
           name: c.name,
           emoji: c.emoji || undefined,
           prompts: c.prompts ?? [],
+          media: c.media ?? "any",
         })),
       });
       message.success(`Saved “${saved.name}”`);
@@ -116,8 +117,8 @@ export function CategoryEditor({ open, onClose, presets, customSets, onSaved }: 
               key={s.id}
               onClick={() => load(s)}
               className={cn(
-                "block w-full truncate rounded-lg px-2.5 py-1.5 text-left text-[13px] text-plum hover:bg-rose-50",
-                editingId === s.id && "bg-rose-50 font-medium",
+                "block w-full truncate rounded-lg px-2.5 py-1.5 text-left text-[13px] text-plum hover:bg-tint",
+                editingId === s.id && "bg-tint font-medium",
               )}
             >
               {s.name} <span className="text-plum/40">· {s.categories.length}</span>
@@ -134,12 +135,16 @@ export function CategoryEditor({ open, onClose, presets, customSets, onSaved }: 
               <Input placeholder="optional" maxLength={200} />
             </Form.Item>
           </div>
-          <div className="mb-2 grid grid-cols-[52px_1fr_1.6fr_32px] gap-2 label-caps">
+          <div className="mb-2 grid grid-cols-[52px_1fr_1.5fr_96px_32px] gap-2 label-caps">
             <span>Icon</span>
             <span>Folder name</span>
             <span>Describe it (optional, improves accuracy)</span>
+            <span>Applies to</span>
             <span />
           </div>
+          <p className="mb-2 text-[11px] text-plum/50">
+            Tip: if some folders are set to <b>Videos</b>, every video goes only to those (e.g. “video indoor” / “video outdoor”).
+          </p>
           <Form.List
             name="categories"
             rules={[
@@ -157,7 +162,7 @@ export function CategoryEditor({ open, onClose, presets, customSets, onSaved }: 
             {(fields, { add, remove }, { errors }) => (
               <div className="max-h-[46vh] space-y-2 overflow-y-auto pr-1">
                 {fields.map((f) => (
-                  <div key={f.key} className="grid grid-cols-[52px_1fr_1.6fr_32px] items-start gap-2">
+                  <div key={f.key} className="grid grid-cols-[52px_1fr_1.5fr_96px_32px] items-start gap-2">
                     <Form.Item name={[f.name, "emoji"]} noStyle>
                       <Input className="text-center" maxLength={4} />
                     </Form.Item>
@@ -175,10 +180,19 @@ export function CategoryEditor({ open, onClose, presets, customSets, onSaved }: 
                     <Form.Item name={[f.name, "prompts"]} noStyle>
                       <Select mode="tags" placeholder="people dancing at a party, disco lights" tokenSeparators={[","]} maxCount={8} open={false} />
                     </Form.Item>
+                    <Form.Item name={[f.name, "media"]} noStyle initialValue="any">
+                      <Select
+                        options={[
+                          { value: "any", label: "Any" },
+                          { value: "image", label: "Photos" },
+                          { value: "video", label: "Videos" },
+                        ]}
+                      />
+                    </Form.Item>
                     <Button type="text" icon={<Trash2 size={14} />} onClick={() => remove(f.name)} aria-label="Remove folder" />
                   </div>
                 ))}
-                <Button type="dashed" block icon={<Plus size={14} />} onClick={() => add({ name: "", emoji: "📁", prompts: [] })}>
+                <Button type="dashed" block icon={<Plus size={14} />} onClick={() => add({ name: "", emoji: "📁", prompts: [], media: "any" })}>
                   Add folder
                 </Button>
                 <Form.ErrorList errors={errors} />

@@ -15,18 +15,19 @@ A category without prompts uses `"a photo of {name}"`.
 ## Requirements
 
 ### Requirement: REQ-CAT-1 Built-in presets
-The system SHALL ship these presets:
+The system SHALL ship these five presets:
 - **Lifestyle** (default): Selfies & portraits, Outfits & fashion, Food & cafés, Travel & vibe, Nature,
   Aesthetic spaces, Sport & wellness, Music & hobby, Work from home, Pets, Text & captions, Screenshots.
 - **Travel**: Beaches & sea, Mountains & hiking, Cities & streets, Landmarks & monuments, Hotels & stays,
   Food & markets, Transport & airports, Night life, People & friends, Screenshots & tickets.
 - **Creator**: Talking to camera, Outfits & try-ons, Product shots, B-roll scenery, Behind the scenes,
   Text & captions, Memes, Screenshots.
+- **People & Style**: Headshots & portraits, Selfies, Full-body outfits, Dresses & formal wear, Casual & streetwear, Outfit details, Runway & editorial, People in scenery, Scenery, Groups & friends, Screenshots.
 - **Documents**: Receipts & invoices, IDs & cards, Notes & whiteboards, Slides & charts, Screenshots, Photos (other).
 
 #### Scenario: List presets
 - WHEN the client calls `GET /api/presets`
-- THEN all four presets come back with their categories
+- THEN all five presets come back with their categories
 
 ### Requirement: REQ-CAT-2 Custom categories
 The user SHALL be able to define their own category set in the UI (name, optional emoji, optional prompts)

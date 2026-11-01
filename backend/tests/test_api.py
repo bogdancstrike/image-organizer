@@ -198,3 +198,17 @@ def test_video_pipeline(client, settings):
     assert job["status"] == "done" and job["plan"][0]["kind"] == "video"
     assert job["plan"][0]["destination"].startswith("Organized/Videos/")
     assert client.get(job["plan"][0]["thumb"]).status_code == 200
+
+
+def test_output_directly_in_folder_and_non_recursive(client, settings):
+    lib = settings.library_root
+    make_image(lib / "trip" / "r.jpg", COLORS["red"], fmt="JPEG", noise_seed=1)
+    make_image(lib / "trip" / "nested" / "g.jpg", COLORS["green"], fmt="JPEG", noise_seed=2)
+    set_id = client.post("/api/category-sets", json=RED_GREEN).json()["id"]
+    body = {"source": "trip", "strategy": "custom", "set_id": set_id,
+            "options": {"output_dir": "", "recursive": False}}
+    job = wait(client, client.post("/api/jobs", json=body).json()["id"])
+    assert [p["rel_path"] for p in job["plan"]] == ["trip/r.jpg"]
+    assert job["plan"][0]["destination"] == "trip/Photos/Red things"
+    assert client.post("/api/jobs", json={**body, "options": {"output_dir": ".."}}).status_code == 422
+    assert client.post("/api/jobs", json={**body, "options": {"output_dir": "a/b"}}).status_code == 422

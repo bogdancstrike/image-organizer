@@ -22,6 +22,7 @@ type State = "pile" | "flying" | "landed" | "gone";
 interface Sprite {
   id: string;
   tile: HTMLCanvasElement | null;
+  img?: HTMLImageElement;
   pu: number; // 0..1 radial (sqrt-distributed)
   pa: number; // angle
   prot: number;
@@ -59,17 +60,35 @@ function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number,
   g.closePath();
 }
 
-function makeTile(img: HTMLImageElement | null, dpr: number): HTMLCanvasElement {
+interface Palette {
+  frame: string;
+  shadow: string;
+  a: string;
+  b: string;
+}
+
+function readPalette(): Palette {
+  const cs = getComputedStyle(document.documentElement);
+  const v = (name: string, fallback: string) => cs.getPropertyValue(name).trim() || fallback;
+  return {
+    frame: v("--tile-frame", "#fff"),
+    shadow: v("--tile-shadow", "rgba(90,30,70,.30)"),
+    a: v("--tile-a", "#fde3ee"),
+    b: v("--tile-b", "#f4b9d1"),
+  };
+}
+
+function makeTile(img: HTMLImageElement | null, dpr: number, pal: Palette): HTMLCanvasElement {
   const full = PILE + PAD * 2;
   const c = document.createElement("canvas");
   c.width = c.height = Math.ceil(full * dpr);
   const g = c.getContext("2d")!;
   g.scale(dpr, dpr);
-  g.shadowColor = "rgba(90,30,70,.30)";
+  g.shadowColor = pal.shadow;
   g.shadowBlur = 9;
   g.shadowOffsetY = 3;
   roundRect(g, PAD, PAD, PILE, PILE, 8);
-  g.fillStyle = "#fff";
+  g.fillStyle = pal.frame;
   g.fill();
   g.shadowColor = "transparent";
   g.save();
@@ -83,8 +102,8 @@ function makeTile(img: HTMLImageElement | null, dpr: number): HTMLCanvasElement 
     g.drawImage(img, PAD + 2.5 + (inner - w) / 2, PAD + 2.5 + (inner - h) / 2, w, h);
   } else {
     const grad = g.createLinearGradient(0, PAD, 0, PAD + PILE);
-    grad.addColorStop(0, "#fde3ee");
-    grad.addColorStop(1, "#f4b9d1");
+    grad.addColorStop(0, pal.a);
+    grad.addColorStop(1, pal.b);
     g.fillStyle = grad;
     g.fillRect(PAD, PAD, PILE, PILE);
   }
@@ -100,6 +119,7 @@ export class SortEngine {
   private queue: { id: string; key: string }[] = [];
   private slots = new Map<string, number>();
   private placeholder: HTMLCanvasElement;
+  private pal: Palette;
   private expected = 0;
   private perFrame = 1;
   private acc = 0;
@@ -117,7 +137,8 @@ export class SortEngine {
     private hooks: EngineHooks,
   ) {
     this.ctx = canvas.getContext("2d")!;
-    this.placeholder = makeTile(null, this.dpr);
+    this.pal = readPalette();
+    this.placeholder = makeTile(null, this.dpr, this.pal);
     this.ro = new ResizeObserver(() => this.resize());
     const stage = hooks.stage();
     if (stage) this.ro.observe(stage);
@@ -137,6 +158,13 @@ export class SortEngine {
     this.slots.clear();
     this.expected = 0;
     this.acc = 0;
+  }
+
+  /** Re-read theme colors (CSS variables) and re-render every tile. */
+  refreshTheme() {
+    this.pal = readPalette();
+    this.placeholder = makeTile(null, this.dpr, this.pal);
+    for (const s of this.order) if (s.img) s.tile = makeTile(s.img, this.dpr, this.pal);
   }
 
   setExpected(total: number) {
@@ -176,7 +204,8 @@ export class SortEngine {
     const img = new Image();
     img.decoding = "async";
     img.onload = () => {
-      s.tile = makeTile(img, this.dpr);
+      s.img = img;
+      s.tile = makeTile(img, this.dpr, this.pal);
     };
     img.src = url;
   }

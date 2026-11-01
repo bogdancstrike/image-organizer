@@ -35,7 +35,7 @@ export function HistoryDrawer({ open, onClose, onUndone }: { open: boolean; onCl
       {runs.length === 0 && <Empty description="Nothing applied yet" />}
       <div className="space-y-2">
         {runs.map((r) => (
-          <div key={r.run_id} className="rounded-xl border border-rose-100 bg-white/80 p-3">
+          <div key={r.run_id} className="rounded-xl border border-line bg-surface/80 p-3">
             <div className="flex items-center justify-between gap-2">
               <div className="min-w-0">
                 <div className="text-[13px] font-medium text-plum">

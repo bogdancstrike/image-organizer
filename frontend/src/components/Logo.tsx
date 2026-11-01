@@ -6,12 +6,12 @@ export function LogoMark({ className, spinning = false }: { className?: string; 
     <svg viewBox="0 0 64 64" className={cn("shrink-0", spinning && "animate-[spin_3s_linear_infinite]", className)} aria-hidden>
       <defs>
         <linearGradient id="aio-petal" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#ffc2da" />
-          <stop offset="1" stopColor="#e5679b" />
+          <stop offset="0" style={{ stopColor: "var(--logo-a)" }} />
+          <stop offset="1" style={{ stopColor: "var(--logo-b)" }} />
         </linearGradient>
         <linearGradient id="aio-core" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#7a3260" />
-          <stop offset="1" stopColor="#4a1d3b" />
+          <stop offset="0" style={{ stopColor: "var(--logo-core-a)" }} />
+          <stop offset="1" style={{ stopColor: "var(--logo-core-b)" }} />
         </linearGradient>
       </defs>
       <g transform="translate(32 32)">

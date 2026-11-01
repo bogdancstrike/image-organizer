@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, App as AntApp, Button as AntButton, Tooltip } from "antd";
-import { History, SlidersHorizontal, Square, Sparkles, Undo2, RefreshCw } from "lucide-react";
+import { History, SlidersHorizontal, Square, Sparkles, Undo2, RefreshCw, ChevronDown, FolderOpen } from "lucide-react";
 import { GithubOutlined } from "@ant-design/icons";
 import { api, subscribe, type CategorySet, type Health, type JobCategory, type JobEvent, type PlanItem, type Usage } from "./api";
 import { SortEngine } from "./anim/engine";
@@ -12,10 +12,12 @@ import { SettingsDrawer } from "./components/SettingsDrawer";
 import { CategoryEditor } from "./components/CategoryEditor";
 import { HistoryDrawer } from "./components/HistoryDrawer";
 import { FilesDrawer } from "./components/FilesDrawer";
+import { FolderPicker, displayPath } from "./components/FolderPicker";
 import { Button } from "./components/ui/button";
 import { Badge } from "./components/ui/badge";
 import { Card } from "./components/ui/card";
 import { loadSettings, saveSettings, type UiSettings } from "./settings";
+import { ThemeSwitcher, useTheme } from "./theme";
 import { fmt, prefersReducedMotion } from "./lib/utils";
 
 type Status = "idle" | "running" | "done" | "error" | "cancelled" | "applied" | "undone";
@@ -63,7 +65,7 @@ export default function App() {
   const [landed, setLanded] = useState<Record<string, number>>({});
   const [landedKinds, setLandedKinds] = useState({ image: 0, video: 0 });
   const [plan, setPlan] = useState<PlanItem[]>([]);
-  const [drawer, setDrawer] = useState<null | "settings" | "history" | "editor">(null);
+  const [drawer, setDrawer] = useState<null | "settings" | "history" | "editor" | "folder">(null);
   const [filesFor, setFilesFor] = useState<{ title: string; catId: string; kind: string | null } | null>(null);
   const [applying, setApplying] = useState(false);
 
@@ -77,6 +79,13 @@ export default function App() {
   const flushRaf = useRef(0);
   const lastSeq = useRef(-1);
   const unsub = useRef<null | (() => void)>(null);
+
+  const { theme } = useTheme();
+  useEffect(() => {
+    // parent effects (data-theme) run after ours: wait a frame before re-reading CSS variables
+    const id = requestAnimationFrame(() => engineRef.current?.refreshTheme());
+    return () => cancelAnimationFrame(id);
+  }, [theme]);
 
   const setSettings = (s: UiSettings) => {
     setSettingsState(s);
@@ -226,6 +235,8 @@ export default function App() {
           ai_assist: s.aiAssist && !!health?.ai_available,
           date_granularity: s.dateGranularity,
           max_clusters: s.maxClusters,
+          output_dir: s.outputMode === "direct" ? "" : s.outputDir.trim() || "Organized",
+          recursive: s.recursive,
         },
       });
       setJob((j) => ({ ...j, id }));
@@ -251,7 +262,7 @@ export default function App() {
         title: `${settings.applyMode === "copy" ? "Copied" : "Moved"} ${fmt(r.moved)} files`,
         description: r.failed.length
           ? `${r.failed.length} files could not be moved. See History.`
-          : `Everything is in ${health?.output_dir ?? "Organized"}/. Changed your mind?`,
+          : `Everything is sorted in ${settings.outputMode === "direct" ? "the folder" : `${settings.outputDir || "Organized"}/`}. Changed your mind?`,
         duration: 12,
         btn: (
           <AntButton
@@ -292,7 +303,11 @@ export default function App() {
   const videoCats = job.categories.filter((c) => c.id !== DUP && c.videos > 0);
   const dupCat = job.categories.find((c) => c.id === DUP);
   const folderName =
-    job.sourceName ?? (settings.source ? settings.source.split("/").pop() : health?.library_name) ?? "Library";
+    job.sourceName ??
+    (settings.source
+      ? settings.source.split("/").pop()
+      : health?.library_host_path?.split("/").filter(Boolean).pop() ?? health?.library_name) ??
+    "Library";
   const activeSet =
     settings.strategy === "preset"
       ? presets.find((p) => p.id === settings.presetId)
@@ -369,6 +384,9 @@ export default function App() {
         <Logo />
         <div className="flex items-center gap-1.5">
           <span className="mr-2 hidden text-xs text-plum/55 md:inline">{statusText}</span>
+          <div className="mr-1">
+            <ThemeSwitcher />
+          </div>
           <Tooltip title="History & undo">
             <Button variant="ghost" size="icon" onClick={() => setDrawer("history")} aria-label="History">
               <History size={18} />
@@ -412,11 +430,31 @@ export default function App() {
           )}
         </div>
         <h1 className="text-[38px] font-semibold leading-[1.05] tracking-tight sm:text-[56px]">
-          Sorting my <span className="font-serif text-[1.12em] font-normal italic">{folderName}</span> folder
+          Sorting my{" "}
+          <button
+            onClick={() => !running && setDrawer("folder")}
+            disabled={running}
+            title="Choose another folder"
+            className="group inline-flex cursor-pointer items-baseline gap-1 rounded-xl px-1 font-serif text-[1.12em] font-normal italic decoration-petal decoration-2 underline-offset-[10px] hover:underline disabled:cursor-default disabled:no-underline"
+          >
+            {folderName}
+            <ChevronDown className="h-6 w-6 self-center text-plum/40 transition-transform group-hover:translate-y-0.5 sm:h-8 sm:w-8" />
+          </button>{" "}
+          folder
         </h1>
       </section>
 
-      <div className="mt-8">
+      <button
+        onClick={() => !running && setDrawer("folder")}
+        className="mt-3 inline-flex max-w-full cursor-pointer items-center gap-1.5 truncate text-xs text-plum/55 hover:text-plum"
+      >
+        <FolderOpen size={13} className="shrink-0" />
+        <span className="truncate">
+          {displayPath(health, settings.source)} → {settings.outputMode === "direct" ? "sorted folders directly inside" : `${settings.outputDir || "Organized"}/`}
+        </span>
+      </button>
+
+      <div className="mt-7">
         <Stats values={stats} />
       </div>
 
@@ -425,7 +463,7 @@ export default function App() {
         <Card className="pop-in mt-7 flex flex-wrap items-center justify-between gap-3 px-4 py-3">
           <div className="text-[13px] text-plum/75">
             {job.status === "applied" ? (
-              <>Done. Your files are in <b>{health?.output_dir}/</b>.</>
+              <>Done. Your files are in <b>{displayPath(health, settings.source)}{settings.outputMode === "direct" ? "" : `/${settings.outputDir || "Organized"}`}/</b>.</>
             ) : job.status === "undone" ? (
               <>Undone. Every file is back where it was.</>
             ) : (
@@ -562,6 +600,23 @@ export default function App() {
         customSets={customSets}
         health={health}
         onEditCategories={() => setDrawer("editor")}
+        onPickFolder={() => setDrawer("folder")}
+      />
+      <FolderPicker
+        open={drawer === "folder"}
+        value={settings.source}
+        health={health}
+        onClose={() => setDrawer(null)}
+        onChoose={(path) => {
+          setSettings({ ...settings, source: path });
+          setDrawer(null);
+          if (!running) {
+            engineRef.current?.reset();
+            setJob(INITIAL);
+            setLanded({});
+            setLandedKinds({ image: 0, video: 0 });
+          }
+        }}
       />
       <CategoryEditor
         open={drawer === "editor"}

@@ -58,15 +58,19 @@ def file_id(rel_path: str) -> str:
 
 
 def _skip_dir(name: str, output_dir_name: str) -> bool:
-    return name.startswith(".") or name == output_dir_name or name == "@eaDir"
+    return (
+        name.startswith(".")
+        or (bool(output_dir_name) and name == output_dir_name)
+        or name in ("@eaDir", "_Duplicates")
+    )
 
 
-def scan(root: Path, source: Path, output_dir_name: str = "Organized") -> list[MediaFile]:
+def scan(root: Path, source: Path, output_dir_name: str = "Organized", recursive: bool = True) -> list[MediaFile]:
     """Recursively list supported media under `source` (REQ-SCAN-1, REQ-SCAN-2)."""
     root = root.resolve()
     out: list[MediaFile] = []
     for dirpath, dirnames, filenames in os.walk(source, followlinks=False):
-        dirnames[:] = sorted(d for d in dirnames if not _skip_dir(d, output_dir_name))
+        dirnames[:] = sorted(d for d in dirnames if not _skip_dir(d, output_dir_name)) if recursive else []
         for fn in filenames:
             if fn.startswith("."):
                 continue

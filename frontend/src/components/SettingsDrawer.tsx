@@ -1,16 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
-import { Drawer, Segmented, Select, Slider, Switch, Tooltip, TreeSelect, InputNumber, Radio, Button, Divider } from "antd";
+import { Drawer, Segmented, Select, Slider, Switch, Tooltip, InputNumber, Radio, Button, Divider, Input } from "antd";
 import { Sparkles, Shapes, CalendarDays, Wand2, PencilLine } from "lucide-react";
-import { api, type CategorySet, type Health } from "@/api";
+import { type CategorySet, type Health } from "@/api";
+import { displayPath } from "./FolderPicker";
 import type { UiSettings } from "@/settings";
-
-interface TreeNode {
-  id: string;
-  pId?: string;
-  value: string;
-  title: string;
-  isLeaf: boolean;
-}
 
 interface Props {
   open: boolean;
@@ -21,6 +13,7 @@ interface Props {
   customSets: CategorySet[];
   health: Health | null;
   onEditCategories: () => void;
+  onPickFolder: () => void;
 }
 
 const Row = ({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) => (
@@ -33,45 +26,49 @@ const Row = ({ label, hint, children }: { label: string; hint?: string; children
   </div>
 );
 
-export function SettingsDrawer({ open, onClose, settings, onChange, presets, customSets, health, onEditCategories }: Props) {
+export function SettingsDrawer({ open, onClose, settings, onChange, presets, customSets, health, onEditCategories, onPickFolder }: Props) {
   const set = <K extends keyof UiSettings>(k: K, v: UiSettings[K]) => onChange({ ...settings, [k]: v });
-  const [tree, setTree] = useState<TreeNode[]>([]);
-
-  const loadChildren = useCallback(async (path: string) => {
-    const res = await api.folders(path);
-    const nodes = res.folders.map((f) => ({
-      id: f.path,
-      pId: path || "__root",
-      value: f.path,
-      title: `${f.name}${f.media_count ? `  ·  ${f.media_count}` : ""}`,
-      isLeaf: !f.has_children,
-    }));
-    setTree((prev) => {
-      const ids = new Set(prev.map((n) => n.id));
-      return [...prev, ...nodes.filter((n) => !ids.has(n.id))];
-    });
-  }, []);
-
-  useEffect(() => {
-    if (!open || tree.length) return;
-    setTree([{ id: "__root", value: "", title: `${health?.library_name || "Library"} (root)`, isLeaf: false }]);
-    loadChildren("").catch(() => {});
-  }, [open, tree.length, health, loadChildren]);
-
   const ai = !!health?.ai_available;
 
   return (
     <Drawer open={open} onClose={onClose} title="Sort settings" size={400} styles={{ body: { paddingTop: 12 } }}>
-      <Row label="Folder to sort" hint="inside the mounted library">
-        <TreeSelect
-          className="w-full"
-          treeDataSimpleMode
-          value={settings.source}
-          treeData={tree}
-          loadData={(node) => loadChildren(String(node.value))}
-          onChange={(v) => set("source", v ?? "")}
-          treeDefaultExpandedKeys={["__root"]}
+      <Row label="Folder to organize" hint="sorted folders are created inside it">
+        <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1 truncate rounded-lg border border-line bg-surface px-3 py-1.5 text-[13px] text-plum/80" title={displayPath(health, settings.source)}>
+            {displayPath(health, settings.source)}
+          </div>
+          <Button onClick={onPickFolder}>Change…</Button>
+        </div>
+        <label className="mt-2 flex items-center gap-2 text-xs text-plum/70">
+          <Switch size="small" checked={settings.recursive} onChange={(v) => set("recursive", v)} /> Include subfolders
+        </label>
+      </Row>
+
+      <Row label="Put sorted folders">
+        <Radio.Group
+          value={settings.outputMode}
+          onChange={(e) => set("outputMode", e.target.value)}
+          options={[
+            { value: "subfolder", label: "In a subfolder" },
+            { value: "direct", label: "Directly in the folder" },
+          ]}
+          optionType="button"
         />
+        {settings.outputMode === "subfolder" && (
+          <Input
+            className="mt-2"
+            prefix={<span className="text-plum/40">{(settings.source ? settings.source.split("/").pop() : "") + "/"}</span>}
+            value={settings.outputDir}
+            maxLength={60}
+            onChange={(e) => set("outputDir", e.target.value.replace(/[\\/:*?"<>|]/g, ""))}
+            placeholder="Organized"
+          />
+        )}
+        <p className="mt-1.5 text-[11px] text-plum/50">
+          e.g. {(settings.source ? settings.source.split("/").pop() + "/" : "")}
+          {settings.outputMode === "subfolder" ? `${settings.outputDir || "Organized"}/` : ""}
+          {settings.splitMedia ? "Photos/" : ""}Food & cafés/IMG_0042.jpg
+        </p>
       </Row>
 
       <Row label="How should I organize?">
@@ -109,7 +106,7 @@ export function SettingsDrawer({ open, onClose, settings, onChange, presets, cus
             {presets
               .find((p) => p.id === settings.presetId)
               ?.categories.map((c) => (
-                <span key={c.id} className="rounded-full border border-rose-100 bg-white px-2 py-0.5 text-[11px] text-plum/70">
+                <span key={c.id} className="rounded-full border border-line bg-surface px-2 py-0.5 text-[11px] text-plum/70">
                   {c.emoji} {c.name}
                 </span>
               ))}
@@ -162,7 +159,7 @@ export function SettingsDrawer({ open, onClose, settings, onChange, presets, cus
             <Tooltip title={ai ? "Unsure files are sent as tiny thumbnails, 12 per request" : "Set OPENAI_API_KEY in .env to enable"}>
               <span className="inline-flex items-center gap-2">
                 <Switch checked={settings.aiAssist && ai} disabled={!ai} onChange={(v) => set("aiAssist", v)} />
-                <Sparkles size={14} className="text-rose-400" />
+                <Sparkles size={14} className="text-petal" />
               </span>
             </Tooltip>
           </Row>

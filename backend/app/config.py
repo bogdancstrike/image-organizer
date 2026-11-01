@@ -18,6 +18,7 @@ class Settings:
     output_dir_name: str
     static_dir: Path | None
     library_name: str = "Library"
+    library_host_path: str | None = None  # for display only: where /library lives on the host
 
     @property
     def ai_available(self) -> bool:
@@ -47,4 +48,5 @@ def load_settings() -> Settings:
         output_dir_name=env.get("OUTPUT_DIR_NAME", "Organized"),
         static_dir=Path(static) if static else None,
         library_name=env.get("LIBRARY_NAME") or "Library",
+        library_host_path=env.get("LIBRARY_HOST_PATH") or None,
     )

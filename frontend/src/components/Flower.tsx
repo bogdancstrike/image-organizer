@@ -8,8 +8,8 @@ export function Flower({ caption, className }: { caption: string; className?: st
       <svg viewBox="-100 -100 200 200" className="bloom h-56 w-56 sm:h-72 sm:w-72" aria-hidden>
         <defs>
           <radialGradient id="fl-petal" cx="0.5" cy="0.9" r="0.9">
-            <stop offset="0" stopColor="#f6c4d8" />
-            <stop offset="1" stopColor="#fbe4ee" />
+            <stop offset="0" style={{ stopColor: "var(--flower-a)" }} />
+            <stop offset="1" style={{ stopColor: "var(--flower-b)" }} />
           </radialGradient>
         </defs>
         <g>
@@ -22,15 +22,15 @@ export function Flower({ caption, className }: { caption: string; className?: st
               ry="46"
               transform={`rotate(${r})`}
               fill="url(#fl-petal)"
-              stroke="#e7a9c3"
+              style={{ stroke: "var(--flower-stroke)" }}
               strokeWidth="1.2"
               opacity=".95"
             />
           ))}
         </g>
-        <circle r="24" fill="#7b5466" />
-        <circle r="24" fill="none" stroke="#5f3b4c" strokeWidth="3" opacity=".4" />
-        <circle cx="3" cy="-3" r="10" fill="#f7e9ef" />
+        <circle r="24" style={{ fill: "var(--flower-core)" }} />
+        <circle r="24" fill="none" style={{ stroke: "var(--flower-core)" }} strokeWidth="3" opacity=".4" />
+        <circle cx="3" cy="-3" r="10" style={{ fill: "var(--flower-eye)" }} />
       </svg>
       <div className="mt-1 font-serif text-xl italic text-plum/55">{caption}</div>
     </div>

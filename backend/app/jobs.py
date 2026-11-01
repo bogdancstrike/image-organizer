@@ -219,7 +219,9 @@ class JobManager:
 
         # 1. scan
         self._phase(job, "scanning")
-        files = scan(root, source, self.s.output_dir_name)
+        out_dir = opts.get("output_dir")
+        out_dir = self.s.output_dir_name if out_dir is None else out_dir.strip()
+        files = scan(root, source, out_dir, recursive=opts.get("recursive", True))
         n_img = sum(f.kind == "image" for f in files)
         job.stats = {"total": len(files), "photos": n_img, "videos": len(files) - n_img,
                      "analyzed": 0, "folders": 0, "duplicates": 0, "errors": 0, "embedded": 0}
@@ -304,7 +306,7 @@ class JobManager:
                 "file_id": f.id, "rel_path": f.rel_path, "name": f.name, "kind": f.kind,
                 "thumb": f"/api/thumbs/{a.sha256}", "category_id": cid, "category": cat["name"],
                 "confidence": round(float(conf), 4), "source": src,
-                "destination": destination(source_rel, self.s.output_dir_name, f.kind, cat, split),
+                "destination": destination(source_rel, out_dir, f.kind, cat, split),
                 "duplicate_of": dup_map.get(f.id),
             })
         counts: dict[str, dict[str, int]] = {}
@@ -369,7 +371,8 @@ class JobManager:
             raise KeyError("category set not found")
         cats = [dict(c) for c in cset["categories"]]
         res = classify.classify_with_set(
-            embs, [a.is_screenshot for _, a, _ in keep], cats, embedder, float(opts.get("min_confidence", 0.3))
+            embs, [a.is_screenshot for _, a, _ in keep], cats, embedder, float(opts.get("min_confidence", 0.3)),
+            kinds=[f.kind for f, _, _ in keep],
         )
         for (f, _, _), r in zip(keep, res):
             assignment[f.id] = r
@@ -424,8 +427,9 @@ class JobManager:
             return
         finally:
             job.usage = dict(llm.usage, model=llm.model)
-        name_to_id = {c["name"].lower(): c["id"] for c in cats}
+        name_to_cat = {c["name"].lower(): c for c in cats}
         for f, label in zip(owners, labels):
-            cid = name_to_id.get(label.lower())
+            cat = name_to_cat.get(label.lower())
+            cid = cat["id"] if cat and (cat.get("media") or "any") in ("any", f.kind) else None
             if cid:
                 assignment[f.id] = (cid, assignment[f.id][1], "ai")

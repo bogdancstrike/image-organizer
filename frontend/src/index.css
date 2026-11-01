@@ -3,13 +3,120 @@
 @import "@fontsource/instrument-serif/400.css";
 @import "@fontsource/instrument-serif/400-italic.css";
 
-@theme {
+/* Semantic color tokens. Values come from the active [data-theme] below. */
+@theme inline {
   --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
   --font-serif: "Instrument Serif", ui-serif, Georgia, serif;
-  --color-plum: #4a1d3b;
-  --color-plum-700: #35132a;
-  --color-blush: #fdf8fa;
-  --color-petal: #f3a6c6;
+  --color-plum: var(--ink); /* main text + primary */
+  --color-plum-700: var(--ink-strong); /* primary hover */
+  --color-on-ink: var(--on-ink); /* text on primary */
+  --color-petal: var(--accent);
+  --color-surface: var(--surface); /* cards */
+  --color-line: var(--line); /* borders */
+  --color-tint: var(--tint); /* subtle fills */
+}
+
+/* ---------- Pink (default): the look of the original demo ---------- */
+:root,
+[data-theme="pink"] {
+  color-scheme: light;
+  --ink: #4a1d3b;
+  --ink-strong: #35132a;
+  --on-ink: #ffffff;
+  --accent: #f3a6c6;
+  --surface: #ffffff;
+  --line: #fbe0ea;
+  --tint: #fdf0f5;
+  --page: #fdf8fa;
+  --glow-1: #fbe1ec;
+  --glow-2: #f9e2ee;
+  --glow-3: #ffffff;
+  --card-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 10px 30px -18px rgba(120, 40, 80, 0.35);
+  --card-shadow-hover: 0 14px 34px -18px rgba(120, 40, 80, 0.55);
+  --btn-shadow: 0 6px 20px -6px rgba(90, 30, 70, 0.6);
+  --shimmer-a: #fbeef3;
+  --shimmer-b: #ffffff;
+  --logo-a: #ffc2da;
+  --logo-b: #e5679b;
+  --logo-core-a: #7a3260;
+  --logo-core-b: #4a1d3b;
+  --flower-a: #f6c4d8;
+  --flower-b: #fbe4ee;
+  --flower-stroke: #e7a9c3;
+  --flower-core: #7b5466;
+  --flower-eye: #f7e9ef;
+  --tile-a: #fde3ee;
+  --tile-b: #f4b9d1;
+  --tile-shadow: rgba(90, 30, 70, 0.3);
+  --tile-frame: #ffffff;
+}
+
+/* ---------- Blue: calm, airy ---------- */
+[data-theme="blue"] {
+  color-scheme: light;
+  --ink: #142a4d;
+  --ink-strong: #0b1a33;
+  --on-ink: #ffffff;
+  --accent: #7fb0ff;
+  --surface: #ffffff;
+  --line: #dbe7fb;
+  --tint: #eef4ff;
+  --page: #f6f9ff;
+  --glow-1: #dce9ff;
+  --glow-2: #e2ecfb;
+  --glow-3: #ffffff;
+  --card-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 10px 30px -18px rgba(30, 60, 120, 0.35);
+  --card-shadow-hover: 0 14px 34px -18px rgba(30, 60, 120, 0.55);
+  --btn-shadow: 0 6px 20px -6px rgba(20, 42, 77, 0.55);
+  --shimmer-a: #edf3fe;
+  --shimmer-b: #ffffff;
+  --logo-a: #c4dcff;
+  --logo-b: #4f8ff7;
+  --logo-core-a: #1f3f73;
+  --logo-core-b: #142a4d;
+  --flower-a: #c3d9fb;
+  --flower-b: #e9f1fe;
+  --flower-stroke: #9fc0f2;
+  --flower-core: #3d5a85;
+  --flower-eye: #eaf2ff;
+  --tile-a: #e3edff;
+  --tile-b: #b4cff8;
+  --tile-shadow: rgba(20, 42, 77, 0.3);
+  --tile-frame: #ffffff;
+}
+
+/* ---------- Dark: shadcn/ui zinc ---------- */
+[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #fafafa;
+  --ink-strong: #e4e4e7;
+  --on-ink: #18181b;
+  --accent: #a1a1aa;
+  --surface: #18181b;
+  --line: #27272a;
+  --tint: #27272a;
+  --page: #09090b;
+  --glow-1: #18181b;
+  --glow-2: #131316;
+  --glow-3: #0c0c0e;
+  --card-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 10px 30px -18px rgba(0, 0, 0, 0.8);
+  --card-shadow-hover: 0 14px 34px -16px rgba(0, 0, 0, 0.9);
+  --btn-shadow: 0 6px 20px -8px rgba(0, 0, 0, 0.8);
+  --shimmer-a: #1c1c20;
+  --shimmer-b: #27272a;
+  --logo-a: #e4e4e7;
+  --logo-b: #71717a;
+  --logo-core-a: #3f3f46;
+  --logo-core-b: #18181b;
+  --flower-a: #3f3f46;
+  --flower-b: #27272a;
+  --flower-stroke: #52525b;
+  --flower-core: #a1a1aa;
+  --flower-eye: #18181b;
+  --tile-a: #3f3f46;
+  --tile-b: #27272a;
+  --tile-shadow: rgba(0, 0, 0, 0.6);
+  --tile-frame: #3f3f46;
 }
 
 html,
@@ -20,15 +127,16 @@ body,
 
 body {
   margin: 0;
-  color: var(--color-plum);
+  color: var(--ink);
   font-family: var(--font-sans);
   background:
-    radial-gradient(1100px 620px at 8% 12%, #fbe1ec 0%, transparent 60%),
-    radial-gradient(900px 560px at 95% 85%, #f9e2ee 0%, transparent 62%),
-    radial-gradient(700px 400px at 55% 45%, #fff 0%, transparent 70%),
-    var(--color-blush);
+    radial-gradient(1100px 620px at 8% 12%, var(--glow-1) 0%, transparent 60%),
+    radial-gradient(900px 560px at 95% 85%, var(--glow-2) 0%, transparent 62%),
+    radial-gradient(700px 400px at 55% 45%, var(--glow-3) 0%, transparent 70%),
+    var(--page);
   background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.3s ease;
 }
 
 .font-serif {
@@ -39,7 +147,7 @@ body {
   font-size: 10.5px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: color-mix(in oklab, var(--color-plum) 55%, transparent);
+  color: color-mix(in oklab, var(--ink) 55%, transparent);
   font-weight: 500;
 }
 
@@ -80,7 +188,7 @@ body {
   }
 }
 .shimmer {
-  background: linear-gradient(90deg, #fbeef3 0%, #fff 50%, #fbeef3 100%);
+  background: linear-gradient(90deg, var(--shimmer-a) 0%, var(--shimmer-b) 50%, var(--shimmer-a) 100%);
   background-size: 400px 100%;
   animation: shimmer 1.6s linear infinite;
 }

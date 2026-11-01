@@ -12,6 +12,9 @@ export interface UiSettings {
   dateGranularity: "year" | "month" | "day";
   maxClusters: number;
   applyMode: "move" | "copy";
+  outputMode: "subfolder" | "direct";
+  outputDir: string;
+  recursive: boolean;
 }
 
 export const DEFAULT_SETTINGS: UiSettings = {
@@ -26,6 +29,9 @@ export const DEFAULT_SETTINGS: UiSettings = {
   dateGranularity: "month",
   maxClusters: 12,
   applyMode: "move",
+  outputMode: "subfolder",
+  outputDir: "Organized",
+  recursive: true,
 };
 
 const KEY = "aio.settings.v1";

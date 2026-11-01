@@ -44,12 +44,30 @@ def screenshot_category(categories: list[dict]) -> str | None:
     return None
 
 
+def media_mask(categories: list[dict], kinds: list[str]) -> np.ndarray:
+    """(n_files, n_cats) bool: which folders accept each file.
+
+    If a set has folders dedicated to a kind (media == "video"), files of that kind go ONLY there;
+    otherwise they use the "any" folders. Folders dedicated to the other kind are never used.
+    """
+    media = np.array([c.get("media") or "any" for c in categories])
+    mask = np.ones((len(kinds), len(categories)), dtype=bool)
+    for kind in ("image", "video"):
+        dedicated = media == kind
+        allowed = dedicated if dedicated.any() else media == "any"
+        rows = [i for i, k in enumerate(kinds) if k == kind]
+        if rows and allowed.any():
+            mask[rows] = allowed
+    return mask
+
+
 def classify_with_set(
     embs: np.ndarray,
     screenshot_flags: list[bool],
     categories: list[dict],
     embedder: Embedder,
     min_confidence: float,
+    kinds: list[str] | None = None,
 ) -> list[tuple[str | None, float, str]]:
     """Preset/custom strategy. Returns (category_id or None for Unsorted, confidence, source)."""
     cat_mat = category_matrix(embedder, categories)
@@ -57,14 +75,17 @@ def classify_with_set(
     out: list[tuple[str | None, float, str]] = []
     if len(embs) == 0:
         return out
-    probs = softmax(LOGIT_SCALE * (embs @ cat_mat.T))
+    logits = LOGIT_SCALE * (embs @ cat_mat.T)
+    if kinds is not None:
+        logits = np.where(media_mask(categories, kinds), logits, -np.inf)
+    probs = softmax(logits)
     # per-category floor: CLIP alone must be very sure about "Screenshots" (the rule handles real ones)
     floors = np.array([
         max(min_confidence, float(c.get("min_confidence") or (STRICT_SCREENSHOT if c["id"] == shot_id else 0)))
         for c in categories
     ])
     for i in range(len(embs)):
-        if shot_id and screenshot_flags[i]:
+        if shot_id and screenshot_flags[i] and np.isfinite(logits[i, [c["id"] for c in categories].index(shot_id)]):
             out.append((shot_id, 1.0, "rule"))
             continue
         chosen = None
