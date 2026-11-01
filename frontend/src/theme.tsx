@@ -5,12 +5,12 @@ import { cn } from "@/lib/utils";
 export type ThemeName = "pink" | "blue" | "sage" | "peach" | "lavender" | "dark" | "midnight";
 
 export const THEMES: { id: ThemeName; label: string; swatch: [string, string] }[] = [
+  { id: "dark", label: "Graphite (dark, default)", swatch: ["#3f3f46", "#09090b"] },
   { id: "pink", label: "Blossom (pink)", swatch: ["#fbe1ec", "#e5679b"] },
   { id: "blue", label: "Sky (blue)", swatch: ["#dce9ff", "#4f8ff7"] },
   { id: "sage", label: "Sage (green)", swatch: ["#dcefe2", "#4f9a6b"] },
   { id: "peach", label: "Peach (sunset)", swatch: ["#ffe2d0", "#ee7b4a"] },
   { id: "lavender", label: "Lavender", swatch: ["#e6defd", "#8a6ae6"] },
-  { id: "dark", label: "Graphite (dark)", swatch: ["#3f3f46", "#09090b"] },
   { id: "midnight", label: "Midnight (dark navy)", swatch: ["#4f6fe0", "#070b18"] },
 ];
 
@@ -122,11 +122,11 @@ function initialTheme(): ThemeName {
   } catch {
     /* storage unavailable */
   }
-  return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "pink";
+  return "dark"; // Graphite is the default theme
 }
 
 const ThemeCtx = createContext<{ theme: ThemeName; setTheme: (t: ThemeName) => void }>({
-  theme: "pink",
+  theme: "dark",
   setTheme: () => {},
 });
 

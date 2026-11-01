@@ -10,12 +10,24 @@ interface Props {
   customSets: CategorySet[];
   activeId: string | null;
   onUse: (set: CategorySet, custom: boolean) => void;
-  onEdit: () => void;
+  onEdit: (set: CategorySet | null, mode: "edit" | "copy" | "new") => void;
 }
 
 const mediaTag = (m?: string) => (m === "video" ? " 🎬" : m === "image" ? " 📷" : "");
 
-function SetCard({ set, active, custom, onUse, onEdit }: { set: CategorySet; active: boolean; custom: boolean; onUse: () => void; onEdit: () => void }) {
+function SetCard({
+  set,
+  active,
+  custom,
+  onUse,
+  onEdit,
+}: {
+  set: CategorySet;
+  active: boolean;
+  custom: boolean;
+  onUse: () => void;
+  onEdit: (mode: "edit" | "copy") => void;
+}) {
   return (
     <Card className={cn("flex flex-col gap-3 p-4", active && "ring-2 ring-petal")}>
       <div className="flex items-start justify-between gap-2">
@@ -23,6 +35,7 @@ function SetCard({ set, active, custom, onUse, onEdit }: { set: CategorySet; act
           <div className="flex items-center gap-2 text-[15px] font-semibold text-plum">
             {set.name}
             {custom && <Tag className="m-0" color="purple">mine</Tag>}
+            {set.modified && <Tag className="m-0" color="gold">edited</Tag>}
             {active && <Tag className="m-0" color="green">in use</Tag>}
           </div>
           {set.description && <p className="mt-0.5 text-xs text-plum/60">{set.description}</p>}
@@ -41,8 +54,11 @@ function SetCard({ set, active, custom, onUse, onEdit }: { set: CategorySet; act
         <Button size="small" type={active ? "default" : "primary"} icon={<Check size={13} />} onClick={onUse} disabled={active}>
           {active ? "Selected" : "Use"}
         </Button>
-        <Button size="small" icon={custom ? <PencilLine size={13} /> : <Copy size={13} />} onClick={onEdit}>
-          {custom ? "Edit" : "Copy & customize"}
+        <Button size="small" icon={<PencilLine size={13} />} onClick={() => onEdit("edit")}>
+          Edit
+        </Button>
+        <Button size="small" type="text" icon={<Copy size={13} />} onClick={() => onEdit("copy")}>
+          Copy
         </Button>
       </div>
     </Card>
@@ -70,7 +86,7 @@ export function CategoriesTab({ presets, customSets, activeId, onUse, onEdit }: 
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
-        <Button icon={<Plus size={14} />} onClick={onEdit}>
+        <Button icon={<Plus size={14} />} onClick={() => onEdit(null, "new")}>
           New category set
         </Button>
       </div>
@@ -79,22 +95,23 @@ export function CategoriesTab({ presets, customSets, activeId, onUse, onEdit }: 
         <h2 className="mb-3 font-serif text-[22px] italic text-plum/80">My category sets</h2>
         {c.length === 0 ? (
           <p className="text-sm text-plum/55">
-            None yet. Press <b>Copy & customize</b> on any preset, or create a new set, e.g. your Instagram folders.
+            None yet. Press <b>Copy</b> on any preset, or create a new set, e.g. your Instagram folders.
           </p>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {c.map((s) => (
-              <SetCard key={s.id} set={s} custom active={activeId === s.id} onUse={() => onUse(s, true)} onEdit={onEdit} />
+              <SetCard key={s.id} set={s} custom active={activeId === s.id} onUse={() => onUse(s, true)} onEdit={(m) => onEdit(s, m)} />
             ))}
           </div>
         )}
       </section>
 
       <section>
-        <h2 className="mb-3 font-serif text-[22px] italic text-plum/80">Presets</h2>
+        <h2 className="mb-1 font-serif text-[22px] italic text-plum/80">Presets</h2>
+        <p className="mb-3 text-xs text-plum/55">Every preset is editable: rename folders, add or remove them, change descriptions. Reset restores the default.</p>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {p.map((s) => (
-            <SetCard key={s.id} set={s} custom={false} active={activeId === s.id} onUse={() => onUse(s, false)} onEdit={onEdit} />
+            <SetCard key={s.id} set={s} custom={false} active={activeId === s.id} onUse={() => onUse(s, false)} onEdit={(m) => onEdit(s, m)} />
           ))}
         </div>
       </section>

@@ -57,6 +57,12 @@ const INITIAL: JobState = {
 };
 
 const DUP = "_duplicates";
+const TABS = ["sort", "review", "categories", "history", "settings"] as const;
+type Tab = (typeof TABS)[number];
+const tabFromPath = (): Tab => {
+  const seg = window.location.pathname.replace(/^\/+|\/+$/g, "").split("/")[0];
+  return (TABS as readonly string[]).includes(seg) ? (seg as Tab) : "sort";
+};
 const cardKey = (catId: string, kind: string) => (catId === DUP ? "dup" : `${kind}:${catId}`);
 
 export default function App() {
@@ -72,7 +78,18 @@ export default function App() {
   const [drawer, setDrawer] = useState<null | "settings" | "history" | "editor" | "folder">(null);
   const [filesFor, setFilesFor] = useState<{ title: string; catId: string; kind: string | null } | null>(null);
   const [applying, setApplying] = useState(false);
-  const [tab, setTab] = useState<"sort" | "review" | "categories" | "history" | "settings">("sort");
+  const [editorTarget, setEditorTarget] = useState<{ set: CategorySet | null; mode: "edit" | "copy" | "new" } | null>(null);
+  const [tab, setTabState] = useState<Tab>(tabFromPath);
+  const setTab = useCallback((t: Tab) => {
+    setTabState(t);
+    if (window.location.pathname !== `/${t}`) window.history.pushState({ tab: t }, "", `/${t}`);
+  }, []);
+  useEffect(() => {
+    const onPop = () => setTabState(tabFromPath());
+    window.addEventListener("popstate", onPop);
+    if (window.location.pathname === "/") window.history.replaceState({ tab: "sort" }, "", "/sort");
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
 
   const stageRef = useRef<HTMLDivElement>(null);
   const pileRef = useRef<HTMLDivElement>(null);
@@ -204,6 +221,54 @@ export default function App() {
     [],
   );
 
+  // restore the last finished sort after a page reload (state lives on the server)
+  useEffect(() => {
+    let id: string | null = null;
+    try {
+      id = localStorage.getItem("aio.lastJob");
+    } catch {
+      /* storage unavailable */
+    }
+    if (!id) return;
+    api
+      .job(id)
+      .then((s) => {
+        if (!s.plan || !["done", "applied"].includes(s.status)) return;
+        const engine = engineRef.current;
+        if (!engine) return;
+        const src = String((s as unknown as { request?: { source?: string } }).request?.source ?? "");
+        engine.reset();
+        engine.reduced = true; // snap straight into the cards, no replay of the animation
+        landedBuf.current = { keys: {}, image: 0, video: 0 };
+        lastSeq.current = Number.MAX_SAFE_INTEGER;
+        setJob({
+          ...INITIAL,
+          id: s.id,
+          status: s.status === "applied" ? "applied" : "done",
+          phase: "done",
+          total: s.stats.total ?? s.plan.length,
+          analyzed: s.stats.analyzed ?? 0,
+          categories: s.categories,
+          sourceName: src ? src.split("/").pop()! : null,
+          warnings: s.warnings,
+          usage: s.usage,
+          runId: s.run_id,
+          errors: s.errors.length,
+        });
+        setPlan(s.plan);
+        engine.setExpected(s.plan.length);
+        for (const p of s.plan) {
+          kinds.current.set(p.file_id, p.kind);
+          engine.addFile(p.file_id, p.thumb);
+        }
+        engine.expectAssigns(s.plan.length);
+        for (const p of s.plan) engine.assign(p.file_id, cardKey(p.category_id, p.kind));
+      })
+      .catch(() => {
+        /* job is gone (server restarted): start fresh */
+      });
+  }, []);
+
   // fetch the full plan once a job is done
   useEffect(() => {
     if (job.status === "done" && job.id) api.job(job.id).then((s) => setPlan(s.plan ?? [])).catch(() => {});
@@ -213,6 +278,7 @@ export default function App() {
   const startSort = async () => {
     unsub.current?.();
     engineRef.current?.reset();
+    if (engineRef.current) engineRef.current.reduced = prefersReducedMotion();
     slotEls.current.clear();
     kinds.current.clear();
     landedBuf.current = { keys: {}, image: 0, video: 0 };
@@ -247,6 +313,11 @@ export default function App() {
         },
       });
       setJob((j) => ({ ...j, id }));
+      try {
+        localStorage.setItem("aio.lastJob", id);
+      } catch {
+        /* storage unavailable */
+      }
       unsub.current = subscribe(id, handleEvents, () => {});
     } catch (e) {
       setJob({ ...INITIAL, status: "error", error: (e as Error).message });
@@ -309,6 +380,7 @@ export default function App() {
   const photoCats = job.categories.filter((c) => c.id !== DUP && c.photos > 0);
   const videoCats = job.categories.filter((c) => c.id !== DUP && c.videos > 0);
   const dupCat = job.categories.find((c) => c.id === DUP);
+  const noVideos = job.categories.length > 0 && videoCats.length === 0;
   const folderName =
     job.sourceName ??
     (settings.source
@@ -569,7 +641,10 @@ export default function App() {
               message.success(`Using “${set.name}”. Press Sort when ready`);
               setTab("sort");
             }}
-            onEdit={() => setDrawer("editor")}
+            onEdit={(set, mode) => {
+              setEditorTarget({ set, mode });
+              setDrawer("editor");
+            }}
           />
         </div>
       )}
@@ -594,12 +669,20 @@ export default function App() {
 
       <div className={tab === "sort" ? "" : "hidden"}>
       {/* stage */}
-      <div ref={stageRef} className="relative mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,1fr)]">
+      <div
+        ref={stageRef}
+        className={
+          "relative mt-8 grid gap-6 " +
+          (noVideos
+            ? "lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)_minmax(0,0.55fr)]"
+            : "lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,1fr)]")
+        }
+      >
         <section className="order-2 lg:order-1">
           <h2 className="mb-3 flex items-center gap-2 font-serif text-[22px] italic text-plum/80">
             <span className="h-1.5 w-1.5 rounded-full bg-petal" /> Photos
           </h2>
-          <div className="grid grid-cols-2 gap-3">
+          <div className={"grid gap-3 " + (noVideos ? "grid-cols-2 xl:grid-cols-3" : "grid-cols-2")}>
             {showGhosts &&
               (activeSet ? activeSet.categories : Array.from({ length: 6 }, () => null)).map((c, i) => (
                 <GhostCard key={c?.id ?? i} name={c?.name} index={i} />
@@ -714,12 +797,22 @@ export default function App() {
       />
       <CategoryEditor
         open={drawer === "editor"}
-        onClose={() => setDrawer(null)}
+        onClose={() => {
+          setDrawer(null);
+          setEditorTarget(null);
+        }}
         presets={presets}
         customSets={customSets}
+        initial={editorTarget}
         onSaved={(saved) => {
           api.sets().then(setCustomSets).catch(() => {});
-          if (saved) setSettings({ ...settings, strategy: "custom", customSetId: saved.id });
+          api.presets().then(setPresets).catch(() => {});
+          if (saved)
+            setSettings(
+              saved.custom === false
+                ? { ...settings, strategy: "preset", presetId: saved.id }
+                : { ...settings, strategy: "custom", customSetId: saved.id },
+            );
         }}
       />
       <HistoryDrawer open={drawer === "history"} onClose={() => setDrawer(null)} onUndone={(id) => {

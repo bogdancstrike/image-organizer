@@ -238,3 +238,31 @@ def test_manual_reassign_before_apply(client, settings):
     client.post(f"/api/jobs/{job_id}/apply", json={"mode": "move"})
     assert (settings.library_root / "Organized/Photos/Green things/r1.jpg").exists()
     assert client.patch(f"/api/jobs/{job_id}/plan", json={"file_ids": [r1["file_id"]], "category_id": green["id"]}).status_code == 409
+
+
+def test_spa_routes_serve_index(settings, fake_embedder, tmp_path):
+    from dataclasses import replace
+    static = tmp_path / "static"
+    (static / "assets").mkdir(parents=True)
+    (static / "index.html").write_text("<html>app</html>")
+    (static / "logo.svg").write_text("<svg/>")
+    s = replace(settings, static_dir=static)
+    with TestClient(create_app(s, embedder_factory=lambda: fake_embedder)) as c:
+        for path in ("/", "/sort", "/review", "/categories", "/history", "/settings"):
+            r = c.get(path)
+            assert r.status_code == 200 and "app" in r.text, path
+        assert c.get("/logo.svg").text == "<svg/>"
+        assert c.get("/nope").status_code == 404
+        assert c.get("/api/health").json()["status"] == "ok"
+
+
+def test_edit_and_reset_builtin_preset(client):
+    body = {"name": "Lifestyle", "categories": [{"name": "Coffee", "prompts": ["a cup of coffee"]}, {"name": "Dogs"}]}
+    r = client.put("/api/category-sets/lifestyle", json=body)
+    assert r.status_code == 200
+    life = next(p for p in client.get("/api/presets").json() if p["id"] == "lifestyle")
+    assert life["modified"] and [c["name"] for c in life["categories"]] == ["Coffee", "Dogs"]
+    assert all(s["id"] != "lifestyle" for s in client.get("/api/category-sets").json())  # not listed as custom
+    assert client.delete("/api/category-sets/lifestyle").status_code == 204  # reset
+    life = next(p for p in client.get("/api/presets").json() if p["id"] == "lifestyle")
+    assert not life.get("modified") and len(life["categories"]) == 12

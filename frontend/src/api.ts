@@ -26,6 +26,7 @@ export interface CategorySet {
   description?: string | null;
   categories: Category[];
   custom?: boolean;
+  modified?: boolean;
 }
 
 export interface JobCategory extends Category {

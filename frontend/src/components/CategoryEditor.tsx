@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { App, Button, Empty, Form, Input, Modal, Popconfirm, Select } from "antd";
-import { Plus, Trash2, Copy } from "lucide-react";
+import { Plus, Trash2, Copy, RotateCcw } from "lucide-react";
 import { api, type CategorySet } from "@/api";
 import { cn } from "@/lib/utils";
 
@@ -10,6 +10,8 @@ interface Props {
   presets: CategorySet[];
   customSets: CategorySet[];
   onSaved: (set: CategorySet | null) => void;
+  /** what to open: a set to edit (presets included), a set to copy, or a blank new set */
+  initial?: { set: CategorySet | null; mode: "edit" | "copy" | "new" } | null;
 }
 
 type FormValues = {
@@ -21,7 +23,7 @@ type FormValues = {
 const BLANK: FormValues = { name: "My folders", categories: [{ name: "", emoji: "📁", prompts: [], media: "any" }] };
 
 /** Create / edit / delete custom category sets (REQ-UI-4, REQ-CAT-2). */
-export function CategoryEditor({ open, onClose, presets, customSets, onSaved }: Props) {
+export function CategoryEditor({ open, onClose, presets, customSets, onSaved, initial }: Props) {
   const { message } = App.useApp();
   const [form] = Form.useForm<FormValues>();
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -41,7 +43,9 @@ export function CategoryEditor({ open, onClose, presets, customSets, onSaved }: 
   };
 
   useEffect(() => {
-    if (open) load(customSets[0] ?? null);
+    if (!open) return;
+    if (initial) load(initial.mode === "new" ? null : initial.set, initial.mode === "copy");
+    else load(customSets[0] ?? null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -70,9 +74,16 @@ export function CategoryEditor({ open, onClose, presets, customSets, onSaved }: 
     }
   };
 
+  const editingPreset = presets.find((p) => p.id === editingId);
   const remove = async () => {
     if (!editingId) return;
     await api.deleteSet(editingId);
+    if (editingPreset) {
+      message.success(`“${editingPreset.name}” reset to default`);
+      onSaved(null);
+      onClose();
+      return;
+    }
     message.success("Deleted");
     onSaved(null);
     load(null);
@@ -82,11 +93,19 @@ export function CategoryEditor({ open, onClose, presets, customSets, onSaved }: 
     <Modal
       open={open}
       onCancel={onClose}
-      title="My categories"
+      title={editingPreset ? `Edit preset · ${editingPreset.name}` : "My categories"}
       width={860}
       footer={
         <div className="flex items-center justify-between">
-          {editingId ? (
+          {editingPreset ? (
+            editingPreset.modified ? (
+              <Popconfirm title="Discard your edits and restore the built-in folders?" onConfirm={remove}>
+                <Button type="text" icon={<RotateCcw size={14} />}>Reset to default</Button>
+              </Popconfirm>
+            ) : (
+              <span className="text-xs text-plum/50">Editing a built-in preset. You can reset it anytime.</span>
+            )
+          ) : editingId ? (
             <Popconfirm title="Delete this set?" onConfirm={remove}>
               <Button danger type="text" icon={<Trash2 size={14} />}>Delete set</Button>
             </Popconfirm>

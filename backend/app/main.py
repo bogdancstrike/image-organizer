@@ -28,6 +28,7 @@ from .scanner import PathError, list_folders, media_kind
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 SHA_RE = re.compile(r"^[0-9a-f]{64}$")
+UI_ROUTES = {"sort", "review", "categories", "history", "settings"}
 
 
 class QualityOptions(BaseModel):
@@ -126,7 +127,7 @@ def create_app(settings: Settings | None = None, embedder_factory=None, llm_fact
     # ---------------------------------------------------------- categories
     @app.get("/api/presets")
     def presets():
-        return all_presets()
+        return store.presets()
 
     @app.get("/api/category-sets")
     def list_sets():
@@ -145,6 +146,7 @@ def create_app(settings: Settings | None = None, embedder_factory=None, llm_fact
 
     @app.delete("/api/category-sets/{set_id}", status_code=204)
     def delete_set(set_id: str):
+        """Deletes a custom set, or resets an edited preset to its default."""
         if not store.delete(set_id):
             raise HTTPException(404, "not found")
 
@@ -279,6 +281,18 @@ def create_app(settings: Settings | None = None, embedder_factory=None, llm_fact
         return FileResponse(out, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=86400"})
 
     if s.static_dir and s.static_dir.is_dir():
+        index = s.static_dir / "index.html"
+
+        # client-side routes (/sort, /review, …) all load the single-page app
+        @app.get("/{tab}", include_in_schema=False)
+        def spa_route(tab: str):
+            if tab in UI_ROUTES:
+                return FileResponse(index, headers={"Cache-Control": "no-cache"})
+            f = (s.static_dir / tab).resolve()
+            if s.static_dir.resolve() in f.parents and f.is_file():
+                return FileResponse(f)
+            raise HTTPException(404, "not found")
+
         app.mount("/", StaticFiles(directory=str(s.static_dir), html=True), name="ui")
 
     return app

@@ -90,14 +90,20 @@ class CategoryStore:
         tmp.replace(self.path)
 
     def list(self) -> list[dict]:
+        """User-created sets (preset overrides are not listed here)."""
         with self._lock:
-            return list(self._load().values())
+            return [v for v in self._load().values() if not v.get("preset_override")]
+
+    def presets(self) -> list[dict]:
+        """Built-in presets, with the user's edits applied where a preset was modified."""
+        with self._lock:
+            saved = self._load()
+        return [{**saved[p["id"]], "modified": True} if p["id"] in saved else p for p in PRESETS]
 
     def get(self, set_id: str) -> dict | None:
-        if set_id in PRESETS_BY_ID:
-            return PRESETS_BY_ID[set_id]
         with self._lock:
-            return self._load().get(set_id)
+            saved = self._load().get(set_id)
+        return saved or PRESETS_BY_ID.get(set_id)
 
     def upsert(self, set_id: str | None, data: CategorySetIn) -> dict:
         with self._lock:
@@ -108,14 +114,17 @@ class CategoryStore:
                 while set_id in all_sets or set_id in PRESETS_BY_ID:
                     set_id = f"{base}-{n}"
                     n += 1
-            if set_id in PRESETS_BY_ID:
-                raise ValueError("built-in presets cannot be modified")
             d = to_set_dict(set_id, data)
+            if set_id in PRESETS_BY_ID:  # editing a built-in preset = saving an override
+                d["custom"] = False
+                d["preset_override"] = True
+                d["description"] = d["description"] or PRESETS_BY_ID[set_id].get("description")
             all_sets[set_id] = d
             self._save(all_sets)
             return d
 
     def delete(self, set_id: str) -> bool:
+        """Delete a custom set, or reset a modified preset to its default."""
         with self._lock:
             all_sets = self._load()
             if set_id not in all_sets:
