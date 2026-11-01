@@ -9,15 +9,19 @@ DUPLICATES = {"id": "_duplicates", "name": "Duplicates", "emoji": "🗑️"}
 _BAD = re.compile(r'[\\:*?"<>|\x00-\x1f]')
 
 
+def _clean(name: str) -> str:
+    s = _BAD.sub("", name).replace("/", "-").strip().strip(".").strip()
+    return re.sub(r"\s+", " ", s)[:80]
+
+
 def safe_segment(name: str) -> str:
-    s = _BAD.sub("", name).replace("/", "-").strip().strip(".")
-    s = re.sub(r"\s+", " ", s)
-    return s[:80] or "Untitled"
+    return _clean(name) or "Untitled"
 
 
 def safe_folder(name: str) -> str:
-    """Category names may contain '/' to nest (date strategy); each part is sanitized."""
-    return "/".join(safe_segment(p) for p in name.split("/") if p.strip())
+    """Category names may contain '/' to nest (date strategy); each part is sanitized, '..' parts dropped."""
+    parts = [c for c in (_clean(p) for p in name.split("/")) if c]
+    return "/".join(parts) or "Untitled"
 
 
 def destination(source_rel: str, output_dir: str, kind: str, category: dict, split_media: bool) -> str:
