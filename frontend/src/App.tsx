@@ -27,7 +27,7 @@ import { RecipePicker } from "./components/RecipePicker";
 import { StatisticsTab } from "./components/StatisticsTab";
 import { Select } from "antd";
 import type { Recipe, Suggestion } from "./api";
-import { DEFAULT_SETTINGS } from "./settings";
+import { DEFAULT_SETTINGS, migrateSettings } from "./settings";
 import { fmt, prefersReducedMotion } from "./lib/utils";
 
 type Status = "idle" | "running" | "done" | "error" | "cancelled" | "applied" | "undone";
@@ -133,9 +133,7 @@ export default function App() {
       .getSettings()
       .then((srv) => {
         if (srv && Object.keys(srv).length) {
-          const merged = { ...DEFAULT_SETTINGS, ...(srv as Partial<UiSettings>) } as UiSettings;
-          merged.quality = { ...DEFAULT_SETTINGS.quality, ...((srv as Partial<UiSettings>).quality ?? {}) };
-          merged.ai = { ...DEFAULT_SETTINGS.ai, ...((srv as Partial<UiSettings>).ai ?? {}) };
+          const merged = migrateSettings(srv as Partial<UiSettings>);
           setSettingsState(merged);
           saveSettings(merged);
         }
@@ -355,6 +353,7 @@ export default function App() {
           people_min_photos: s.peopleMinPhotos,
           people_similarity: s.peopleSimilarity,
           people_multi: s.peopleMulti,
+          people_reference: s.peopleReference,
         },
       });
       setJob((j) => ({ ...j, id }));

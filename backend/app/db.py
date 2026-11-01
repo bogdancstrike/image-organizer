@@ -22,6 +22,7 @@ class AppDB:
             CREATE TABLE IF NOT EXISTS runs (run_id TEXT PRIMARY KEY, created_at TEXT, data TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS job_stats (job_id TEXT PRIMARY KEY, finished_at REAL, data TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS face_refs (id TEXT PRIMARY KEY, created_at REAL, data TEXT NOT NULL);
             """
         )
         self._db.commit()
@@ -55,6 +56,28 @@ class AppDB:
         with self._lock:
             self._db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?,?)", (key, json.dumps(value)))
             self._db.commit()
+
+    # ---------------------------------------------------------------- reference faces ("find this person")
+    def add_face_ref(self, ref: dict) -> None:
+        with self._lock:
+            self._db.execute("INSERT OR REPLACE INTO face_refs (id, created_at, data) VALUES (?,?,?)", (ref["id"], time.time(), json.dumps(ref)))
+            self._db.commit()
+
+    def face_refs(self) -> list[dict]:
+        with self._lock:
+            rows = self._db.execute("SELECT data FROM face_refs ORDER BY created_at DESC").fetchall()
+        return [json.loads(r[0]) for r in rows]
+
+    def get_face_ref(self, ref_id: str) -> dict | None:
+        with self._lock:
+            row = self._db.execute("SELECT data FROM face_refs WHERE id=?", (ref_id,)).fetchone()
+        return json.loads(row[0]) if row else None
+
+    def delete_face_ref(self, ref_id: str) -> bool:
+        with self._lock:
+            n = self._db.execute("DELETE FROM face_refs WHERE id=?", (ref_id,)).rowcount
+            self._db.commit()
+        return n > 0
 
     # ---------------------------------------------------------------- statistics
     def add_job_stats(self, job_id: str, data: dict) -> None:

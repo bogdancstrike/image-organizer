@@ -1,5 +1,6 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { Button, Checkbox, Drawer, Input, InputNumber, Popconfirm, Radio, Rate, Segmented, Select, Slider, Switch, Tag, Tooltip } from "antd";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { FacePicker } from "./FacePicker";
+import { Button, Drawer, Input, InputNumber, Popconfirm, Radio, Rate, Segmented, Select, Slider, Switch, Tag, Tooltip } from "antd";
 import {
   Aperture,
   CalendarDays,
@@ -81,6 +82,24 @@ function Row({ label, hint, children, inline }: { label: string; hint?: ReactNod
       ) : (
         children
       )}
+    </div>
+  );
+}
+
+const CHECK_KEYS = ["blur", "eyes_closed", "smiles", "exposure", "noise_check", "face_crop", "tilt_check", "bursts"] as const;
+
+/** Lightroom-style optional panel: a switch; its controls only appear when it is on. */
+function Check({ label, hint, on, set, disabled, children }: { label: string; hint?: string; on: boolean; set: (v: boolean) => void; disabled?: boolean; children?: ReactNode }) {
+  return (
+    <div className={cn("border-b border-line/60 last:border-0", disabled && "opacity-50")}>
+      <label className="flex cursor-pointer items-center justify-between gap-4 py-2.5">
+        <span className="min-w-0">
+          <span className="text-[13px] font-medium text-plum">{label}</span>
+          {hint && <span className="ml-2 text-[11px] text-plum/50">{hint}</span>}
+        </span>
+        <Switch size="small" checked={on && !disabled} disabled={disabled} onChange={set} />
+      </label>
+      {on && !disabled && children && <div className="mb-2 ml-1 border-l-2 border-line pl-4">{children}</div>}
     </div>
   );
 }
@@ -230,7 +249,17 @@ export function SettingsPanel({
   only,
 }: PanelProps & { layout?: "drawer" | "page"; only?: SectionId[] }) {
   const set = <K extends keyof UiSettings>(k: K, v: UiSettings[K]) => onChange({ ...settings, [k]: v });
-  const setQ = (patch: Partial<QualityOptions>) => onChange({ ...settings, quality: { ...settings.quality, ...patch } });
+  const setQ = (patch: Partial<QualityOptions>) => {
+    const q = { ...settings.quality, ...patch };
+    q.enabled = CHECK_KEYS.some((k) => q[k]);
+    onChange({ ...settings, quality: q });
+  };
+  const Q = settings.quality;
+  const latest = useRef(settings);
+  latest.current = settings;
+  const onFace = useCallback((id: string | null) => onChange({ ...latest.current, peopleReference: id }), [onChange]);
+  const faces = !!health?.faces_available;
+  const anyCheck = CHECK_KEYS.some((k) => Q[k]);
   const setAI = (patch: Partial<AIOptions>) => onChange({ ...settings, ai: { ...settings.ai, ...patch } });
   const [models, setModels] = useState<string[]>([]);
   const [defaults, setDefaults] = useState<AIDefaults | null>(null);
@@ -244,7 +273,6 @@ export function SettingsPanel({
   const page = layout === "page";
   const folderName = settings.source ? settings.source.split("/").pop() + "/" : "";
   const example = `${folderName}${settings.outputMode === "subfolder" ? `${settings.outputDir || "Organized"}/` : ""}${settings.splitMedia ? "Photos/" : ""}Food & cafés/IMG_0042.jpg`;
-  const qualityOn = settings.strategy === "cull" || settings.quality.enabled;
 
   const body = (
     <>
@@ -397,7 +425,8 @@ export function SettingsPanel({
           </>
         )}
 
-        {settings.strategy === "people" && (
+        {settings.strategy === "people" && <FacePicker value={settings.peopleReference} onChange={onFace} />}
+        {settings.strategy === "people" && !settings.peopleReference && (
           <>
             <Row label="A person needs at least" hint={`${settings.peopleMinPhotos} photos, otherwise “Other people”`} inline>
               <InputNumber min={1} max={50} value={settings.peopleMinPhotos} onChange={(v) => set("peopleMinPhotos", v ?? 3)} />
@@ -442,141 +471,105 @@ export function SettingsPanel({
       </Section>
 
       <Section id="pro" page={page}>
-        {settings.strategy !== "cull" && (
-          <Row label="Check photo quality" hint="sharpness · eyes · smiles · exposure" inline>
-            <Switch checked={settings.quality.enabled} onChange={(v) => setQ({ enabled: v })} />
+        <p className="pb-1 text-[11px] text-plum/55">
+          Every check is optional. Turn one on and its controls appear below it.
+          {settings.strategy === "cull" ? " Cull always sorts into Keepers, Rejects and Maybe." : ""}
+        </p>
+        <Check label="🌫️ Blurry / out of focus" on={Q.blur} set={(v) => setQ({ blur: v })}>
+          <Row label="Sharpness needed" hint={`${Math.round(Q.blur_threshold * 100)}%: higher is stricter`}>
+            <Slider min={0.2} max={0.85} step={0.01} value={Q.blur_threshold} onChange={(v) => setQ({ blur_threshold: v })} />
+          </Row>
+        </Check>
+        <Check label="😑 Eyes closed" on={Q.eyes_closed} disabled={!faces} set={(v) => setQ({ eyes_closed: v })}>
+          <Row label="Eyes-closed sensitivity" hint={`blink ≥ ${Math.round(Q.blink_threshold * 100)}%`}>
+            <Slider min={0.2} max={0.9} step={0.05} value={Q.blink_threshold} onChange={(v) => setQ({ blink_threshold: v })} />
+          </Row>
+        </Check>
+        <Check label={`😄 Smiles (${settings.strategy === "cull" ? "own folder" : "tag"})`} on={Q.smiles} disabled={!faces} set={(v) => setQ({ smiles: v })}>
+          <Row label="Smile needed" hint={`≥ ${Math.round(Q.smile_threshold * 100)}%`}>
+            <Slider min={0.2} max={0.9} step={0.05} value={Q.smile_threshold} onChange={(v) => setQ({ smile_threshold: v })} />
+          </Row>
+        </Check>
+        {(Q.eyes_closed || Q.smiles) && (
+          <Row label="Whose eyes & smile count">
+            <Radio.Group
+              value={Q.faces_rule}
+              onChange={(e) => setQ({ faces_rule: e.target.value })}
+              optionType="button"
+              options={[
+                { value: "any", label: "Any face (group shots)" },
+                { value: "main", label: "Main subject only" },
+              ]}
+            />
           </Row>
         )}
-        {qualityOn ? (
+        <Check label="🌑 Too dark / too bright" on={Q.exposure} set={(v) => setQ({ exposure: v })}>
+          <Row label="Exposure limits" hint={`dark < ${Math.round(Q.dark_threshold * 100)}% · bright > ${Math.round(Q.bright_threshold * 100)}%`}>
+            <Slider
+              range
+              min={0}
+              max={1}
+              step={0.01}
+              value={[Q.dark_threshold, Q.bright_threshold]}
+              onChange={(v) => setQ({ dark_threshold: Math.min(0.5, v[0]), bright_threshold: Math.max(0.5, v[1]) })}
+            />
+          </Row>
+        </Check>
+        <Check label="🌪️ Noisy (high ISO)" on={Q.noise_check} set={(v) => setQ({ noise_check: v })}>
+          <Row label="Noise limit" hint={`grain σ > ${(Q.noise_threshold * 100).toFixed(1)}%`}>
+            <Slider min={0.01} max={0.12} step={0.005} value={Q.noise_threshold} onChange={(v) => setQ({ noise_threshold: v })} />
+          </Row>
+        </Check>
+        <Check label="✂️ Face cut off by the frame" on={Q.face_crop} disabled={!faces} set={(v) => setQ({ face_crop: v })} />
+        <Check label="📐 Tilted horizon (beta)" on={Q.tilt_check} set={(v) => setQ({ tilt_check: v })}>
+          <Row label="Tilt tolerance" hint={`flag from ${Q.tilt_tolerance}°`}>
+            <Slider min={0.5} max={6} step={0.5} value={Q.tilt_tolerance} onChange={(v) => setQ({ tilt_tolerance: v })} />
+          </Row>
+        </Check>
+        <Check label="🎞️ Best of burst" hint="keep the best of near-identical frames" on={Q.bursts} set={(v) => setQ({ bursts: v })}>
+          <Row label="Also group similar shots taken at any time" hint="best of similar, same folder" inline>
+            <Switch size="small" checked={Q.similar_any_time} onChange={(v) => setQ({ similar_any_time: v })} />
+          </Row>
+          {!Q.similar_any_time && (
+            <div className="grid gap-x-6 sm:grid-cols-2">
+              <Row label="Burst window" hint={`${Q.burst_seconds}s`}>
+                <Slider min={0.5} max={10} step={0.5} value={Q.burst_seconds} onChange={(v) => setQ({ burst_seconds: v })} />
+              </Row>
+              <Row label="Burst similarity" hint={`${Math.round(Q.burst_similarity * 100)}%`}>
+                <Slider min={0.8} max={0.98} step={0.01} value={Q.burst_similarity} onChange={(v) => setQ({ burst_similarity: v })} />
+              </Row>
+            </div>
+          )}
+        </Check>
+        {settings.strategy === "cull" && (
           <>
-            <Row label="Checks">
-              <div className="grid grid-cols-1 gap-y-1.5 sm:grid-cols-2">
-                <Checkbox checked={settings.quality.blur} onChange={(e) => setQ({ blur: e.target.checked })}>
-                  🌫️ Blurry / out of focus
-                </Checkbox>
-                <Checkbox
-                  checked={settings.quality.eyes_closed}
-                  disabled={!health?.faces_available}
-                  onChange={(e) => setQ({ eyes_closed: e.target.checked })}
-                >
-                  😑 Eyes closed
-                </Checkbox>
-                <Checkbox checked={settings.quality.exposure} onChange={(e) => setQ({ exposure: e.target.checked })}>
-                  🌑 Too dark / bright
-                </Checkbox>
-                <Checkbox
-                  checked={settings.quality.smiles}
-                  disabled={!health?.faces_available}
-                  onChange={(e) => setQ({ smiles: e.target.checked })}
-                >
-                  😄 Smiles ({settings.strategy === "cull" ? "own folder" : "tag"})
-                </Checkbox>
-                <Checkbox checked={settings.quality.noise_check} onChange={(e) => setQ({ noise_check: e.target.checked })}>
-                  🌪️ Noisy (high ISO)
-                </Checkbox>
-                <Checkbox
-                  checked={settings.quality.face_crop}
-                  disabled={!health?.faces_available}
-                  onChange={(e) => setQ({ face_crop: e.target.checked })}
-                >
-                  ✂️ Face cut off by the frame
-                </Checkbox>
-                <Tooltip title="Experimental: flags frames whose straight horizontal lines (horizon, table, window) lean">
-                  <Checkbox checked={settings.quality.tilt_check} onChange={(e) => setQ({ tilt_check: e.target.checked })}>
-                    📐 Tilted horizon <span className="text-plum/40">(beta)</span>
-                  </Checkbox>
-                </Tooltip>
-              </div>
-            </Row>
-            <Row label="Sharpness needed" hint={`${Math.round(settings.quality.blur_threshold * 100)}%: higher is stricter`}>
-              <Slider min={0.2} max={0.85} step={0.01} value={settings.quality.blur_threshold} onChange={(v) => setQ({ blur_threshold: v })} />
-            </Row>
-            <Row label="Eyes-closed sensitivity" hint={`blink ≥ ${Math.round(settings.quality.blink_threshold * 100)}%`}>
-              <Slider min={0.2} max={0.9} step={0.05} value={settings.quality.blink_threshold} onChange={(v) => setQ({ blink_threshold: v })} />
-            </Row>
-            <Row label="Smile needed" hint={`≥ ${Math.round(settings.quality.smile_threshold * 100)}%`}>
-              <Slider min={0.2} max={0.9} step={0.05} value={settings.quality.smile_threshold} onChange={(v) => setQ({ smile_threshold: v })} />
-            </Row>
-            {settings.quality.noise_check && (
-              <Row label="Noise limit" hint={`grain σ > ${(settings.quality.noise_threshold * 100).toFixed(1)}%`}>
-                <Slider min={0.01} max={0.12} step={0.005} value={settings.quality.noise_threshold} onChange={(v) => setQ({ noise_threshold: v })} />
+            <Check label="★ Picks folder" hint="the very best keepers" on={Q.picks_percent > 0} set={(v) => setQ({ picks_percent: v ? 20 : 0 })}>
+              <Row label="Share of keepers" hint={`top ${Q.picks_percent}%`}>
+                <Slider min={5} max={50} step={5} value={Q.picks_percent || 20} onChange={(v) => setQ({ picks_percent: v })} />
               </Row>
-            )}
-            {settings.quality.tilt_check && (
-              <Row label="Tilt tolerance" hint={`flag from ${settings.quality.tilt_tolerance}°`}>
-                <Slider min={0.5} max={6} step={0.5} value={settings.quality.tilt_tolerance} onChange={(v) => setQ({ tilt_tolerance: v })} />
+            </Check>
+            <Check label="⭐ Minimum stars for keepers" hint="others go to Maybe" on={Q.keeper_min_stars > 0} set={(v) => setQ({ keeper_min_stars: v ? 3 : 0 })}>
+              <Row label="Keepers need at least" inline>
+                <Rate value={Q.keeper_min_stars || 3} onChange={(v) => setQ({ keeper_min_stars: v || 1 })} />
               </Row>
-            )}
-            <Row label="Whose eyes & smile count">
-              <Radio.Group
-                value={settings.quality.faces_rule}
-                onChange={(e) => setQ({ faces_rule: e.target.value })}
-                optionType="button"
-                options={[
-                  { value: "any", label: "Any face (group shots)" },
-                  { value: "main", label: "Main subject only" },
-                ]}
-              />
-            </Row>
-            <Row label="Exposure limits" hint={`dark < ${Math.round(settings.quality.dark_threshold * 100)}% · bright > ${Math.round(settings.quality.bright_threshold * 100)}%`}>
-              <Slider
-                range
-                min={0}
-                max={1}
-                step={0.01}
-                value={[settings.quality.dark_threshold, settings.quality.bright_threshold]}
-                onChange={(v) => setQ({ dark_threshold: Math.min(0.5, v[0]), bright_threshold: Math.max(0.5, v[1]) })}
-              />
-            </Row>
-            <Row label="Best of burst" hint="near-identical frames seconds apart: keep the best" inline>
-              <Switch checked={settings.quality.bursts} onChange={(v) => setQ({ bursts: v })} />
-            </Row>
-            {settings.quality.bursts && (
-              <Row label="Also group similar shots taken at any time" hint="best of similar, same folder" inline>
-                <Switch size="small" checked={settings.quality.similar_any_time} onChange={(v) => setQ({ similar_any_time: v })} />
-              </Row>
-            )}
-            {settings.quality.bursts && !settings.quality.similar_any_time && (
-              <div className="grid gap-x-6 sm:grid-cols-2">
-                <Row label="Burst window" hint={`${settings.quality.burst_seconds}s`}>
-                  <Slider min={0.5} max={10} step={0.5} value={settings.quality.burst_seconds} onChange={(v) => setQ({ burst_seconds: v })} />
-                </Row>
-                <Row label="Burst similarity" hint={`${Math.round(settings.quality.burst_similarity * 100)}%`}>
-                  <Slider min={0.8} max={0.98} step={0.01} value={settings.quality.burst_similarity} onChange={(v) => setQ({ burst_similarity: v })} />
-                </Row>
-              </div>
-            )}
-            {settings.strategy === "cull" && (
-              <Row label="Picks ★" hint={settings.quality.picks_percent ? `top ${settings.quality.picks_percent}% of keepers → Picks` : "off"}>
-                <Slider min={0} max={50} step={5} value={settings.quality.picks_percent} onChange={(v) => setQ({ picks_percent: v })} />
-              </Row>
-            )}
-            <Row label="Write ratings to XMP on Apply" hint="★ + color labels for Lightroom / Capture One · undoable" inline>
-              <Switch checked={settings.quality.write_xmp} onChange={(v) => setQ({ write_xmp: v })} />
-            </Row>
-            {settings.strategy === "cull" && (
-              <Row label="Keepers need at least" hint={settings.quality.keeper_min_stars ? "others go to Maybe" : "off"} inline>
-                <Rate value={settings.quality.keeper_min_stars} onChange={(v) => setQ({ keeper_min_stars: v })} allowClear />
-              </Row>
-            )}
-            {settings.strategy !== "cull" && (
-              <Row label="Bad shots">
-                <Radio.Group
-                  value={settings.quality.action}
-                  onChange={(e) => setQ({ action: e.target.value })}
-                  optionType="button"
-                  options={[
-                    { value: "reject", label: "Move to _Rejects/<reason>" },
-                    { value: "tag", label: "Only tag them" },
-                  ]}
-                />
-              </Row>
-            )}
-            {!health?.faces_available && <p className="py-2 text-[11px] text-plum/50">Face model not found: eyes & smile checks are off.</p>}
+            </Check>
           </>
-        ) : (
-          <p className="py-2 text-xs text-plum/50">Turn on to flag blurry shots, closed eyes and bad exposure, or pick the Cull strategy.</p>
         )}
+        <Check label="🏷️ Write ratings to XMP on Apply" hint="★ + color labels for Lightroom / Capture One" on={Q.write_xmp} set={(v) => setQ({ write_xmp: v })} />
+        {settings.strategy !== "cull" && anyCheck && (
+          <Row label="Bad shots">
+            <Radio.Group
+              value={Q.action}
+              onChange={(e) => setQ({ action: e.target.value })}
+              optionType="button"
+              options={[
+                { value: "reject", label: "Move to _Rejects/<reason>" },
+                { value: "tag", label: "Only tag them" },
+              ]}
+            />
+          </Row>
+        )}
+        {!faces && <p className="py-2 text-[11px] text-plum/50">Face model not found: eyes, smile and face-crop checks are unavailable.</p>}
       </Section>
 
       <Section id="files" page={page}>

@@ -37,10 +37,10 @@ UI_ROUTES = {"sort", "review", "categories", "history", "statistics", "settings"
 
 class QualityOptions(BaseModel):
     enabled: bool = False  # run checks with any strategy (always on for "cull")
-    blur: bool = True
-    eyes_closed: bool = True
-    exposure: bool = True
-    smiles: bool = True
+    blur: bool = False
+    eyes_closed: bool = False
+    exposure: bool = False
+    smiles: bool = False
     blur_threshold: float = Field(0.5, ge=0.0, le=1.0)
     blink_threshold: float = Field(0.5, ge=0.05, le=1.0)
     smile_threshold: float = Field(0.5, ge=0.05, le=1.0)
@@ -48,7 +48,7 @@ class QualityOptions(BaseModel):
     faces_rule: Literal["any", "main"] = "any"  # whose eyes/smile count: any face, or the main (largest) face
     dark_threshold: float = Field(0.18, ge=0.0, le=0.5)
     bright_threshold: float = Field(0.85, ge=0.5, le=1.0)
-    bursts: bool = True  # best-of-burst: keep the best of near-identical shots seconds apart
+    bursts: bool = False  # best-of-burst: keep the best of near-identical shots seconds apart
     burst_seconds: float = Field(2.0, ge=0.2, le=30.0)
     burst_similarity: float = Field(0.9, ge=0.75, le=0.99)
     keeper_min_stars: int = Field(0, ge=0, le=5)  # cull: keepers below this go to "Maybe" (0 = off)
@@ -91,7 +91,8 @@ class JobOptions(BaseModel):
     people_min_photos: int = Field(3, ge=1, le=100)  # by person: smaller groups go to "Other people"
     people_similarity: float = Field(0.363, ge=0.2, le=0.8)  # SFace cosine: higher = stricter "same person"
     people_group_size: int = Field(3, ge=2, le=20)  # this many sizable faces = "Groups"
-    people_multi: Literal["main", "copy"] = "main"  # several people in a photo: main face only, or a copy per person
+    people_multi: Literal["main", "copy"] = "main"
+    people_reference: str | None = Field(None, pattern=r"^[a-f0-9]{12}$")  # only this uploaded face (GET /api/faces)  # several people in a photo: main face only, or a copy per person
     focus: Literal["auto", "scene", "framing", "outfit", "lighting", "subject"] = "auto"  # what auto groups by
     granularity: Literal["coarse", "normal", "fine"] = "normal"
     ai: AIOptions = Field(default_factory=AIOptions)
@@ -247,7 +248,14 @@ def create_app(settings: Settings | None = None, embedder_factory=None, llm_fact
     @app.post("/api/jobs", status_code=201)
     def start_job(body: JobRequest):
         try:
-            job = manager.start(body.model_dump())
+            req = body.model_dump()
+            ref_id = req["options"].get("people_reference")
+            if ref_id and req["strategy"] == "people":
+                ref = db.get_face_ref(ref_id)
+                if not ref:
+                    raise HTTPException(404, "reference face not found; upload it again")
+                req["options"]["_people_ref"] = ref
+            job = manager.start(req)
         except BusyError as exc:
             raise HTTPException(409, str(exc)) from exc
         except PathError as exc:
@@ -409,6 +417,32 @@ def create_app(settings: Settings | None = None, embedder_factory=None, llm_fact
             raise HTTPException(413, "settings too large")
         db.set_setting("ui", body)
         return {"ok": True}
+
+    # ---------------------------------------------------------------- reference faces
+    @app.get("/api/faces")
+    def list_faces():
+        return [{k: r[k] for k in ("id", "name", "cover")} for r in db.face_refs()]
+
+    @app.post("/api/faces", status_code=201)
+    async def add_face(request: Request, name: str = Query("", max_length=60)):
+        """Body: the raw image bytes (any common photo format, ≤ 25 MB)."""
+        data = await request.body()
+        if not data:
+            raise HTTPException(400, "empty upload")
+        if len(data) > 25 << 20:
+            raise HTTPException(413, "photo too large (max 25 MB)")
+        try:
+            info = await run_in_threadpool(manager.reference_face, data)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        ref = {"id": hashlib.sha1(data).hexdigest()[:12], "name": name.strip() or "This person", **info}
+        db.add_face_ref(ref)
+        return {k: ref[k] for k in ("id", "name", "cover", "faces_in_photo")}
+
+    @app.delete("/api/faces/{ref_id}", status_code=204)
+    def delete_face(ref_id: str):
+        if not db.delete_face_ref(ref_id):
+            raise HTTPException(404, "not found")
 
     @app.get("/api/stats")
     def stats():

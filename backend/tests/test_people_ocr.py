@@ -134,3 +134,31 @@ def test_people_copy_into_every_person(settings, fake_embedder, monkeypatch):
         assert len(list(lib.rglob("both.jpg"))) == 2
         c.post(f"/api/runs/{run['run_id']}/undo")
         assert [p.relative_to(lib).as_posix() for p in lib.rglob("both.jpg")] == ["both.jpg"]
+
+
+def test_reference_face_moves_only_that_person(settings, fake_embedder, monkeypatch):
+    monkeypatch.setattr(jobs_mod, "get_face_identifier", lambda: FakeIdentifier())
+    lib = settings.library_root
+    for i in range(3):
+        Image.new("RGB", (200, 200), (220, 20, 20)).save(lib / f"anna{i}.jpg", quality=90 - i)
+        Image.new("RGB", (200, 200), (20, 220, 20)).save(lib / f"bob{i}.jpg", quality=90 - i)
+    Image.new("RGB", (200, 200), (128, 128, 128)).save(lib / "landscape.jpg")
+    import io
+    buf = io.BytesIO()
+    Image.new("RGB", (200, 200), (220, 20, 20)).save(buf, "JPEG")
+    with TestClient(create_app(settings, embedder_factory=lambda: fake_embedder, llm_factory=lambda: None)) as c:
+        assert c.post("/api/faces", content=b"not an image").status_code == 422
+        ref = c.post("/api/faces?name=Anna", content=buf.getvalue()).json()
+        assert ref["name"] == "Anna" and ref["cover"].startswith("/api/thumbs/")
+        assert [r["id"] for r in c.get("/api/faces").json()] == [ref["id"]]
+        body = {"strategy": "people", "options": {"near_duplicates": False, "people_reference": ref["id"]}}
+        job = wait(c, c.post("/api/jobs", json=body).json()["id"])
+        cat = {p["name"]: p["category"] for p in job["plan"]}
+        assert {cat[f"anna{i}.jpg"] for i in range(3)} == {"Anna"}
+        assert cat["bob0.jpg"] == cat["landscape.jpg"] == "Everything else (left in place)"
+        run = c.post(f"/api/jobs/{job['id']}/apply", json={"mode": "move"}).json()
+        assert run["moved"] == 3 and (lib / "bob0.jpg").exists() and (lib / "landscape.jpg").exists()
+        c.post(f"/api/runs/{run['run_id']}/undo")
+        assert (lib / "anna0.jpg").exists()
+        assert c.post("/api/jobs", json={**body, "options": {"people_reference": "0" * 12}}).status_code == 404
+        assert c.delete(f"/api/faces/{ref['id']}").status_code == 204

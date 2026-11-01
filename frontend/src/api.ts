@@ -195,6 +195,7 @@ export interface JobRequest {
     people_min_photos: number;
     people_similarity: number;
     people_multi: "main" | "copy";
+    people_reference: string | null;
     date_granularity: "year" | "month" | "day";
     max_clusters: number;
     output_dir: string;
@@ -223,6 +224,13 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(msg);
   }
   return res.status === 204 ? (undefined as T) : res.json();
+}
+
+export interface FaceRef {
+  id: string;
+  name: string;
+  cover: string | null;
+  faces_in_photo: number;
 }
 
 export interface StatsRow {
@@ -288,6 +296,22 @@ export const api = {
     }),
   emptyTrash: (runId: string) =>
     req<{ deleted: number; freed_bytes: number }>(`/api/runs/${runId}/empty-trash`, { method: "POST" }),
+  faces: () => req<FaceRef[]>("/api/faces"),
+  addFace: async (file: File, name: string) => {
+    const res = await fetch(`/api/faces?name=${encodeURIComponent(name)}`, { method: "POST", body: file, headers: { "Content-Type": file.type || "application/octet-stream" } });
+    if (!res.ok) {
+      let msg = `${res.status} ${res.statusText}`;
+      try {
+        const b = await res.json();
+        if (typeof b.detail === "string") msg = b.detail;
+      } catch {
+        /* not json */
+      }
+      throw new Error(msg);
+    }
+    return (await res.json()) as FaceRef;
+  },
+  deleteFace: (id: string) => req<void>(`/api/faces/${id}`, { method: "DELETE" }),
   stats: () => req<Stats>("/api/stats"),
   getSettings: () => req<Record<string, unknown>>("/api/settings"),
   putSettings: (s: unknown) => req<{ ok: boolean }>("/api/settings", { method: "PUT", body: JSON.stringify(s) }),

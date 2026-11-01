@@ -25,6 +25,8 @@ from .media import Analysis, MediaError, decode, load_for_quality
 from .quality import REASONS, Quality, QualityRules, analyze_image, find_bursts, get_face_analyzer, score, stars, summary, verdict
 from .ocr import get_text_reader, text_category
 from .organizer import apply_plan
+from PIL import Image, ImageOps
+
 from .people import cluster_people, face_crop_webp, FaceID, get_face_identifier
 from .planner import DUPLICATES, UNSORTED, destination
 from .presets import FOCUS_FACETS, FOCUS_HINT, VOCABULARY
@@ -472,6 +474,9 @@ class JobManager:
                 cid, conf, src = assignment[f.id]
                 cid = cid or UNSORTED["id"]
                 dest = dest_of[f.id][1]
+                if cats_by_id[cid].get("stay"):  # left where it is: apply skips files already in place
+                    parent = Path(f.rel_path).parent.as_posix()
+                    dest = "" if parent == "." else parent
             cat = cats_by_id[cid]
             plan.append({
                 "file_id": f.id, "rel_path": f.rel_path, "name": f.name, "kind": f.kind,
@@ -615,7 +620,53 @@ class JobManager:
                     job.emit("progress", analyzed=n, total=len(photos), stage="faces")
         return out
 
+    def reference_face(self, data: bytes) -> dict:
+        """Reference photo → the largest face's identity embedding and an avatar. Raises ValueError if no face."""
+        import io
+
+        ident = get_face_identifier()
+        if ident is None:
+            raise ValueError("face recognition is not available")
+        try:
+            with Image.open(io.BytesIO(data)) as im:
+                img = ImageOps.exif_transpose(im).convert("RGB")
+        except Exception as exc:  # noqa: BLE001
+            raise ValueError("not a readable image") from exc
+        img.thumbnail((1600, 1600))
+        found = ident.identify(img)
+        if not found:
+            raise ValueError("no face found in this photo; use a clear, front-facing photo")
+        face = max(found, key=lambda x: x.area)
+        avatar = face_crop_webp(img, face.box)
+        sha = hashlib.sha256(avatar).hexdigest()
+        tp = self.thumb_path(sha)
+        tp.parent.mkdir(parents=True, exist_ok=True)
+        tp.write_bytes(avatar)
+        return {"emb": [float(x) for x in face.emb], "cover": f"/api/thumbs/{sha}", "faces_in_photo": len(found)}
+
+    def _people_ref(self, keep, faces, opts, ref) -> tuple[dict, list[dict]]:
+        """Only photos showing the reference person move (into their folder); everything else stays where it is."""
+        threshold = float(opts.get("people_similarity", 0.363))
+        emb = np.asarray(ref["emb"], dtype=np.float32)
+        emb /= np.linalg.norm(emb) or 1.0
+        cid = "person-ref"
+        assignment: dict[str, tuple[str | None, float, str]] = {}
+        hits = 0
+        for f, _, _ in keep:
+            best = max((float(x.emb @ emb) for x in faces.get(f.id) or []), default=-1.0)
+            if best >= threshold:
+                assignment[f.id] = (cid, round(best, 4), "faces")
+                hits += 1
+            else:
+                assignment[f.id] = ("others-stay", 1.0, "faces")
+        cats = [{"id": cid, "name": ref.get("name") or "This person", "emoji": "🎯", "cover": ref.get("cover")}]
+        cats.append({"id": "others-stay", "name": "Everything else (left in place)", "emoji": "📍", "stay": True})
+        return assignment, cats
+
     def _people(self, job, keep, faces, opts) -> tuple[dict, list[dict]]:
+        if opts.get("_people_ref"):
+            self._extra = {}
+            return self._people_ref(keep, faces, opts, opts["_people_ref"])
         """One folder per recurring person (by the photo's main face); Groups, Other people, No people, Videos."""
         multi = opts.get("people_multi", "main")  # "main" = only the biggest face decides; "copy" = every person gets a copy
         min_photos = int(opts.get("people_min_photos", 3))

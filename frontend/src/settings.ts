@@ -31,6 +31,8 @@ export interface UiSettings {
   peopleMinPhotos: number;
   peopleSimilarity: number;
   peopleMulti: "main" | "copy";
+  peopleReference: string | null;
+  qualityVersion?: number;
 }
 
 export const DEFAULT_SETTINGS: UiSettings = {
@@ -51,10 +53,10 @@ export const DEFAULT_SETTINGS: UiSettings = {
   pairSidecars: true,
   quality: {
     enabled: false,
-    blur: true,
-    eyes_closed: true,
-    exposure: true,
-    smiles: true,
+    blur: false,
+    eyes_closed: false,
+    exposure: false,
+    smiles: false,
     blur_threshold: 0.5,
     blink_threshold: 0.5,
     smile_threshold: 0.5,
@@ -62,7 +64,7 @@ export const DEFAULT_SETTINGS: UiSettings = {
     faces_rule: "any",
     dark_threshold: 0.18,
     bright_threshold: 0.85,
-    bursts: true,
+    bursts: false,
     burst_seconds: 2,
     burst_similarity: 0.9,
     keeper_min_stars: 0,
@@ -88,22 +90,30 @@ export const DEFAULT_SETTINGS: UiSettings = {
   peopleMinPhotos: 3,
   peopleSimilarity: 0.363,
   peopleMulti: "main",
+  peopleReference: null,
   ai: { model: null, reasoning_effort: null, naming_prompt: "", assist_prompt: "", assist_scope: "unsure", assist_batch: 12 },
 };
 
 const KEY = "aio.settings.v1";
+/** v2: every Pro check is optional and OFF by default; older saved settings get the new defaults once. */
+export const QUALITY_VERSION = 2;
+
+export function migrateSettings(saved: Partial<UiSettings> & { qualityVersion?: number }): UiSettings {
+  const fresh = (saved.qualityVersion ?? 1) < QUALITY_VERSION;
+  return {
+    ...DEFAULT_SETTINGS,
+    ...saved,
+    qualityVersion: QUALITY_VERSION,
+    quality: fresh ? DEFAULT_SETTINGS.quality : { ...DEFAULT_SETTINGS.quality, ...(saved.quality ?? {}) },
+    ai: { ...DEFAULT_SETTINGS.ai, ...(saved.ai ?? {}) },
+  } as UiSettings;
+}
 
 export function loadSettings(): UiSettings {
   try {
     const raw = localStorage.getItem(KEY);
     if (raw) {
-      const saved = JSON.parse(raw);
-      return {
-        ...DEFAULT_SETTINGS,
-        ...saved,
-        quality: { ...DEFAULT_SETTINGS.quality, ...(saved.quality ?? {}) },
-        ai: { ...DEFAULT_SETTINGS.ai, ...(saved.ai ?? {}) },
-      };
+      return migrateSettings(JSON.parse(raw));
     }
   } catch {
     /* storage unavailable */

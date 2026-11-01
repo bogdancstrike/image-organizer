@@ -63,14 +63,14 @@ def test_cull_strategy_and_reject_overlay(settings, fake_embedder):
     Image.open(lib / "sharp.jpg").filter(ImageFilter.GaussianBlur(8)).save(lib / "soft.jpg")
     Image.new("RGB", (400, 300), (3, 3, 3)).save(lib / "black.jpg")
     with TestClient(create_app(settings, embedder_factory=lambda: fake_embedder, llm_factory=lambda: None)) as c:
-        job = wait(c, c.post("/api/jobs", json={"strategy": "cull", "options": {"near_duplicates": False}}).json()["id"])
+        job = wait(c, c.post("/api/jobs", json={"strategy": "cull", "options": {"near_duplicates": False, "quality": {"blur": True, "exposure": True}}}).json()["id"])
         cat = {p["name"]: p["category"] for p in job["plan"]}
         assert cat["sharp.jpg"] == "Keepers" and cat["soft.jpg"] == "Blurry"
         assert cat["black.jpg"] in ("Too dark", "Blurry")
         assert job["plan"][0]["quality"]["sharpness"] is not None
 
         body = {"strategy": "preset", "set_id": "lifestyle",
-                "options": {"near_duplicates": False, "quality": {"enabled": True, "action": "reject"}}}
+                "options": {"near_duplicates": False, "quality": {"enabled": True, "action": "reject", "blur": True, "exposure": True}}}
         job = wait(c, c.post("/api/jobs", json=body).json()["id"])
         dest = {p["name"]: p["destination"] for p in job["plan"]}
         assert dest["soft.jpg"] == "Organized/_Rejects/Blurry"
@@ -169,6 +169,17 @@ def test_new_flags_and_face_crop():
     assert verdict(q, QualityRules())[1] == []  # all opt-in
 
 
+def test_quality_checks_are_off_by_default(settings, fake_embedder):
+    from app.main import create_app
+
+    lib = settings.library_root
+    _noise(lib / "sharp.jpg", 1)
+    Image.open(lib / "sharp.jpg").filter(ImageFilter.GaussianBlur(8)).save(lib / "soft.jpg")
+    with TestClient(create_app(settings, embedder_factory=lambda: fake_embedder, llm_factory=lambda: None)) as c:
+        job = wait(c, c.post("/api/jobs", json={"strategy": "cull", "options": {"near_duplicates": False}}).json()["id"])
+        assert {p["category"] for p in job["plan"]} == {"Keepers"}  # nothing is rejected unless a check is turned on
+
+
 def test_picks_and_xmp_ratings_with_undo(settings, fake_embedder):
     from app.main import create_app
 
@@ -176,7 +187,7 @@ def test_picks_and_xmp_ratings_with_undo(settings, fake_embedder):
     for i in range(4):
         _noise(lib / f"k{i}.jpg", 50 + i)
     Image.open(lib / "k0.jpg").filter(ImageFilter.GaussianBlur(8)).save(lib / "soft.jpg")
-    opts = {"near_duplicates": False, "quality": {"bursts": False, "picks_percent": 25, "write_xmp": True}}
+    opts = {"near_duplicates": False, "quality": {"bursts": False, "blur": True, "picks_percent": 25, "write_xmp": True}}
     with TestClient(create_app(settings, embedder_factory=lambda: fake_embedder, llm_factory=lambda: None)) as c:
         job = wait(c, c.post("/api/jobs", json={"strategy": "cull", "options": opts}).json()["id"])
         cats = [p["category"] for p in job["plan"]]

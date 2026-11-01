@@ -69,7 +69,7 @@ Open **http://localhost:8080**, click the folder name in *"Sorting my **…** fo
 | **My categories** | Your own folders, each described in a few words (and *Photos-only / Videos-only*) | Your Instagram system, client workflows |
 | **Auto-discover** | Groups found automatically, named by **what makes them different** inside your folder | Unknown dumps, a studio shoot, a wedding |
 | **By date** | `2025/07 - July` from EXIF / video metadata | Archives |
-| **By person** | One folder per recognized person + Groups, Other people, No people. Group photos: main face only, or a copy for every person | Families, events, model shoots |
+| **By person** | One folder per recognized person + Groups, Other people, No people. Group photos: main face only, or a copy for every person. Or **upload a face** and move only that person's photos | Families, events, model shoots |
 | **Cull** | Picks ★ · Keepers · Smiling · Maybe · Blurry · Eyes closed · Too dark/bright · Noisy · Burst extras | Photographers |
 
 **Presets:** Lifestyle · People & Style · Boudoir & glamour · Boudoir session (poses & light) · Photoshoot themes (wedding, halloween, moto, pool, studio …) · Wedding day ·
