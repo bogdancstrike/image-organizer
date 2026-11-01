@@ -1,4 +1,4 @@
-export type Strategy = "preset" | "custom" | "auto" | "date" | "cull" | "people";
+export type Strategy = "preset" | "custom" | "auto" | "date" | "cull" | "people" | "trips" | "places";
 
 export interface Recipe {
   id: string;
@@ -211,6 +211,7 @@ export interface JobRequest {
     people_multi: "main" | "copy";
     people_reference: string | null;
     date_granularity: "year" | "month" | "day";
+    place_granularity?: "country" | "city";
     max_clusters: number;
     output_dir: string;
     recursive: boolean;
@@ -238,6 +239,55 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(msg);
   }
   return res.status === 204 ? (undefined as T) : res.json();
+}
+
+export interface LibHit {
+  path: string;
+  score: number;
+  thumb: string;
+  captured_at: number;
+}
+
+export interface LibResults {
+  results: LibHit[];
+  indexed: number;
+  took_ms?: number;
+  missing?: boolean;
+}
+
+export interface MapPoint {
+  lat: number;
+  lon: number;
+  count: number;
+  city: string | null;
+  country: string | null;
+  cc: string | null;
+  paths: string[];
+}
+
+export interface PlacesResult {
+  points: MapPoint[];
+  photos: number;
+  located: number;
+  countries: { name: string; count: number }[];
+}
+
+export interface TripInfo {
+  name: string;
+  start: number;
+  end: number;
+  count: number;
+  center: [number, number] | null;
+  countries: string[];
+  samples: string[];
+  paths: string[];
+}
+
+export interface TripsResult {
+  trips: TripInfo[];
+  home: { lat: number; lon: number; city?: string; country?: string } | null;
+  photos: number;
+  located: number;
 }
 
 export interface FaceRef {
@@ -312,6 +362,14 @@ export const api = {
     }),
   emptyTrash: (runId: string) =>
     req<{ deleted: number; freed_bytes: number }>(`/api/runs/${runId}/empty-trash`, { method: "POST" }),
+  libStatus: (folder: string, model: string) =>
+    req<{ indexed: number }>(`/api/library/status?${new URLSearchParams({ folder, model })}`),
+  libSearch: (q: string, folder: string, model: string) =>
+    req<LibResults>(`/api/library/search?${new URLSearchParams({ q, folder, model })}`),
+  libSimilar: (path: string, folder: string, model: string) =>
+    req<LibResults>(`/api/library/similar?${new URLSearchParams({ path, folder, model })}`),
+  libPlaces: (folder: string) => req<PlacesResult>(`/api/library/places?${new URLSearchParams({ folder })}`),
+  libTrips: (folder: string) => req<TripsResult>(`/api/library/trips?${new URLSearchParams({ folder })}`),
   places: () => req<Place[]>("/api/places"),
   faces: () => req<FaceRef[]>("/api/faces"),
   addFace: async (file: File, name: string) => {

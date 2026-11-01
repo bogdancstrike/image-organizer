@@ -14,7 +14,7 @@ import { CategoriesTab } from "./components/CategoriesTab";
 import { CategoryEditor } from "./components/CategoryEditor";
 import { HistoryDrawer, HistoryList } from "./components/HistoryDrawer";
 import { Segmented } from "antd";
-import { LayoutGrid, TableProperties, Tags, Settings2, BarChart3, RotateCcw } from "lucide-react";
+import { LayoutGrid, TableProperties, Tags, Settings2, BarChart3, RotateCcw, Images } from "lucide-react";
 import { FilesDrawer } from "./components/FilesDrawer";
 import { FolderPicker, displayPath } from "./components/FolderPicker";
 import { Button } from "./components/ui/button";
@@ -25,6 +25,7 @@ import { ThemeSwitcher, useTheme } from "./theme";
 import { LANGS, useI18n } from "./i18n";
 import { RecipePicker } from "./components/RecipePicker";
 import { StatisticsTab } from "./components/StatisticsTab";
+import { LibraryTab } from "./components/LibraryTab";
 import { Select } from "antd";
 import type { Recipe, Suggestion } from "./api";
 import { DEFAULT_SETTINGS, migrateSettings } from "./settings";
@@ -65,7 +66,7 @@ const INITIAL: JobState = {
 };
 
 const DUP = "_duplicates";
-const TABS = ["sort", "review", "categories", "history", "statistics", "settings"] as const;
+const TABS = ["sort", "review", "library", "categories", "history", "statistics", "settings"] as const;
 type Tab = (typeof TABS)[number];
 const tabFromPath = (): Tab => {
   const seg = window.location.pathname.replace(/^\/+|\/+$/g, "").split("/")[0];
@@ -355,6 +356,7 @@ export default function App() {
           ai_assist: s.aiAssist && !!health?.ai_available,
           ai_max_files: s.aiMaxFiles,
           date_granularity: s.dateGranularity,
+          place_granularity: s.placeGranularity,
           max_clusters: s.maxClusters,
           output_dir: s.outputMode === "direct" ? "" : s.outputDir.trim() || "Organized",
           recursive: s.recursive,
@@ -497,7 +499,11 @@ export default function App() {
             ? "Culling · keepers & rejects"
             : settings.strategy === "people"
               ? "By person"
-            : `By date · ${settings.dateGranularity}`;
+              : settings.strategy === "trips"
+                ? "By trip"
+                : settings.strategy === "places"
+                  ? `By ${settings.placeGranularity}`
+                  : `By date · ${settings.dateGranularity}`;
 
   const filesItems = useMemo(
     () =>
@@ -603,6 +609,7 @@ export default function App() {
             },
             { value: "categories", label: <span className="inline-flex items-center gap-1.5 px-1"><Tags size={14} /><span className="hidden sm:inline">{t("tab.categories")}</span></span> },
             { value: "history", label: <span className="inline-flex items-center gap-1.5 px-1"><History size={14} /><span className="hidden sm:inline">{t("tab.history")}</span></span> },
+            { value: "library", label: <span className="inline-flex items-center gap-1.5 px-1"><Images size={14} /><span className="hidden sm:inline">{t("tab.library")}</span></span> },
             { value: "statistics", label: <span className="inline-flex items-center gap-1.5 px-1"><BarChart3 size={14} /><span className="hidden sm:inline">{t("tab.statistics")}</span></span> },
             { value: "settings", label: <span className="inline-flex items-center gap-1.5 px-1"><Settings2 size={14} /><span className="hidden sm:inline">{t("tab.settings")}</span></span> },
           ]}
@@ -652,18 +659,15 @@ export default function App() {
               <LogoMark spinning className="h-6 w-6" /> {t("stop")}
             </Button>
           ) : (
-            <Button size="xl" onClick={startSort} disabled={!health?.library_ok} className="min-w-52">
-              <LogoMark className="h-6 w-6" /> {job.status === "idle" ? t("sort") : t("sort.again")}
-            </Button>
-          )}
-          {!running && job.status !== "idle" && (
-            <button
-              onClick={resetAll}
-              title={t("reset.hint")}
-              className="inline-flex cursor-pointer items-center gap-1 rounded-full px-2.5 py-0.5 text-[12px] text-plum/55 transition hover:bg-tint hover:text-plum"
-            >
-              <RotateCcw size={12} /> {t("reset")}
-            </button>
+            job.status === "idle" ? (
+              <Button size="xl" onClick={startSort} disabled={!health?.library_ok} className="min-w-52">
+                <LogoMark className="h-6 w-6" /> {t("sort")}
+              </Button>
+            ) : (
+              <Button size="xl" variant="soft" onClick={resetAll} title={t("reset.hint")} className="min-w-52">
+                <RotateCcw size={18} /> {t("reset")}
+              </Button>
+            )
           )}
           </div>
           {(running || job.status === "idle") && (
@@ -787,6 +791,20 @@ export default function App() {
         <Card className="mt-8 max-w-3xl p-4">
           <HistoryList active={tab === "history"} onUndone={(id) => setJob((j) => (j.runId === id ? { ...j, status: "undone" } : j))} />
         </Card>
+      )}
+      {tab === "library" && (
+        <div className="mt-6">
+          <LibraryTab
+            active={tab === "library"}
+            folder={settings.source}
+            folderLabel={displayPath(health, settings.source)}
+            model={settings.model}
+            onSortBy={(strategy, extra) => {
+              setSettings({ ...settings, strategy, ...(extra?.place_granularity ? { placeGranularity: extra.place_granularity as UiSettings["placeGranularity"] } : {}) });
+              setTab("sort");
+            }}
+          />
+        </div>
       )}
       {tab === "statistics" && (
         <div className="mt-8">

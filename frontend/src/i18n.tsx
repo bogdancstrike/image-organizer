@@ -12,6 +12,7 @@ export const LANGS: { id: Lang; label: string; flag: string }[] = [
 type Dict = Record<string, string>;
 
 const en: Dict = {
+  "tab.library": "Library",
   "reset": "Start over",
   "reset.hint": "Clear the last sort from this screen. Files on disk are not touched.",
   "tab.statistics": "Statistics",
@@ -59,6 +60,7 @@ const en: Dict = {
 };
 
 const ro: Dict = {
+  "tab.library": "Bibliotecă",
   "reset": "Ia-o de la capăt",
   "reset.hint": "Șterge ultima sortare de pe ecran. Fișierele de pe disc nu sunt atinse.",
   "tab.statistics": "Statistici",
@@ -106,6 +108,7 @@ const ro: Dict = {
 };
 
 const es: Dict = {
+  "tab.library": "Biblioteca",
   "reset": "Empezar de cero",
   "reset.hint": "Quita la última ordenación de la pantalla. No toca los archivos.",
   "tab.statistics": "Estadísticas",
@@ -153,6 +156,7 @@ const es: Dict = {
 };
 
 const de: Dict = {
+  "tab.library": "Bibliothek",
   "reset": "Neu beginnen",
   "reset.hint": "Entfernt die letzte Sortierung vom Bildschirm. Dateien bleiben unberührt.",
   "tab.statistics": "Statistik",
@@ -200,6 +204,7 @@ const de: Dict = {
 };
 
 const fr: Dict = {
+  "tab.library": "Bibliothèque",
   "reset": "Recommencer",
   "reset.hint": "Efface le dernier tri de l'écran. Les fichiers ne sont pas touchés.",
   "tab.statistics": "Statistiques",

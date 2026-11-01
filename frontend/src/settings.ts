@@ -32,6 +32,7 @@ export interface UiSettings {
   peopleSimilarity: number;
   peopleMulti: "main" | "copy";
   peopleReference: string | null;
+  placeGranularity: "country" | "city";
   qualityVersion?: number;
 }
 
@@ -91,6 +92,7 @@ export const DEFAULT_SETTINGS: UiSettings = {
   peopleSimilarity: 0.363,
   peopleMulti: "main",
   peopleReference: null,
+  placeGranularity: "country",
   ai: { model: null, reasoning_effort: null, naming_prompt: "", assist_prompt: "", assist_scope: "unsure", assist_batch: 12 },
 };
 

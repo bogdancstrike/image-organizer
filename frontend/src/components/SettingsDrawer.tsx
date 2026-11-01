@@ -5,6 +5,8 @@ import {
   Aperture,
   CalendarDays,
   Users,
+  Plane,
+  MapPin,
   Copy,
   Cpu,
   FolderOpen,
@@ -342,9 +344,13 @@ export function SettingsPanel({
               { value: "date", label: <span className="inline-flex items-center gap-1"><CalendarDays size={14} />Date</span> },
               { value: "cull", label: <span className="inline-flex items-center gap-1"><Aperture size={14} />Cull</span> },
               { value: "people", label: <span className="inline-flex items-center gap-1"><Users size={14} />People</span> },
+              { value: "trips", label: <span className="inline-flex items-center gap-1"><Plane size={14} />Trips</span> },
+              { value: "places", label: <span className="inline-flex items-center gap-1"><MapPin size={14} />Places</span> },
             ]}
           />
           <p className="mt-2 text-xs text-plum/60">
+            {settings.strategy === "trips" && "Trips from GPS and dates, named like “Rome · May 2025”. Everything else goes to Everyday."}
+            {settings.strategy === "places" && "One folder per country (or city) from GPS. Place names are looked up offline."}
             {settings.strategy === "preset" && "Ready-made folders such as Lifestyle, People & Style, Wedding day or Real estate. All of them can be edited."}
             {settings.strategy === "custom" && "Your own folders. Describe each one in a few words and photos are matched to it."}
             {settings.strategy === "auto" &&
@@ -425,6 +431,18 @@ export function SettingsPanel({
           </>
         )}
 
+        {settings.strategy === "places" && (
+          <Row label="Folders per">
+            <Segmented
+              value={settings.placeGranularity}
+              onChange={(v) => set("placeGranularity", v as UiSettings["placeGranularity"])}
+              options={[
+                { value: "country", label: "Country" },
+                { value: "city", label: "City" },
+              ]}
+            />
+          </Row>
+        )}
         {settings.strategy === "people" && <FacePicker value={settings.peopleReference} onChange={onFace} />}
         {settings.strategy === "people" && !settings.peopleReference && (
           <>
