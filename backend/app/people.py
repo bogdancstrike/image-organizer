@@ -116,3 +116,80 @@ def face_crop_webp(img: Image.Image, box: tuple[float, float, float, float], siz
     buf = io.BytesIO()
     crop.save(buf, "WEBP", quality=82)
     return buf.getvalue()
+
+
+# ---------------------------------------------------------------- people without a visible face
+PRESENT_PROMPTS = [
+    "a photo of a person", "a photo of a man", "a photo of a woman", "a photo of a couple", "a person seen from behind",
+    "a small figure of a person in a landscape", "a close-up of a person's hands", "a person's legs and feet walking",
+    "a woman wearing a wedding dress", "a man wearing a suit", "a woman wearing a veil", "two people holding hands",
+]
+ABSENT_PROMPTS = [
+    "a landscape with no people", "an empty mountain meadow", "rocks, grass and trees", "an empty room", "a photo of an object",
+    "a wedding dress hanging on a tree with nobody wearing it", "clothes on a hanger", "a pair of empty shoes", "a still life",
+    "a photo of food", "a photo of an animal", "a document or screenshot", "an empty street", "a building",
+]
+MAN_PROMPTS = ["a photo of a man", "a man's legs in dark trousers and boots", "a man in a dark suit", "a man's hand in a suit sleeve",
+               "a bearded man", "men's boots"]
+WOMAN_PROMPTS = ["a photo of a woman", "a woman in a white dress", "a woman's hand with a ring and lace sleeve", "a woman under a veil",
+                 "a woman with long hair", "a bride's dress and train"]
+
+
+def _enc(embedder, prompts):
+    v = np.asarray(embedder.embed_texts(prompts), dtype=np.float32)
+    return v / (np.linalg.norm(v, axis=1, keepdims=True) + 1e-9)
+
+
+def text_bank(embedder) -> dict[str, np.ndarray]:
+    return {"present": _enc(embedder, PRESENT_PROMPTS), "absent": _enc(embedder, ABSENT_PROMPTS),
+            "man": _enc(embedder, MAN_PROMPTS), "woman": _enc(embedder, WOMAN_PROMPTS)}
+
+
+def _softmax_share(X: np.ndarray, a: np.ndarray, b: np.ndarray, temperature: float = 100.0) -> np.ndarray:
+    logits = temperature * np.hstack([X @ a.T, X @ b.T])
+    logits -= logits.max(axis=1, keepdims=True)
+    p = np.exp(logits)
+    p /= p.sum(axis=1, keepdims=True)
+    return p[:, : len(a)].sum(axis=1)
+
+
+def person_presence(X: np.ndarray, bank: dict[str, np.ndarray]) -> np.ndarray:
+    """P(someone is in the photo) per image (zero-shot: people vs. no-people prompts)."""
+    return _softmax_share(X, bank["present"], bank["absent"])
+
+
+def man_probability(X: np.ndarray, bank: dict[str, np.ndarray]) -> np.ndarray:
+    """P(the visible person reads as a man) per image."""
+    return _softmax_share(X, bank["man"], bank["woman"])
+
+
+def assign_by_appearance(Xc: np.ndarray, protos: np.ndarray, proto_man: np.ndarray, p_man: np.ndarray,
+                         decisive: float = 0.2, min_sim: float = -0.05, present: np.ndarray | None = None) -> list[tuple[int, float, list[int]]]:
+    """Faceless photos → known people.
+
+    Xc / protos are *shoot-centered* embeddings (the look every photo shares — B&W, location, light — removed), so what
+    is left describes the person: outfit, build, hair. When the known people differ in gender and a photo clearly reads
+    as one, only people of that gender are candidates; among candidates the closest appearance wins.
+    Returns per photo (best index or -1, similarity, all candidates within reach — for "copy" mode).
+    """
+    if len(protos) == 0:
+        return [(-1, 0.0, []) for _ in range(len(Xc))]
+    mixed = proto_man.max() - proto_man.min() > 0.3
+    sim = Xc @ protos.T
+    out = []
+    sure = present if present is not None else np.zeros(len(Xc))
+    for row, pm, pr in zip(sim, p_man, sure):
+        cand = list(range(len(protos)))
+        if mixed and abs(pm - 0.5) >= decisive:
+            same = [i for i in cand if (proto_man[i] > 0.5) == (pm > 0.5)]
+            cand = same or cand
+        best = max(cand, key=lambda i: row[i])
+        # a decisive gender match needs only a non-negative appearance match; otherwise appearance must speak
+        # someone is clearly in the photo, or gender settles it: the closest candidate gets it
+        need = -1.0 if (pr >= 0.85 or (mixed and abs(pm - 0.5) >= decisive and len(cand) == 1)) else min_sim
+        if row[best] < need:
+            out.append((-1, float(row[best]), []))
+            continue
+        close = [i for i in range(len(protos)) if row[i] >= min_sim and row[i] >= row[best] - 0.03]
+        out.append((int(best), float(row[best]), close))
+    return out

@@ -12,6 +12,8 @@ export const LANGS: { id: Lang; label: string; flag: string }[] = [
 type Dict = Record<string, string>;
 
 const en: Dict = {
+  "reset": "Start over",
+  "reset.hint": "Clear the last sort from this screen. Files on disk are not touched.",
   "tab.statistics": "Statistics",
   "tagline": "photos & videos, sorted",
   "tab.sort": "Sort", "tab.review": "Review", "tab.categories": "Categories", "tab.history": "History", "tab.settings": "Settings",
@@ -57,6 +59,8 @@ const en: Dict = {
 };
 
 const ro: Dict = {
+  "reset": "Ia-o de la capăt",
+  "reset.hint": "Șterge ultima sortare de pe ecran. Fișierele de pe disc nu sunt atinse.",
   "tab.statistics": "Statistici",
   "tagline": "poze și video, sortate",
   "tab.sort": "Sortare", "tab.review": "Verificare", "tab.categories": "Categorii", "tab.history": "Istoric", "tab.settings": "Setări",
@@ -102,6 +106,8 @@ const ro: Dict = {
 };
 
 const es: Dict = {
+  "reset": "Empezar de cero",
+  "reset.hint": "Quita la última ordenación de la pantalla. No toca los archivos.",
   "tab.statistics": "Estadísticas",
   "tagline": "fotos y vídeos, ordenados",
   "tab.sort": "Ordenar", "tab.review": "Revisar", "tab.categories": "Categorías", "tab.history": "Historial", "tab.settings": "Ajustes",
@@ -147,6 +153,8 @@ const es: Dict = {
 };
 
 const de: Dict = {
+  "reset": "Neu beginnen",
+  "reset.hint": "Entfernt die letzte Sortierung vom Bildschirm. Dateien bleiben unberührt.",
   "tab.statistics": "Statistik",
   "tagline": "Fotos & Videos, sortiert",
   "tab.sort": "Sortieren", "tab.review": "Prüfen", "tab.categories": "Kategorien", "tab.history": "Verlauf", "tab.settings": "Einstellungen",
@@ -192,6 +200,8 @@ const de: Dict = {
 };
 
 const fr: Dict = {
+  "reset": "Recommencer",
+  "reset.hint": "Efface le dernier tri de l'écran. Les fichiers ne sont pas touchés.",
   "tab.statistics": "Statistiques",
   "tagline": "photos et vidéos, triées",
   "tab.sort": "Trier", "tab.review": "Vérifier", "tab.categories": "Catégories", "tab.history": "Historique", "tab.settings": "Réglages",

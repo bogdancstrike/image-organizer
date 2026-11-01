@@ -14,7 +14,7 @@ import { CategoriesTab } from "./components/CategoriesTab";
 import { CategoryEditor } from "./components/CategoryEditor";
 import { HistoryDrawer, HistoryList } from "./components/HistoryDrawer";
 import { Segmented } from "antd";
-import { LayoutGrid, TableProperties, Tags, Settings2, BarChart3 } from "lucide-react";
+import { LayoutGrid, TableProperties, Tags, Settings2, BarChart3, RotateCcw } from "lucide-react";
 import { FilesDrawer } from "./components/FilesDrawer";
 import { FolderPicker, displayPath } from "./components/FolderPicker";
 import { Button } from "./components/ui/button";
@@ -306,7 +306,7 @@ export default function App() {
     if (job.status === "error" && job.error) message.error(job.error);
   }, [job.status, job.id, job.error, message]);
 
-  const startSort = async () => {
+  const clearStage = () => {
     unsub.current?.();
     engineRef.current?.reset();
     if (engineRef.current) engineRef.current.reduced = prefersReducedMotion();
@@ -317,6 +317,21 @@ export default function App() {
     setLandedKinds({ image: 0, video: 0 });
     setPlan([]);
     lastSeq.current = -1;
+  };
+
+  /** Back to a clean start: forget the last sort on this screen (nothing on disk changes; History keeps applied runs). */
+  const resetAll = () => {
+    clearStage();
+    setJob(INITIAL);
+    try {
+      localStorage.removeItem("aio.lastJob");
+    } catch {
+      /* storage unavailable */
+    }
+  };
+
+  const startSort = async () => {
+    clearStage();
     setJob({ ...INITIAL, status: "running", phase: "starting" });
     const s = settings;
     if (s.strategy === "custom" && !s.customSetId) {
@@ -424,7 +439,6 @@ export default function App() {
   const photoCats = job.categories.filter((c) => c.id !== DUP && c.photos > 0);
   const videoCats = job.categories.filter((c) => c.id !== DUP && c.videos > 0);
   const dupCat = job.categories.find((c) => c.id === DUP);
-  const noVideos = job.categories.length > 0 && videoCats.length === 0;
   const folderName =
     job.sourceName ??
     (settings.source
@@ -494,6 +508,8 @@ export default function App() {
   );
 
   const showGhosts = running && job.categories.length === 0;
+  // ≤ 6 folders per column: stacked lists either side so the aperture stays centered; more: wide grid + aperture on the right
+  const manyFolders = (showGhosts ? (activeSet?.categories.length ?? 6) : photoCats.length) > 6 || videoCats.length > 6;
   const showFlower = !running && (job.status === "idle" || settled || job.status === "cancelled" || job.status === "error");
   const caption =
     job.status === "applied"
@@ -638,6 +654,15 @@ export default function App() {
             <Button size="xl" onClick={startSort} disabled={!health?.library_ok} className="min-w-52">
               <LogoMark className="h-6 w-6" /> {job.status === "idle" ? t("sort") : t("sort.again")}
             </Button>
+          )}
+          {!running && job.status !== "idle" && (
+            <button
+              onClick={resetAll}
+              title={t("reset.hint")}
+              className="inline-flex cursor-pointer items-center gap-1 rounded-full px-2.5 py-0.5 text-[12px] text-plum/55 transition hover:bg-tint hover:text-plum"
+            >
+              <RotateCcw size={12} /> {t("reset")}
+            </button>
           )}
           <span className="text-xs text-plum/55">{running ? statusText : job.status === "idle" ? t("hint.idle") : statusText}</span>
         </div>
@@ -785,18 +810,18 @@ export default function App() {
         ref={stageRef}
         className={
           "relative mt-8 grid gap-6 " +
-          (noVideos
-            ? "lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)_minmax(0,0.55fr)]"
-            : "lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,1fr)]")
+          (manyFolders
+            ? "lg:grid-cols-[minmax(0,2.4fr)_minmax(0,1fr)]"
+            : "lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)_minmax(0,1fr)]")
         }
       >
-        <section className="order-2 lg:order-1">
+        <section className={"order-2 lg:order-1" + (manyFolders ? " lg:col-start-1 lg:row-start-1" : "")}>
           {(running || job.categories.length > 0) && (
             <h2 className="mb-3 flex items-center gap-2 font-serif text-[22px] italic text-plum/80">
               <span className="h-1.5 w-1.5 rounded-full bg-petal" /> {t("col.photos")}
             </h2>
           )}
-          <div className={"grid gap-3 " + (noVideos ? "grid-cols-2 xl:grid-cols-3" : "grid-cols-2")}>
+          <div className={"grid gap-3 " + (manyFolders ? "grid-cols-2 xl:grid-cols-3" : "grid-cols-2 lg:grid-cols-1")}>
             {showGhosts &&
               (activeSet ? activeSet.categories : Array.from({ length: 6 }, () => null)).map((c, i) => (
                 <GhostCard key={c?.id ?? i} name={c?.name} index={i} />
@@ -819,7 +844,10 @@ export default function App() {
 
         <section
           ref={pileRef}
-          className="relative order-1 flex min-h-[360px] items-center justify-center lg:order-2 lg:min-h-[600px]"
+          className={
+            "relative order-1 flex min-h-[360px] items-center justify-center lg:order-2 lg:min-h-[600px]" +
+            (manyFolders ? " lg:sticky lg:top-6 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-start" : "")
+          }
         >
           {showFlower && <Flower caption={caption} />}
           {running && job.phase !== "analyzing" && job.total === 0 && (
@@ -827,13 +855,13 @@ export default function App() {
           )}
         </section>
 
-        <section className="order-3">
+        <section className={"order-3" + (manyFolders ? " lg:col-start-1 lg:row-start-2" : "")}>
           {(running || job.categories.length > 0) && (
             <h2 className="mb-3 flex items-center gap-2 font-serif text-[22px] italic text-plum/80">
               <span className="h-1.5 w-1.5 rounded-full bg-plum" /> {t("col.videos")}
             </h2>
           )}
-          <div className="grid grid-cols-2 gap-3">
+          <div className={"grid gap-3 " + (manyFolders ? "grid-cols-2 xl:grid-cols-4" : "grid-cols-2 lg:grid-cols-1")}>
             {showGhosts && [0, 1].map((i) => <GhostCard key={i} index={i} />)}
             {videoCats.map((c, i) => (
               <CategoryCard
@@ -849,10 +877,10 @@ export default function App() {
               />
             ))}
             {!showGhosts && job.categories.length > 0 && videoCats.length === 0 && (
-              <p className="col-span-2 text-xs text-plum/45">{t("col.novideos")}</p>
+              <p className="col-span-full text-xs text-plum/45">{t("col.novideos")}</p>
             )}
             {dupCat && (
-              <div className="col-span-2">
+              <div className="col-span-full">
                 <CategoryCard
                   variant="trash"
                   name="Duplicates"

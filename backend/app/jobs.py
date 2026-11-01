@@ -29,7 +29,8 @@ from PIL import Image, ImageOps
 
 from .library import add_places, locate_files, trips_for
 
-from .people import cluster_people, face_crop_webp, FaceID, get_face_identifier
+from .people import (FaceID, assign_by_appearance, cluster_people, face_crop_webp, get_face_identifier, man_probability,
+                     person_presence, text_bank)
 from .planner import DUPLICATES, UNSORTED, destination
 from .presets import FOCUS_FACETS, FOCUS_HINT, VOCABULARY
 from .scanner import MediaFile, resolve_in_library, scan
@@ -622,6 +623,60 @@ class JobManager:
                     job.emit("progress", analyzed=n, total=len(photos), stage="faces")
         return out
 
+    def _faceless(self, keep, assignment, people, main, group_ids, embedder, multi) -> None:
+        bank = text_bank(embedder)
+        ids = [f.id for f, _, _ in keep]
+        E = np.vstack([e / (np.linalg.norm(e) + 1e-9) for _, _, e in keep]).astype(np.float32)
+        row = {fid: i for i, fid in enumerate(ids)}
+        # remove what the whole shoot shares (B&W, location, light): what's left is mostly the person
+        C = E - E.mean(axis=0, keepdims=True)
+        C /= np.linalg.norm(C, axis=1, keepdims=True) + 1e-9
+        pman = man_probability(E, bank)
+        by_id = {f.id: f for f, _, _ in keep}
+        protos, proto_man = [], []
+        for m in people:
+            v = C[[row[i] for i in m]].mean(axis=0)
+            protos.append(v / (np.linalg.norm(v) + 1e-9))
+            proto_man.append(self._face_gender(m, main, by_id, embedder, bank, fallback=float(np.mean([pman[row[i]] for i in m]))))
+        cand = [f for f, _, _ in keep if f.kind == "image" and f.id not in assignment and f.id not in main and f.id not in group_ids]
+        if not cand:
+            return
+        idx = [row[f.id] for f in cand]
+        present = person_presence(E[idx], bank)
+        res = assign_by_appearance(C[idx], np.vstack(protos), np.asarray(proto_man), pman[idx], present=present)
+        log.info("appearance: people gender=%s, candidates=%d, present=%d, matched=%d", [round(x, 2) for x in proto_man],
+                 len(cand), int((present >= 0.45).sum()), sum(1 for r in res if r[0] >= 0))
+        for f, p, (best, sc, close) in zip(cand, present, res):
+            if p < 0.45 or best < 0:
+                continue
+            assignment[f.id] = (f"person-{best + 1}", round(float(min(1.0, max(0.0, 0.5 + sc))), 4), "appearance")
+            if multi == "copy":
+                for j in close:
+                    if j != best:
+                        self._extra.setdefault(f.id, set()).add(f"person-{j + 1}")
+
+    def _face_gender(self, members, main, by_id, embedder, bank, fallback: float, n: int = 5) -> float:
+        """How much a person reads as a man, judged on crops of their own face (their photos often show others too)."""
+        crops = []
+        for fid in sorted(members, key=lambda i: -main[i].area if i in main else 0)[:n]:
+            if fid not in main:
+                continue
+            try:
+                img = load_for_quality(by_id[fid].path, 1200)
+                w, h = img.size
+                x0, y0, x1, y1 = main[fid].box
+                cx, cy, bw, bh = (x0 + x1) / 2 * w, (y0 + y1) / 2 * h, (x1 - x0) * w, (y1 - y0) * h
+                side = max(bw, bh) * 2.2  # head and shoulders
+                box = (max(0, cx - side / 2), max(0, cy - side / 2), min(w, cx + side / 2), min(h, cy + side * 0.7))
+                crops.append(img.crop(tuple(int(v) for v in box)).convert("RGB"))
+            except Exception as exc:  # noqa: BLE001
+                log.debug("face crop failed: %s", exc)
+        if not crops:
+            return fallback
+        X = np.asarray(embedder.embed_images(crops), dtype=np.float32)
+        X /= np.linalg.norm(X, axis=1, keepdims=True) + 1e-9
+        return float(np.median(man_probability(X, bank)))
+
     def reference_face(self, data: bytes) -> dict:
         """Reference photo → the largest face's identity embedding and an avatar. Raises ValueError if no face."""
         import io
@@ -665,7 +720,7 @@ class JobManager:
         cats.append({"id": "others-stay", "name": "Everything else (left in place)", "emoji": "📍", "stay": True})
         return assignment, cats
 
-    def _people(self, job, keep, faces, opts) -> tuple[dict, list[dict]]:
+    def _people(self, job, keep, faces, opts, embedder=None) -> tuple[dict, list[dict]]:
         if opts.get("_people_ref"):
             self._extra = {}
             return self._people_ref(keep, faces, opts, opts["_people_ref"])
@@ -728,6 +783,12 @@ class JobManager:
                     if best and float(x.emb @ (best[1] / (np.linalg.norm(best[1]) or 1))) >= threshold:
                         if assignment.get(f.id, (None,))[0] != best[0]:
                             self._extra.setdefault(f.id, set()).add(best[0])
+        # people whose face can't be seen (back, far away, hands, veil…): match by appearance + man/woman cue
+        if people and embedder is not None and opts.get("people_appearance", True):
+            try:
+                self._faceless(keep, assignment, people, main, group_ids, embedder, multi)
+            except Exception as exc:  # noqa: BLE001 - never fail a sort over this
+                log.warning("appearance matching skipped: %s", exc)
         extra = [("groups", "Groups", "👥"), ("other-people", "Other people", "🧑‍🤝‍🧑"), ("no-people", "No people", "🏞️"),
                  ("videos", "Videos", "🎬")]
         for f, _, _ in keep:
@@ -780,7 +841,7 @@ class JobManager:
         embs = np.vstack([e for _, _, e in keep]) if keep else np.zeros((0, 512), np.float32)
 
         if strategy == "people":
-            return self._people(job, keep, faces or {}, opts)
+            return self._people(job, keep, faces or {}, opts, embedder)
 
         if strategy == "cull":
             qopts = opts.get("quality") or {}

@@ -93,6 +93,7 @@ class JobOptions(BaseModel):
     people_similarity: float = Field(0.363, ge=0.2, le=0.8)  # SFace cosine: higher = stricter "same person"
     people_group_size: int = Field(3, ge=2, le=20)  # this many sizable faces = "Groups"
     people_multi: Literal["main", "copy"] = "main"
+    people_appearance: bool = True  # recognize people whose face isn't visible by outfit & look
     place_granularity: Literal["country", "city"] = "country"  # "places" strategy
     trip_away_km: float = Field(80, ge=10, le=2000)  # "trips": farther than this from home = away
     trip_gap_hours: float = Field(36, ge=6, le=240)  # a longer gap between away photos starts a new trip

@@ -162,3 +162,15 @@ def test_reference_face_moves_only_that_person(settings, fake_embedder, monkeypa
         assert (lib / "anna0.jpg").exists()
         assert c.post("/api/jobs", json={**body, "options": {"people_reference": "0" * 12}}).status_code == 404
         assert c.delete(f"/api/faces/{ref['id']}").status_code == 204
+
+
+def test_assign_by_appearance_gender_decides_then_outfit():
+    from app.people import assign_by_appearance
+
+    groom, bride = np.array([1.0, 0, 0]), np.array([0, 1.0, 0])
+    protos = np.vstack([groom, bride])
+    # boots shot looks like the bride's B&W photos (appearance) but clearly reads as a man → groom
+    shots = np.vstack([[0.2, 0.8, 0.1], [0.1, 0.9, 0.0], [0.6, 0.5, 0.0], [-0.5, -0.5, 0.7]])
+    shots /= np.linalg.norm(shots, axis=1, keepdims=True)
+    res = assign_by_appearance(shots, protos, np.array([0.9, 0.1]), np.array([0.95, 0.1, 0.5, 0.5]))
+    assert [r[0] for r in res] == [0, 1, 0, -1]
