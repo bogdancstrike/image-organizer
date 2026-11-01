@@ -402,6 +402,17 @@ export function SettingsPanel({
             <Row label="A person needs at least" hint={`${settings.peopleMinPhotos} photos, otherwise “Other people”`} inline>
               <InputNumber min={1} max={50} value={settings.peopleMinPhotos} onChange={(v) => set("peopleMinPhotos", v ?? 3)} />
             </Row>
+            <Row label="Photos with several people">
+              <Radio.Group
+                value={settings.peopleMulti}
+                onChange={(e) => set("peopleMulti", e.target.value)}
+                optionType="button"
+                options={[
+                  { value: "main", label: "Main face only (default)" },
+                  { value: "copy", label: "A copy for every person" },
+                ]}
+              />
+            </Row>
             <Row label="Same-person strictness" hint={settings.peopleSimilarity > 0.42 ? "strict: may split one person" : settings.peopleSimilarity < 0.3 ? "loose: may merge look-alikes" : "balanced"}>
               <Slider min={0.25} max={0.55} step={0.01} value={settings.peopleSimilarity} onChange={(v) => set("peopleSimilarity", v)} />
             </Row>

@@ -30,6 +30,7 @@ export interface UiSettings {
   ocr: boolean;
   peopleMinPhotos: number;
   peopleSimilarity: number;
+  peopleMulti: "main" | "copy";
 }
 
 export const DEFAULT_SETTINGS: UiSettings = {
@@ -86,6 +87,7 @@ export const DEFAULT_SETTINGS: UiSettings = {
   ocr: false,
   peopleMinPhotos: 3,
   peopleSimilarity: 0.363,
+  peopleMulti: "main",
   ai: { model: null, reasoning_effort: null, naming_prompt: "", assist_prompt: "", assist_scope: "unsure", assist_batch: 12 },
 };
 

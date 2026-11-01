@@ -12,6 +12,7 @@ export const LANGS: { id: Lang; label: string; flag: string }[] = [
 type Dict = Record<string, string>;
 
 const en: Dict = {
+  "tab.statistics": "Statistics",
   "tagline": "photos & videos, sorted",
   "tab.sort": "Sort", "tab.review": "Review", "tab.categories": "Categories", "tab.history": "History", "tab.settings": "Settings",
   "hero.before": "Sorting my", "hero.after": "folder", "hero.change": "Choose another folder",
@@ -56,6 +57,7 @@ const en: Dict = {
 };
 
 const ro: Dict = {
+  "tab.statistics": "Statistici",
   "tagline": "poze și video, sortate",
   "tab.sort": "Sortare", "tab.review": "Verificare", "tab.categories": "Categorii", "tab.history": "Istoric", "tab.settings": "Setări",
   "hero.before": "Sortez folderul", "hero.after": "", "hero.change": "Alege alt folder",
@@ -100,6 +102,7 @@ const ro: Dict = {
 };
 
 const es: Dict = {
+  "tab.statistics": "Estadísticas",
   "tagline": "fotos y vídeos, ordenados",
   "tab.sort": "Ordenar", "tab.review": "Revisar", "tab.categories": "Categorías", "tab.history": "Historial", "tab.settings": "Ajustes",
   "hero.before": "Ordenando mi carpeta", "hero.after": "", "hero.change": "Elegir otra carpeta",
@@ -144,6 +147,7 @@ const es: Dict = {
 };
 
 const de: Dict = {
+  "tab.statistics": "Statistik",
   "tagline": "Fotos & Videos, sortiert",
   "tab.sort": "Sortieren", "tab.review": "Prüfen", "tab.categories": "Kategorien", "tab.history": "Verlauf", "tab.settings": "Einstellungen",
   "hero.before": "Ich sortiere den Ordner", "hero.after": "", "hero.change": "Anderen Ordner wählen",
@@ -188,6 +192,7 @@ const de: Dict = {
 };
 
 const fr: Dict = {
+  "tab.statistics": "Statistiques",
   "tagline": "photos et vidéos, triées",
   "tab.sort": "Trier", "tab.review": "Vérifier", "tab.categories": "Catégories", "tab.history": "Historique", "tab.settings": "Réglages",
   "hero.before": "Je trie le dossier", "hero.after": "", "hero.change": "Choisir un autre dossier",

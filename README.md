@@ -37,6 +37,8 @@ structure. Nothing moves until you press **Apply**, and every apply can be **und
 
 - 🧭 **Tells you what to do.** It looks at a sample of the folder and recommends a recipe ("Looks like *Trash the dress*, 96% sure → *A wedding*"). One click, then Sort.
 - 🧑‍🤝‍🧑 **By person.** Face recognition (YuNet + SFace, on-device) puts every person in their own folder; rename *Person 1* to *Laura*.
+- 📊 **Statistics tab:** total processing time, time per sort and per phase, files processed, photos organized, AI tokens.
+- 💾 **Everything in SQLite** (`data/app.db`): category sets (seeded with AI hints on first start), History, settings, statistics.
 - 🌍 **5 languages:** English, Română, Español, Deutsch, Français.
 - 🧠 **Understands content.** CLIP sorts *outfits*, *mountains*, *studio light*, *food & cafés*, *screenshots* … no tags needed.
 - 📸 **Built for photographers.** Culling with blur, eyes-closed and exposure checks, best-of-burst, stars, and RAW + JPEG pairs.
@@ -67,7 +69,7 @@ Open **http://localhost:8080**, click the folder name in *"Sorting my **…** fo
 | **My categories** | Your own folders, each described in a few words (and *Photos-only / Videos-only*) | Your Instagram system, client workflows |
 | **Auto-discover** | Groups found automatically, named by **what makes them different** inside your folder | Unknown dumps, a studio shoot, a wedding |
 | **By date** | `2025/07 - July` from EXIF / video metadata | Archives |
-| **By person** | One folder per recognized person + Groups, Other people, No people | Families, events, model shoots |
+| **By person** | One folder per recognized person + Groups, Other people, No people. Group photos: main face only, or a copy for every person | Families, events, model shoots |
 | **Cull** | Picks ★ · Keepers · Smiling · Maybe · Blurry · Eyes closed · Too dark/bright · Noisy · Burst extras | Photographers |
 
 **Presets:** Lifestyle · People & Style · Boudoir & glamour · Boudoir session (poses & light) · Photoshoot themes (wedding, halloween, moto, pool, studio …) · Wedding day ·
@@ -134,6 +136,8 @@ Without a key, everything works offline. With `OPENAI_API_KEY`, the app uses **`
 | <img src="docs/assets/screenshot-categories.png" alt="Categories" /> | <img src="docs/assets/screenshot-settings-ai.png" alt="AI settings" /> |
 | **Pro culling settings** | **Light theme** |
 | <img src="docs/assets/screenshot-settings.png" alt="Culling settings" /> | <img src="docs/assets/screenshot-light.png" alt="Light theme" /> |
+| **Statistics: time per sort and per phase** | |
+| <img src="docs/assets/screenshot-statistics.png" alt="Statistics" /> | |
 
 ## ⚙️ How it works
 

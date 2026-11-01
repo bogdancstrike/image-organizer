@@ -194,6 +194,7 @@ export interface JobRequest {
     ocr: boolean;
     people_min_photos: number;
     people_similarity: number;
+    people_multi: "main" | "copy";
     date_granularity: "year" | "month" | "day";
     max_clusters: number;
     output_dir: string;
@@ -222,6 +223,40 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(msg);
   }
   return res.status === 204 ? (undefined as T) : res.json();
+}
+
+export interface StatsRow {
+  job_id: string;
+  finished_at: number;
+  strategy: string;
+  model: string;
+  files: number;
+  photos: number;
+  videos: number;
+  embedded: number;
+  duplicates: number;
+  folders: number;
+  wall: number;
+  phases: Record<string, number>;
+  source: string;
+  status: string;
+}
+
+export interface Stats {
+  sorts: number;
+  failed_sorts: number;
+  files_processed: number;
+  files_analyzed: number;
+  processing_seconds: number;
+  avg_files_per_second: number;
+  avg_seconds_per_sort: number;
+  phase_seconds: Record<string, number>;
+  by_strategy: Record<string, number>;
+  by_model: Record<string, number>;
+  applies: number;
+  photos_organized: number;
+  ai_tokens: number;
+  recent: StatsRow[];
 }
 
 export const previewUrl = (relPath: string) => `/api/preview?path=${encodeURIComponent(relPath)}`;
@@ -253,6 +288,9 @@ export const api = {
     }),
   emptyTrash: (runId: string) =>
     req<{ deleted: number; freed_bytes: number }>(`/api/runs/${runId}/empty-trash`, { method: "POST" }),
+  stats: () => req<Stats>("/api/stats"),
+  getSettings: () => req<Record<string, unknown>>("/api/settings"),
+  putSettings: (s: unknown) => req<{ ok: boolean }>("/api/settings", { method: "PUT", body: JSON.stringify(s) }),
   recipes: () => req<Recipe[]>("/api/recipes"),
   suggest: (path: string, recursive: boolean) =>
     req<Suggestion>(`/api/suggest?path=${encodeURIComponent(path)}&recursive=${recursive}`),

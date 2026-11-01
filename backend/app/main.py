@@ -32,7 +32,7 @@ from .scanner import PathError, list_folders, media_kind, resolve_in_library, sc
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 SHA_RE = re.compile(r"^[0-9a-f]{64}$")
-UI_ROUTES = {"sort", "review", "categories", "history", "settings"}
+UI_ROUTES = {"sort", "review", "categories", "history", "statistics", "settings"}
 
 
 class QualityOptions(BaseModel):

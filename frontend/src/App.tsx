@@ -14,7 +14,7 @@ import { CategoriesTab } from "./components/CategoriesTab";
 import { CategoryEditor } from "./components/CategoryEditor";
 import { HistoryDrawer, HistoryList } from "./components/HistoryDrawer";
 import { Segmented } from "antd";
-import { LayoutGrid, TableProperties, Tags, Settings2 } from "lucide-react";
+import { LayoutGrid, TableProperties, Tags, Settings2, BarChart3 } from "lucide-react";
 import { FilesDrawer } from "./components/FilesDrawer";
 import { FolderPicker, displayPath } from "./components/FolderPicker";
 import { Button } from "./components/ui/button";
@@ -24,6 +24,7 @@ import { loadSettings, saveSettings, type UiSettings } from "./settings";
 import { ThemeSwitcher, useTheme } from "./theme";
 import { LANGS, useI18n } from "./i18n";
 import { RecipePicker } from "./components/RecipePicker";
+import { StatisticsTab } from "./components/StatisticsTab";
 import { Select } from "antd";
 import type { Recipe, Suggestion } from "./api";
 import { DEFAULT_SETTINGS } from "./settings";
@@ -64,7 +65,7 @@ const INITIAL: JobState = {
 };
 
 const DUP = "_duplicates";
-const TABS = ["sort", "review", "categories", "history", "settings"] as const;
+const TABS = ["sort", "review", "categories", "history", "statistics", "settings"] as const;
 type Tab = (typeof TABS)[number];
 const tabFromPath = (): Tab => {
   const seg = window.location.pathname.replace(/^\/+|\/+$/g, "").split("/")[0];
@@ -120,10 +121,27 @@ export default function App() {
     return () => cancelAnimationFrame(id);
   }, [theme]);
 
+  const saveTimer = useRef(0);
   const setSettings = (s: UiSettings) => {
     setSettingsState(s);
     saveSettings(s);
+    window.clearTimeout(saveTimer.current);
+    saveTimer.current = window.setTimeout(() => api.putSettings(s).catch(() => {}), 400);
   };
+  useEffect(() => {
+    api
+      .getSettings()
+      .then((srv) => {
+        if (srv && Object.keys(srv).length) {
+          const merged = { ...DEFAULT_SETTINGS, ...(srv as Partial<UiSettings>) } as UiSettings;
+          merged.quality = { ...DEFAULT_SETTINGS.quality, ...((srv as Partial<UiSettings>).quality ?? {}) };
+          merged.ai = { ...DEFAULT_SETTINGS.ai, ...((srv as Partial<UiSettings>).ai ?? {}) };
+          setSettingsState(merged);
+          saveSettings(merged);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // ---- boot
   useEffect(() => {
@@ -336,6 +354,7 @@ export default function App() {
           ocr: s.ocr,
           people_min_photos: s.peopleMinPhotos,
           people_similarity: s.peopleSimilarity,
+          people_multi: s.peopleMulti,
         },
       });
       setJob((j) => ({ ...j, id }));
@@ -569,6 +588,7 @@ export default function App() {
             },
             { value: "categories", label: <span className="inline-flex items-center gap-1.5 px-1"><Tags size={14} /><span className="hidden sm:inline">{t("tab.categories")}</span></span> },
             { value: "history", label: <span className="inline-flex items-center gap-1.5 px-1"><History size={14} /><span className="hidden sm:inline">{t("tab.history")}</span></span> },
+            { value: "statistics", label: <span className="inline-flex items-center gap-1.5 px-1"><BarChart3 size={14} /><span className="hidden sm:inline">{t("tab.statistics")}</span></span> },
             { value: "settings", label: <span className="inline-flex items-center gap-1.5 px-1"><Settings2 size={14} /><span className="hidden sm:inline">{t("tab.settings")}</span></span> },
           ]}
         />
@@ -740,6 +760,11 @@ export default function App() {
           <HistoryList active={tab === "history"} onUndone={(id) => setJob((j) => (j.runId === id ? { ...j, status: "undone" } : j))} />
         </Card>
       )}
+      {tab === "statistics" && (
+        <div className="mt-8">
+          <StatisticsTab active={tab === "statistics"} />
+        </div>
+      )}
       {tab === "settings" && (
         <div className="mt-8">
           <SettingsPanel
@@ -767,9 +792,11 @@ export default function App() {
         }
       >
         <section className="order-2 lg:order-1">
-          <h2 className="mb-3 flex items-center gap-2 font-serif text-[22px] italic text-plum/80">
-            <span className="h-1.5 w-1.5 rounded-full bg-petal" /> {t("col.photos")}
-          </h2>
+          {(running || job.categories.length > 0) && (
+            <h2 className="mb-3 flex items-center gap-2 font-serif text-[22px] italic text-plum/80">
+              <span className="h-1.5 w-1.5 rounded-full bg-petal" /> {t("col.photos")}
+            </h2>
+          )}
           <div className={"grid gap-3 " + (noVideos ? "grid-cols-2 xl:grid-cols-3" : "grid-cols-2")}>
             {showGhosts &&
               (activeSet ? activeSet.categories : Array.from({ length: 6 }, () => null)).map((c, i) => (
@@ -802,9 +829,11 @@ export default function App() {
         </section>
 
         <section className="order-3">
-          <h2 className="mb-3 flex items-center gap-2 font-serif text-[22px] italic text-plum/80">
-            <span className="h-1.5 w-1.5 rounded-full bg-plum" /> {t("col.videos")}
-          </h2>
+          {(running || job.categories.length > 0) && (
+            <h2 className="mb-3 flex items-center gap-2 font-serif text-[22px] italic text-plum/80">
+              <span className="h-1.5 w-1.5 rounded-full bg-plum" /> {t("col.videos")}
+            </h2>
+          )}
           <div className="grid grid-cols-2 gap-3">
             {showGhosts && [0, 1].map((i) => <GhostCard key={i} index={i} />)}
             {videoCats.map((c, i) => (
