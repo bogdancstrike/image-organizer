@@ -6,19 +6,19 @@ import unicodedata
 
 import numpy as np
 
-VERSION = 1
+VERSION = 2
 # Each group has its own reference. Multiple subjects may be present; none is required.
 VOCAB = {
     "subject": ("an empty scene with no main subject", {
         "person": "a person", "couple": "a couple together", "group": "a group of people", "dog": "a dog",
         "cat": "a cat", "bird": "a bird", "horse": "a horse", "food": "food on a plate", "flowers": "flowers",
         "car": "a car", "motorcycle": "a motorcycle", "building": "a building", "document": "a printed document",
-        "screen": "a computer or phone screen", "jewelry": "jewelry", "product": "a product on display"}),
+        "screen": "a computer or phone screen", "jewelry": "jewelry", "product": "a product on display", "shoes": "shoes", "bag": "a bag", "coffee": "a cup of coffee", "hands": "human hands", "table": "a table", "trees": "trees", "water": "water", "rocks": "rocks"}),
     "scene": ("an unspecified location", {
         "beach": "a beach by the sea", "mountains": "mountains", "forest": "a forest", "lake": "a lake",
         "city": "a city street", "garden": "a garden", "snow": "a snowy landscape", "studio": "a photography studio",
         "bedroom": "a bedroom", "restaurant": "a restaurant", "cafe": "a cafe", "office": "an office",
-        "indoors": "an indoor scene", "outdoors": "an outdoor scene"}),
+        "indoors": "an indoor scene", "outdoors": "an outdoor scene", "river": "a river", "waterfall": "a waterfall"}),
     "clothing": ("a scene without visible clothing", {
         "dress": "a person wearing a dress", "suit": "a person wearing a suit", "jacket": "a person wearing a jacket",
         "swimwear": "a person wearing swimwear", "hat": "a person wearing a hat", "sportswear": "a person in sportswear"}),
@@ -68,7 +68,18 @@ def predict(E: np.ndarray, embedder) -> list[list[dict]]:
         chosen, groups = [], {}
         for i in np.argsort(-row, kind="stable"):
             group, label = entries[i]
-            if row[i] < .72 or groups.get(group, 0) >= (3 if group in ("subject", "scene") else 2):
+            # Specific action/selfie claims need stronger evidence than broad scene/person labels.
+            threshold = .72 if group in ("activity", "lighting") else .64 if group == "color" else .60
+            if label in ("screen", "table"):
+                threshold = .72
+            if label == "portrait":
+                threshold = .66
+            if label in ("selfie", "couple", "group", "macro"):
+                threshold = .78
+            if row[i] < threshold or groups.get(group, 0) >= (4 if group == "scene" else 3 if group == "subject" else 2):
+                continue
+            indoor = {"cafe", "restaurant", "office", "bedroom", "studio"}
+            if label in indoor and any(t["label"] in indoor for t in chosen):
                 continue
             chosen.append({"label": label, "score": round(float(row[i]), 3), "group": group, "source": "local-ai"})
             groups[group] = groups.get(group, 0) + 1

@@ -1,5 +1,6 @@
+import { ExplainedTag as Tag } from "./PhotoBadge";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { App, Button, Empty, Input, Modal, Segmented, Select, Spin, Tag } from "antd";
+import { App, Button, Empty, Input, Modal, Segmented, Select, Spin } from "antd";
 import { ChevronLeft, ChevronRight, Images, Map as MapIcon, Plane, Search, Sparkles, X } from "lucide-react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";

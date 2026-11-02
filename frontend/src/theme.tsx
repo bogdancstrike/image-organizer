@@ -54,6 +54,7 @@ const ANTD: Record<ThemeName, ThemeConfig> = {
     components: {
       Segmented: { itemSelectedBg: "#3f3f46", trackBg: "#18181b" },
       Button: { primaryColor: "#18181b" },
+      Tooltip: { colorBgSpotlight: "#3f3f46", colorTextLightSolid: "#fafafa" },
     },
   },
 };

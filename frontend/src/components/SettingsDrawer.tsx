@@ -1,7 +1,8 @@
+import { ExplainedTag as Tag } from "./PhotoBadge";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { PromptRulesInput } from "./PromptRulesInput";
 import { FacePicker } from "./FacePicker";
-import { Button, Checkbox, Drawer, Input, InputNumber, Modal, Popconfirm, Radio, Segmented, Select, Slider, Switch, Tag, Tooltip } from "antd";
+import { Button, Checkbox, Drawer, Input, InputNumber, Modal, Popconfirm, Radio, Segmented, Select, Slider, Switch, Tooltip } from "antd";
 import {
   Aperture,
   CalendarDays,

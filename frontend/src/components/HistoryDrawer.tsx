@@ -1,5 +1,6 @@
+import { ExplainedTag as Tag } from "./PhotoBadge";
 import { useEffect, useState } from "react";
-import { App, Button, Drawer, Empty, Popconfirm, Tag } from "antd";
+import { App, Button, Drawer, Empty, Popconfirm } from "antd";
 import { RotateCcw } from "lucide-react";
 import { api, type Run } from "@/api";
 import { useI18n } from "@/i18n";

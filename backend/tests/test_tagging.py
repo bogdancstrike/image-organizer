@@ -94,3 +94,18 @@ def test_search_tags_and_vectors_survive_apply_and_undo(settings,fake_embedder):
         assert len(matches)==1 and matches[0]['path']=='red.jpg'
         assert 'preview_path'not in c.get(f"/api/jobs/{j['id']}").json()['plan'][0]
         assert c.get('/api/library/status').json()['indexed']==1
+
+
+def test_broad_tags_accept_evidence_while_specific_claims_and_indoor_venues_stay_conservative():
+    # Controlled cosine margins exercise evidence gates, independent of any real model's accuracy.
+    desired={'a photo of a cafe':.69,'a photo of an office':.65,'a photo of a selfie':.70,'a photo of a close-up portrait':.68}
+    class Evidence:
+        def embed_texts(self,texts):
+            vectors=[]
+            for text in texts:
+                p=desired.get(text,.5);x=np.log(p/(1-p))/24
+                vectors.append([x,np.sqrt(1-x*x)])
+            return np.array(vectors,np.float32)
+    tags=predict(np.array([[1.,0.]],np.float32),Evidence())[0]
+    labels={t['label']for t in tags}
+    assert 'cafe'in labels and 'office'not in labels and 'selfie'not in labels

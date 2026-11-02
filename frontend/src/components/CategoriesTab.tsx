@@ -1,5 +1,6 @@
+import { ExplainedTag as Tag } from "./PhotoBadge";
 import { useMemo, useState } from "react";
-import { Button, Input, Tag } from "antd";
+import { Button, Input } from "antd";
 import { Search, Check, Copy, PencilLine, Plus } from "lucide-react";
 import type { CategorySet } from "@/api";
 import { Card } from "./ui/card";

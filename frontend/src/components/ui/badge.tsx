@@ -1,5 +1,7 @@
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
+import { Tooltip } from "antd";
+import { badgeText, tagExplanation } from "../PhotoBadge";
 import { cn } from "@/lib/utils";
 
 const badgeVariants = cva("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium", {
@@ -17,7 +19,10 @@ const badgeVariants = cva("inline-flex items-center gap-1 rounded-full px-2 py-0
 export function Badge({
   className,
   variant,
+  title,
+  children,
   ...props
 }: React.HTMLAttributes<HTMLSpanElement> & VariantProps<typeof badgeVariants>) {
-  return <span className={cn(badgeVariants({ variant }), className)} {...props} />;
+  const help=title ?? tagExplanation(badgeText(children));
+  return <Tooltip title={help} trigger={["hover","focus"]}><span tabIndex={0} aria-label={help} className={cn(badgeVariants({ variant }), className)} {...props}>{children}</span></Tooltip>;
 }

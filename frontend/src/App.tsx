@@ -728,9 +728,9 @@ export default function App() {
           <button onClick={() => setDrawer("settings")} className="cursor-pointer" title="Change how files are organized">
             <Badge variant="outline">{strategyLabel} ✎</Badge>
           </button>
-          <Badge variant="outline">{settings.recursive ? "incl. subfolders" : "this folder only"}</Badge>
+          <Badge title={settings.recursive ? "Scan the chosen folder and all of its subfolders." : "Scan only files directly inside the chosen folder."} variant="outline">{settings.recursive ? "incl. subfolders" : "this folder only"}</Badge>
           {job.context?.theme && (
-            <Badge>
+            <Badge title="Suggested shoot type inferred from a few sample photos; review the selected organizing method.">
               <Sparkles size={11} /> Looks like: {job.context.theme}
             </Badge>
           )}
@@ -740,7 +740,7 @@ export default function App() {
             </Badge>
           )}
           {settings.quality.enabled && settings.strategy !== "cull" && (
-            <Badge>Quality checks · {settings.quality.action === "reject" ? "rejects set aside" : "tag only"}</Badge>
+            <Badge title="Enabled quality checks can tag technical issues or put them in a separate review folder.">Quality checks · {settings.quality.action === "reject" ? "rejects set aside" : "tag only"}</Badge>
           )}
           {settings.strategy === "auto" && health?.ai_available && (
             <Badge>

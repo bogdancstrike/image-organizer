@@ -1,5 +1,6 @@
+import { ExplainedTag as Tag } from "./PhotoBadge";
 import { useEffect, useState } from "react";
-import { Empty, Spin, Table, Tag } from "antd";
+import { Empty, Spin, Table } from "antd";
 import { Activity, Clock, FolderCheck, Gauge, Images, Sparkles } from "lucide-react";
 import { api, type Stats, type StatsRow } from "@/api";
 import { Card } from "./ui/card";

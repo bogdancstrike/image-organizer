@@ -90,3 +90,11 @@ it('encodes tag filters as separate query parameters',async()=>{
  await api.libTags('Trip','siglip2');await api.libSearch('red dress','Trip','siglip2',['red','dress']);
  expect(fetcher).toHaveBeenLastCalledWith(expect.stringContaining('tag=red&tag=dress'),expect.anything());
 });
+
+it('explains status and model tags consistently',async()=>{
+ const {tagExplanation,badgeText}=await import('../src/components/PhotoBadge');
+ for(const [label,part]of[['AI assist','OpenAI'],['AI names','names'],['connected · test','key'],['off · no OPENAI_API_KEY','unavailable'],['CPU','CPU'],['NVIDIA GPU','GPU'],['CLIP · local','embedding'],['built-in','preset'],['edited','changes'],['in use','selected'],['mine','custom'],['undone','reversed'],['unknown','Status']]){
+  expect(tagExplanation(label)).toContain(part);
+ }
+ expect(badgeText(<span>Local <b>tags</b></span>)).toBe('Local tags');
+});

@@ -1,5 +1,6 @@
+import { ExplainedTag as Tag } from "./PhotoBadge";
 import { useEffect, useMemo, useState } from "react";
-import { App, Button, Input, Modal, Popconfirm, Segmented, Select, Tag } from "antd";
+import { App, Button, Input, Modal, Popconfirm, Segmented, Select } from "antd";
 import { ArrowDown, ArrowUp, Plus, RotateCcw, Sparkles, Trash2 } from "lucide-react";
 import { api, type Category, type CategorySet } from "@/api";
 import { cn } from "@/lib/utils";
