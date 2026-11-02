@@ -11,7 +11,7 @@ import pytest
 from PIL import Image
 
 from app.infrastructure.config import Settings
-from app.infrastructure.embeddings import normalize
+from app.recognition.ports import normalize
 
 COLORS = {"red": (220, 30, 30), "green": (30, 180, 40), "blue": (30, 60, 220)}
 

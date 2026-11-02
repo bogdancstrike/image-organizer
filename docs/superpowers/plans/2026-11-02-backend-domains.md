@@ -21,19 +21,19 @@
 
 ## Phase 1: Packages and imports
 
-- [ ] Move existing modules into the package map with real `__init__.py` files; keep only the entry point/version at the root.
-- [ ] Update relative/absolute imports structurally, including tests, Docker references and documentation. Never replace `app.db` database filenames as Python module paths.
-- [ ] Extract the embedding protocol/normalization into recognition ports; numerical classification depends on this interface.
-- [ ] Separate catalog validation/preset helpers from its SQLite store.
-- [ ] Run the complete backend suite and >=90% coverage gate. Commit/push a tested checkpoint.
+- [x] Move existing modules into the package map with real `__init__.py` files; keep only the entry point/version at the root.
+- [x] Update relative/absolute imports structurally, including tests, Docker references and documentation. Never replace `app.db` database filenames as Python module paths.
+- [x] Extract the embedding protocol/normalization into recognition ports; numerical classification depends on this interface.
+- [x] Separate catalog validation/preset helpers from its SQLite store.
+- [x] Run the complete backend suite and >=90% coverage gate. Commit/push a tested checkpoint.
 
 ## Phase 2: Responsibility boundaries
 
-- [ ] Extract Cull decisions from JobManager into `app/culling/service.py`, returning assignments/categories/recommendation metadata without HTTP/storage dependencies.
-- [ ] Keep model-loading face/identity adapters outside scoring/identity clustering logic; update tests and inject existing interfaces.
-- [ ] Move SQLite read operations behind cache methods so library search does not reach into a private database connection.
-- [ ] Split API schemas and routers into cohesive modules. A typed runtime context supplies services; main wires them and mounts the SPA last. Preserve routes, status codes, payloads and factory isolation.
-- [ ] Add meaningful architecture tests for prohibited dependency directions and HTTP route contracts; rerun all backend tests/coverage.
+- [x] Extract Cull decisions from JobManager into `app/culling/service.py`, returning assignments/categories/recommendation metadata without HTTP/storage dependencies.
+- [x] Keep model-loading face/identity adapters outside scoring/identity clustering logic; update tests and inject existing interfaces.
+- [x] Move SQLite read operations behind cache methods so library search does not reach into a private database connection.
+- [x] Split API schemas and routers into cohesive modules. A typed runtime context supplies services; main wires them and mounts the SPA last. Preserve routes, status codes, payloads and factory isolation.
+- [x] Add meaningful architecture tests for prohibited dependency directions and HTTP route contracts; rerun all backend tests/coverage.
 
 ## Phase 3: Full-screen photo review
 
@@ -58,3 +58,10 @@
 - [ ] Improve the remaining person assignments in `/home/bogdan/Downloads/Boudoir-10-selected-items`: latest user reports four correct identities plus 162 images in Other people, all belonging to those identities. Combine reliable face anchors with multiple appearance/body/detail prototypes and sequence context; retain ambiguity when evidence conflicts. Validate read-only against the actual folder, comparing missed and incorrect assignments rather than forcing everything into known people.
 - [ ] Add decision provenance to full-screen review, including trashed photos: category/score/threshold reason, technical flags, duplicate basis and keeper path, recoverable-trash action, rule/model match, and manual override history. Applied/trashed preview paths must remain usable and Undo must restore them.
 - [ ] Preserve periodic tested commits/pushes on main and redeployments while these requirements are implemented.
+
+## Refactor checkpoint
+
+- 173 backend tests passed; 91.19% coverage.
+- OpenAPI compared before/after: 35 paths, identical request/response schemas and operations except added documentation tags.
+- Root entry point is 65 lines; numerical/domain dependencies, model adapters and SQLite stores are separated.
+- Guard tests enforce dependency direction and factory isolation.

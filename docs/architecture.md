@@ -75,3 +75,19 @@ Quality cache version 5 stores per-face eye focus and the expanded image-quality
 Compose extends `docker/compose.${DEVICE}.yml` (CPU default) to choose the Docker target and optional NVIDIA
 reservation. The embedder selects explicit execution providers for both text and image towers and validates CUDA
 activation. Singleton identity includes model, device and cache path; cache files remain separated by model.
+
+## Dependency boundaries
+
+This is a modular monolith: one deployable application with cohesive domain packages. `app.main` wires the runtime
+and mounts HTTP adapters from `app.api.routes`. API request validation lives in `app.api.schemas`; each router receives
+an explicit per-application runtime context, avoiding global application services shared between factory instances.
+
+Culling decisions live in `app.culling.service`, independently of job lifecycle, HTTP and persistence. Classification
+uses the embedding protocol in `app.recognition.ports`; ONNX, MediaPipe, YuNet/SFace and RapidOCR implementations live
+in infrastructure. Category validation/preset construction is separated from its SQLite repository. Library reads go
+through public cache repository methods rather than private database connections.
+
+`tests/test_architecture.py` prevents core modules from importing HTTP, storage or model-loading adapters and verifies
+that separate application factories keep settings and libraries isolated. Numerical libraries are permitted in core
+algorithms. Application workflows coordinate IO adapters; this does not introduce microservices or generic repository
+frameworks. The stable Docker entry point remains `app.main:create_app`.

@@ -6,9 +6,11 @@ from types import SimpleNamespace
 import numpy as np
 from PIL import Image
 
-from app.recognition.ocr import TextReader
-from app.recognition.people import FaceIdentifier, FaceID
-from app.culling.quality import FaceAnalyzer, _expression, sharpness, Face
+from app.infrastructure.ocr import TextReader
+from app.infrastructure.identity import FaceIdentifier
+from app.recognition.people import FaceID
+from app.infrastructure.faces import FaceAnalyzer
+from app.culling.quality import _expression, sharpness, Face
 
 
 def test_ocr_reads_confident_text_and_caps_coverage(monkeypatch):

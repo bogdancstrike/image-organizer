@@ -66,14 +66,12 @@ class Library:
     # ------------------------------------------------------------------ embeddings index
     def _index(self, model: str):
         cache = self.m.cache_for(model)
-        with cache._lock:
-            sig = cache._db.execute("SELECT COUNT(*), COALESCE(MAX(rowid), 0) FROM files WHERE emb IS NOT NULL").fetchone()
+        sig = cache.embedding_signature()
         with self._lock:
             cur = self._idx.get(model)
             if cur and cur[0] == sig:
                 return cur[1]
-        with cache._lock:
-            rows = cache._db.execute("SELECT path, meta, emb FROM files WHERE emb IS NOT NULL").fetchall()
+        rows = cache.embedding_rows()
         paths, shas, ts, embs = [], [], [], []
         for path, meta, emb in rows:
             v = np.frombuffer(emb, dtype=np.float32)
@@ -114,9 +112,7 @@ class Library:
 
     def _tags(self, model: str) -> dict[str, list[dict]]:
         cache = self.m.cache_for(model)
-        with cache._lock:
-            exists = cache._db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='tags'").fetchone()
-            rows = cache._db.execute("SELECT t.path, t.data, t.size, t.mtime FROM tags t JOIN files f ON f.path=t.path AND f.size=t.size AND ABS(f.mtime-t.mtime)<0.000001").fetchall() if exists else []
+        rows = cache.auxiliary_rows("tags", current=True)
         out = {}
         for path, raw, size, mtime in rows:
             try:
@@ -166,13 +162,9 @@ class Library:
         words = [w for w in re.findall(r"\w{3,}", query.lower())]
         if words:
             cache = self.m.cache
-            with cache._lock:
-                try:
-                    rows = cache._db.execute("SELECT path, data FROM ocr").fetchall()
-                except Exception:  # noqa: BLE001 - table appears with the first OCR run
-                    rows = []
+            rows = cache.auxiliary_rows("ocr")
             pos = {p: i for i, p in enumerate(idx["paths"])}
-            for path, data in rows:
+            for path, data, _, _ in rows:
                 i = pos.get(path)
                 if i is None:
                     continue

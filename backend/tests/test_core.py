@@ -6,7 +6,8 @@ import pytest
 from pydantic import ValidationError
 
 from app.recognition import classification as classify
-from app.catalog.categories import CategorySetIn, CategoryStore
+from app.catalog.categories import CategorySetIn
+from app.infrastructure.category_store import CategoryStore
 from app.culling.duplicates import DupItem, find_duplicates
 from app.media.decoding import MediaError, decode_image, is_screenshot_like
 from app.organization.planner import DUPLICATES, destination

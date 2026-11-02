@@ -6,7 +6,7 @@ from datetime import datetime
 
 import numpy as np
 
-from app.infrastructure.embeddings import Embedder, normalize
+from app.recognition.ports import Embedder, normalize
 from app.catalog.presets import FACETS, THEMES, VOCABULARY
 
 LOGIT_SCALE = 100.0

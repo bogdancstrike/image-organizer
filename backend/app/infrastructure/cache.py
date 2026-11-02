@@ -66,6 +66,25 @@ class AnalysisCache:
             )
             self._db.commit()
 
+    def embedding_signature(self) -> tuple:
+        with self._lock:
+            return self._db.execute("SELECT COUNT(*), COALESCE(MAX(rowid), 0) FROM files WHERE emb IS NOT NULL").fetchone()
+
+    def embedding_rows(self) -> list[tuple]:
+        with self._lock:
+            return self._db.execute("SELECT path, meta, emb FROM files WHERE emb IS NOT NULL").fetchall()
+
+    def auxiliary_rows(self, table: str, current: bool = False) -> list[tuple]:
+        if table not in {"tags", "ocr", "quality", "faceid", "geo"}:
+            raise ValueError("unknown auxiliary cache")
+        with self._lock:
+            exists = self._db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)).fetchone()
+            if not exists:
+                return []
+            if current:
+                return self._db.execute(f"SELECT t.path,t.data,t.size,t.mtime FROM {table} t JOIN files f ON f.path=t.path AND f.size=t.size AND ABS(f.mtime-t.mtime)<0.000001").fetchall()
+            return self._db.execute(f"SELECT path,data,size,mtime FROM {table}").fetchall()
+
     def copy_paths(self, pairs: list[tuple[str, str]]) -> None:
         """Preserve analysis at Apply destinations. Original entries support Undo without re-inference."""
         with self._lock:

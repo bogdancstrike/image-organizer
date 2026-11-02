@@ -87,7 +87,7 @@ def test_social_media_preset_uses_culling_and_keeps_originals(settings,fake_embe
 
 def test_burst_alternatives_have_review_labels_instead_of_technical_rejection(settings,fake_embedder):
     from app.organization.jobs import JobManager
-    from app.catalog.categories import CategoryStore
+    from app.infrastructure.category_store import CategoryStore
     m=JobManager(settings,lambda:fake_embedder,CategoryStore(settings.data_dir/'sets.db'))
     m._pick_info={'a':{'score':.85}}
     assert m._xmp_for('a','burst',{'a':quality()},QualityRules(),{'a':{'best':False}})=={'rating':4,'label':'Yellow'}
