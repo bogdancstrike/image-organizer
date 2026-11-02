@@ -1,4 +1,4 @@
-import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import App from '../src/App';
 import { api } from '../src/api';
@@ -77,11 +77,24 @@ it('uses a chosen category set from Categories and returns to Sort',async()=>{
  fireEvent.click((await screen.findAllByRole('button',{name:'Use',exact:true}))[0]);expect(window.location.pathname).toBe('/sort');
 });
 
-it('opens full settings, chooses a folder and handles browser history navigation',async()=>{
+it('opens full settings from Quick settings',async()=>{
  renderUI(<App/>);await waitFor(()=>expect(api.getSettings).toHaveBeenCalled());
- fireEvent.click(screen.getByRole('button',{name:'Quick settings'}));fireEvent.click(await screen.findByRole('button',{name:'All settings →'}));expect(window.location.pathname).toBe('/settings');
- fireEvent.click(screen.getByRole('button',{name:'Change…'}));expect(await screen.findByRole('dialog')).toBeInTheDocument();
- fireEvent.click(screen.getByRole('button',{name:'Use this folder'}));await waitFor(()=>expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+ fireEvent.click(screen.getByRole('button',{name:'Quick settings'}));
+ fireEvent.click(await screen.findByRole('button',{name:'All settings →'}));
+ expect(window.location.pathname).toBe('/settings');
+});
+
+it('chooses the source folder from the full settings page',async()=>{
+ window.history.replaceState({},'','/settings');
+ renderUI(<App/>);await waitFor(()=>expect(api.getSettings).toHaveBeenCalled());
+ fireEvent.click(await screen.findByRole('button',{name:'Change…'}));
+ const dialog=await screen.findByRole('dialog');await waitFor(()=>expect(dialog).toBeVisible());
+ fireEvent.click(within(dialog).getByRole('button',{name:'Use this folder'}));
+ await waitFor(()=>expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+});
+
+it('handles browser history navigation without exposing Apply for an empty plan',async()=>{
+ renderUI(<App/>);await waitFor(()=>expect(api.getSettings).toHaveBeenCalled());
  window.history.pushState({},'','/review');fireEvent.popState(window);expect(window.location.pathname).toBe('/review');
  expect(screen.queryByRole('button',{name:'Apply · move files'})).not.toBeInTheDocument();
 });
