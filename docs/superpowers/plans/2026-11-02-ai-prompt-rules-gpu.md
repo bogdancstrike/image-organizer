@@ -64,7 +64,7 @@ Files: `backend/tests/test_people_ocr.py`, `backend/tests/test_pro.py`, `backend
 ## Verified checkpoints
 
 - Backend: 140 tests passing; 90.54% line coverage without models (CI-like environment). Bundled-model run: 90.76%.
-- Frontend: 70 tests passing; 93.04% lines and 90.69% statements across all TypeScript/TSX source.
+- Frontend: 72 tests passing; 93.04% lines and 90.69% statements across all TypeScript/TSX source.
 - GPU: actual CLIP (512 dimensions) and SigLIP 2 (768 dimensions) image/text inference on NVIDIA RTX 3080.
 - Live AI: three-sample prompt-rule plan, two API calls, expected landscape/other routing, no source moves.
 - Real cull/OCR/XMP: seven samples, portrait and landscape picks, invoice text read, seven copied sidecars, successful Undo.
@@ -88,3 +88,10 @@ Files: `backend/tests/test_people_ocr.py`, `backend/tests/test_pro.py`, `backend
 
 - Rating thresholds are editable in Quick settings, persisted, ordered automatically, and validated server-side. Legacy integer keeper settings migrate into the visible decimal field.
 - Updated person check: four representative identities; 48 uncertain faces and 135 uncertain faceless photos go to Other people. Originals mounted read-only; no Apply.
+
+## Final verification
+
+- [Tests and coverage CI](https://github.com/bogdancstrike/image-organizer/actions/runs/41487603124) passed for implementation/test commit `2d8268f` on main: 140 backend tests and 72 frontend tests, with both coverage gates enforced.
+- Browser checks passed for Auto recipe consistency, threshold defaults/order, descending/ascending folder grids, real sample band assignments and scoring explanations; no page errors.
+- Seven real sample photos with custom Picks 4.0 / Keepers 3.5 produced one Pick, three Keepers and three Maybe files. No Apply was performed.
+- Local CPU Compose deployment rebuilt successfully and is healthy. Temporary GPU validation containers were stopped; original photos were mounted read-only.
