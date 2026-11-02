@@ -79,6 +79,8 @@ const cardKey = (catId: string, kind: string) => (catId === DUP ? "dup" : `${kin
 export default function App() {
   const { message, notification } = AntApp.useApp();
   const [settings, setSettingsState] = useState<UiSettings>(loadSettings);
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
   const [health, setHealth] = useState<Health | null>(null);
   const [presets, setPresets] = useState<CategorySet[]>([]);
   const [customSets, setCustomSets] = useState<CategorySet[]>([]);
@@ -126,6 +128,9 @@ export default function App() {
 
   const saveTimer = useRef(0);
   const setSettings = (s: UiSettings) => {
+    if (s.strategy !== settings.strategy || s.presetId !== settings.presetId || s.customSetId !== settings.customSetId) {
+      s = { ...s, recipeFor: s.source }; // an explicit choice must survive a late recommendation
+    }
     setSettingsState(s);
     saveSettings(s);
     window.clearTimeout(saveTimer.current);
@@ -572,7 +577,7 @@ export default function App() {
         setSuggestion(sg);
         // first visit of this folder: pre-select the recommendation (the user can still pick another)
         const top = recipes.find((r) => r.id === sg.suggestions[0]?.recipe);
-        if (top && settings.recipeFor !== settings.source) applyRecipe(top, settings.source);
+        if (top && settingsRef.current.recipeFor !== settingsRef.current.source) applyRecipe(top, settings.source);
       })
       .catch(() => {})
       .finally(() => alive && setSuggesting(false));
