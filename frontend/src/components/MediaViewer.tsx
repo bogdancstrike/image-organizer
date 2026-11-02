@@ -85,11 +85,11 @@ const SCORE_LABELS: Record<string, [string, string]> = {
   relative: ["Shoot comparison", "Relative rank within the shoot; this is not absolute quality."],
 };
 
-export function PhotoInfoPanel({ p }: { p: PlanItem }) {
+export function PhotoInfoPanel({ p, className = "" }: { p: PlanItem; className?: string }) {
   const rating=p.pick?.rating ?? p.quality?.rating ?? (p.pick ? 1+4*p.pick.score : p.quality ? 1+4*p.quality.score : null);
   const trashed=p.decision?.action === "recoverable-trash" || p.destination.split("/").includes(".aio-trash");
   const explanation=p.decision?.explanation ?? (p.duplicate_of ? "A duplicate matcher selected another file to keep." : SOURCE_HELP[p.source] ?? "Review the proposed category before applying.");
-  return <aside aria-label="Photo recommendations" className="min-h-0 overflow-y-auto overscroll-contain rounded-2xl border border-line bg-surface p-5 text-left text-plum shadow-xl"
+  return <aside aria-label="Photo recommendations" className={`min-h-0 overflow-y-auto overscroll-contain rounded-b-2xl border border-t-0 border-line bg-surface p-5 text-left text-plum shadow-xl md:rounded-l-none md:rounded-r-2xl md:border-t md:border-l-0 ${className}`}
     onMouseDown={event=>event.stopPropagation()} onPointerDown={event=>event.stopPropagation()} onWheel={event=>event.stopPropagation()}>
     <div className="break-words text-base font-semibold">{p.name}</div>
     {p.rel_path !== p.name && <div className="mt-1 break-all text-[11px] text-plum/55">{p.rel_path}</div>}
@@ -162,11 +162,11 @@ export function useMediaViewer(items: PlanItem[]): { open: (p: PlanItem) => void
             onOpenChange: (v: boolean) => !v && setCurrent(null),
             onChange: (c: number) => setCurrent(previous => previous === null ? null : c),
             imageRender: (img: ReactNode, info: { current: number }) => (
-              <div className="grid h-[84vh] max-h-[1100px] w-[96vw] max-w-[1900px] grid-rows-[minmax(0,1fr)_minmax(0,0.8fr)] gap-3 md:grid-cols-[minmax(0,1fr)_340px] md:grid-rows-1">
-                <div className="flex min-h-0 min-w-0 items-center justify-center overflow-hidden rounded-xl" aria-label="Photo preview">
-                  {isValidElement(img) ? cloneElement(img as ReactElement<ImgHTMLAttributes<HTMLImageElement>>, {style:{...(img.props as ImgHTMLAttributes<HTMLImageElement>).style,maxWidth:"100%",maxHeight:"100%",objectFit:"contain"}}) : img}
+              <div className="relative grid h-[84vh] max-h-[1100px] w-[96vw] grid-rows-[minmax(0,1fr)_minmax(0,0.8fr)] [--photo-width:96vw] [--photo-height:calc(84vh/1.8)] md:block md:h-auto md:w-fit md:pr-[340px] md:[--photo-width:min(calc(96vw-340px),1560px)] md:[--photo-height:min(84vh,1100px)]">
+                <div className="flex min-h-0 min-w-0 items-center justify-center overflow-hidden rounded-t-2xl bg-black md:w-fit md:rounded-tr-none md:rounded-l-2xl" aria-label="Photo preview">
+                  {isValidElement(img) ? cloneElement(img as ReactElement<ImgHTMLAttributes<HTMLImageElement>>, {style:{...(img.props as ImgHTMLAttributes<HTMLImageElement>).style,display:"block",width:"auto",height:"auto",maxWidth:"var(--photo-width)",maxHeight:"var(--photo-height)",objectFit:"contain"}}) : img}
                 </div>
-                {photos[info.current] && <PhotoInfoPanel p={photos[info.current]} />}
+                {photos[info.current] && <PhotoInfoPanel p={photos[info.current]} className="md:absolute md:inset-y-0 md:right-0 md:w-[340px]" />}
               </div>
             ),
           }}

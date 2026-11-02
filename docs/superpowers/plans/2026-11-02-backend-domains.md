@@ -80,3 +80,11 @@
 - Fixed preview opening during list updates and made dark preview controls visible.
 - Actual read-only library validation: `dog in a snow` returns zero results in 1,029 photos; `portrait` returns relevant results. No minimum result padding.
 - Decision provenance and stronger people matching remain in progress.
+
+## Joined viewer and appearance checkpoint
+
+- Score panel now touches the actual image, matches its height on desktop, has square shared corners and rounded outer corners. Browser geometry and desktop/mobile checks pass.
+- Replaced single appearance centroids/gender gating with a balanced CPU classifier, multi-view neighbour consensus and two-sided camera-sequence support. Includes unmatched partial faces; reliable face assignments are preserved.
+- Same 1,029-photo folder, same options, read-only: Other people 162 → 41; 136/162 previously unknown views recovered; 15 previously appearance-assigned views now abstain. All face-based assignments preserved.
+- Five-fold validation of 476 face-confirmed full-image references: 445 accepted, 438 agreeing with withheld face labels (98.43%); 31 abstained. This measures appearance agreement on face-confirmed views, not accuracy on unseen body/detail shots or a professional benchmark.
+- Backend 183 tests / 91.34%; frontend 88 tests / 93.34% lines / 90.78% statements.

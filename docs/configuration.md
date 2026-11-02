@@ -74,7 +74,11 @@ YuNet/SFace identity anchors require sufficiently large, confident faces with re
 Average-link clustering starts with the documented SFace pair threshold. For 12–2,500 anchors, a silhouette
 improvement can consolidate pose/lighting fragments; reliable co-occurring faces guard against merging distinct people.
 Higher similarity settings above 0.45 retain the stricter cut. Partial faces can match an existing gallery with
-a confidence margin, but cannot create identities. Uncertain face matches stay in Other people. Appearance matching
-for faceless photos remains an optional heuristic, not proof of identity. The face cache refreshes once after upgrade.
+a confidence margin, but cannot create identities. Unmatched partial faces and faceless photos can use optional appearance matching: a balanced
+CPU classifier learns whole-image clothing, hair, silhouette and detail context from face-confirmed
+photos in this shoot. A multi-view neighbour gallery must agree; bracketing confirmed frames
+from the same camera filename series can support difficult cases. Reliable unmatched faces
+are not reassigned by appearance. Conflicting/outlier views remain in Other people. Appearance
+scores are heuristics, not proof of identity or calibrated probabilities. The face cache refreshes once after upgrade.
 
 See [implemented culling methods](culling-algorithms.md) for the 30-idea checklist, tests, research and model limits.
