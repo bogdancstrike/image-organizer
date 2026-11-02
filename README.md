@@ -202,11 +202,18 @@ Unsure-only usually needs a single request.
 | CPU | 4 cores (x86_64) | 8+ cores |
 | RAM | 4 GB | 8 GB+ |
 | Disk | 3 GB + ~12 KB / photo | SSD |
-| GPU | not needed | not used |
+| GPU | not needed (CPU default) | optional NVIDIA GPU with `DEVICE=gpu` |
 | Software | Docker + Compose v2 | – |
 
 Rough throughput scales with cores: expect about **30–60 photos/s on a 4-core laptop** for the first run. Tune `WORKERS` (default `min(8, CPUs)`).
 Benchmark your own machine: `python3 scripts/benchmark.py --source "Pictures/Trip" --strategy cull`.
+
+### Optional GPU acceleration
+
+CPU is the default. For NVIDIA acceleration, set `DEVICE=gpu` in `.env` and run `docker compose up -d --build`.
+The same Compose command selects the GPU image and reserves one GPU. The host needs an NVIDIA driver and
+NVIDIA Container Toolkit. CLIP and SigLIP 2 embeddings run on CUDA; decoding, quality checks, faces, OCR and
+clustering stay on CPU. Switch back with `DEVICE=cpu`. See [GPU configuration](docs/configuration.md#cpu-or-nvidia-gpu).
 
 ## 🐳 Deployment
 

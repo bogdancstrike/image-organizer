@@ -2,8 +2,11 @@ name: auto-image-organizer
 
 services:
   organizer:
+    extends:
+      file: docker/compose.${DEVICE:-cpu}.yml
+      service: runtime
     build: .
-    image: auto-image-organizer:latest
+    image: auto-image-organizer:${DEVICE:-cpu}
     container_name: auto-image-organizer
     ports:
       - "${PORT:-8080}:8000"
@@ -11,6 +14,7 @@ services:
       - path: .env
         required: false
     environment:
+      DEVICE: ${DEVICE:-cpu}
       LIBRARY_NAME: ${LIBRARY_NAME:-Library}
       # shown in the UI so you recognise your folders; must match the mount below
       LIBRARY_HOST_PATH: ${LIBRARY_PATH:-${HOME}}

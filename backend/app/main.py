@@ -161,7 +161,7 @@ def create_app(settings: Settings | None = None, embedder_factory=None, llm_fact
 
     if embedder_factory is None:
         def embedder_factory(model: str = "clip"):
-            return get_clip_embedder(str(s.model_dir) if s.model_dir else None, model)
+            return get_clip_embedder(str(s.model_dir) if s.model_dir else None, model, s.device)
 
     if llm_factory is None:
         def llm_factory():
@@ -189,6 +189,7 @@ def create_app(settings: Settings | None = None, embedder_factory=None, llm_fact
     def health():
         return {
             "status": "ok",
+            "device": s.device,
             "version": __version__,
             "ai_available": s.ai_available,
             "model": s.openai_model if s.ai_available else None,

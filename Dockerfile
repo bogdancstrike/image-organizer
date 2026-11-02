@@ -55,3 +55,13 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=4).status == 200 else 1)"
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["uvicorn", "--factory", "app.main:create_app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]
+
+# Opt-in NVIDIA runtime. CUDA/cuDNN are bundled; only the host driver/toolkit is needed.
+FROM runtime AS gpu
+RUN pip uninstall -y fastembed onnxruntime \
+ && pip install fastembed-gpu==0.9.1 'onnxruntime-gpu[cuda,cudnn]==1.23.2'
+ENV DEVICE=gpu
+
+# Keep CPU as the default even when building without an explicit --target.
+FROM runtime AS cpu
+ENV DEVICE=cpu

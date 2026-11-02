@@ -20,6 +20,8 @@ class Settings:
     library_name: str = "Library"
     library_host_path: str | None = None  # for display only: where /library lives on the host
 
+    device: str = "cpu"
+
     @property
     def ai_available(self) -> bool:
         return bool(self.openai_api_key)
@@ -35,9 +37,13 @@ class Settings:
 
 def load_settings() -> Settings:
     env = os.environ
+    device = (env.get("DEVICE") or "cpu").strip().lower()
+    if device not in ("cpu", "gpu"):
+        raise ValueError("DEVICE must be cpu or gpu")
     static = env.get("STATIC_DIR")
     model_dir = env.get("MODEL_DIR")
     return Settings(
+        device=device,
         library_root=Path(env.get("LIBRARY_ROOT", "/library")).resolve(),
         data_dir=Path(env.get("DATA_DIR", "/data")),
         model_dir=Path(model_dir) if model_dir else None,

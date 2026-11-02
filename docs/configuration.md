@@ -39,3 +39,19 @@ Every variable is optional.
 | `ai_assist` | `false` | Needs a key |
 | `max_clusters` | `12` | Auto mode upper bound; the best k is picked by silhouette score |
 | `date_granularity` | `month` | `year`, `month` or `day` |
+
+## CPU or NVIDIA GPU
+
+Set `DEVICE=cpu` (the default) or `DEVICE=gpu` in `.env`, then run `docker compose up -d --build`.
+Compose selects the matching build target and reserves one NVIDIA GPU only in GPU mode. GPU mode requires
+an NVIDIA driver and [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
+on the host; the image bundles CUDA and cuDNN. CPU mode needs neither.
+
+CLIP and SigLIP 2 image/text embeddings use the GPU. Decoding, MediaPipe quality checks, face identities, OCR,
+and clustering continue on the CPU. Cached embeddings can be reused across devices. GPU initialization failures
+are reported instead of silently falling back to CPU. `/api/health` reports the configured `device`.
+
+For a local Python GPU environment, replace `fastembed`/`onnxruntime` with `fastembed-gpu==0.9.1` and
+`onnxruntime-gpu[cuda,cudnn]==1.23.2`, then set `DEVICE=gpu`. Do not install both ONNX Runtime distributions together.
+See [FastEmbed GPU](https://qdrant.github.io/fastembed/examples/FastEmbed_GPU/) and
+[ONNX Runtime CUDA](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html) for runtime requirements.

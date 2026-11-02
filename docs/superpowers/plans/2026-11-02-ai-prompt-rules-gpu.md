@@ -1,10 +1,10 @@
 # AI prompt rules and optional GPU implementation plan
 
-> **For agentic workers:** Implement this plan task by task, with verified commits at each checkpoint. Execution stays in this session on `feat/ai-prompt-rules-gpu`.
+> **For agentic workers:** Implement this plan task by task, with verified commits at each checkpoint. Execution stays in this session on `main`, committing and pushing verified checkpoints as requested.
 
 **Goal:** Sort media with natural-language AI routing instructions, offer opt-in NVIDIA GPU inference through `.env`, and reconcile documented feature status with tested implementations.
 
-**Architecture:** Add a `rules` strategy to the existing plan/review/apply/undo pipeline. AI compiles instructions into validated relative destinations, then classifies thumbnails into rule IDs; unmatched files use an explicit catch-all or Unsorted. Reject malformed model output and unsafe paths, and fail the rule job visibly if AI is unavailable. Local recognition chooses explicit CPU or CUDA execution providers; Compose selects an optional GPU image and device reservation using `DEVICE=cpu|gpu`.
+**Architecture:** Add a `rules` strategy to the existing plan/review/apply/undo pipeline. AI compiles instructions into validated relative destinations, then classifies thumbnails into rule IDs; unmatched files use an explicit catch-all or Unsorted. Reject malformed model output and unsafe paths, and fail the rule job visibly if AI is unavailable. Local recognition chooses explicit CPU or CUDA execution providers; Compose extends a device-specific runtime configuration using `DEVICE=cpu|gpu`.
 
 **Tech Stack:** FastAPI/Pydantic, OpenAI Responses API, FastEmbed/ONNX Runtime, React/TypeScript/antd, Docker Compose, pytest.
 
@@ -29,12 +29,12 @@ Files: `frontend/src/api.ts`, `frontend/src/settings.ts`, `frontend/src/App.tsx`
 
 ## Task 3: Opt-in GPU
 
-Files: `backend/app/config.py`, `backend/app/embedder.py`, `backend/app/main.py`, `backend/tests/test_device.py`, `Dockerfile`, `docker-compose.yml`, `.env.example`, `scripts/start.sh`.
+Files: `backend/app/config.py`, `backend/app/embedder.py`, `backend/app/main.py`, `backend/tests/test_device.py`, `Dockerfile`, `docker-compose.yml`, `.env.example`, `docker/compose.cpu.yml`, `docker/compose.gpu.yml`.
 
 - [ ] Test CPU default, invalid devices, CUDA absence, provider propagation to both embedding towers, separate singleton identity, and GPU initialization failure.
 - [ ] Read `DEVICE=cpu|gpu`; explicitly select CPU providers in CPU mode and CUDA providers in GPU mode. Verify CUDA is actually selected by initialized sessions; fail clearly instead of silently falling back.
 - [ ] Report selected device in health. Keep analysis cache reusable across devices.
-- [ ] Add a GPU Docker target with GPU runtime dependencies and CUDA/cuDNN libraries while retaining the CPU default target. Add an opt-in Compose service profile sharing the existing configuration and a launcher selecting the correct service from `.env` without requiring manual YAML edits.
+- [ ] Add a GPU Docker target with GPU runtime dependencies and CUDA/cuDNN libraries while retaining the CPU default target. Use an interpolated Compose `extends` file so changing DEVICE in .env selects the correct build target and GPU reservation without an extra launch command.
 - [ ] Verify CPU/GPU Compose rendering and tests. Check available hardware before attempting GPU inference; document any unavailable hardware validation. Commit and push.
 
 ## Task 4: Existing features, docs, final verification
@@ -46,3 +46,9 @@ Files: `backend/tests/test_people_ocr.py`, `backend/tests/test_pro.py`, `backend
 - [ ] Mark implemented OCR/XMP/SigLIP/Picks/expression work complete. Keep partial translation and genuinely missing features open.
 - [ ] Document AI prompt rules, failure behavior, date paths, image sharing, GPU setup, CPU default, GPU scope, and exact launch commands.
 - [ ] Run the complete backend suite, frontend build, Compose checks, and browser smoke checks. Review diffs, update plan checkboxes, commit and push. Fast-forward main after all checks pass.
+
+## Coverage requirement (added during implementation)
+
+- [ ] Enforce at least 90% line coverage independently across all backend application modules and all frontend TypeScript/TSX source. Do not omit product modules from measurement.
+- [ ] Add pytest-cov and Vitest/Testing Library with V8 reports, including failure-path and interaction coverage.
+- [ ] Add CI checks for both coverage thresholds and document local commands. Hardware and paid API smoke tests supplement deterministic tests.

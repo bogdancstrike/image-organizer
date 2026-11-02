@@ -9,7 +9,8 @@ sample-library/
 node_modules/
 frontend/dist/
 # Test coverage reports
-.coverage*
+.coverage
+.coverage.*
 **/coverage.json
 **/coverage/
 **/htmlcov/
