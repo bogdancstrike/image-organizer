@@ -60,10 +60,20 @@ export interface ImageTag { label: string; score: number; group: string; source:
 
 export interface TagFacets { tags: { label: string; count: number }[]; tagged: number; indexed: number }
 
+export interface DecisionInfo {
+  action: string;
+  explanation: string;
+  evidence: string[];
+  kept_path?: string;
+  kept_preview_path?: string;
+  previous?: { category: string; explanation: string };
+}
+
 export interface PlanItem {
+  decision?: DecisionInfo;
   preview_path?: string;
   tags?: ImageTag[];
-  pick?: { rating?: number; score: number; reasons: string[]; picked: boolean; profile?: string; parts?: Record<string, number> } | null;
+  pick?: { winner?: boolean; rating?: number; score: number; reasons: string[]; picked: boolean; profile?: string; parts?: Record<string, number> } | null;
   file_id: string;
   rel_path: string;
   name: string;
@@ -296,6 +306,7 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export interface LibHit {
+  match_explanation?: string | null;
   tags?: ImageTag[];
   path: string;
   score: number;

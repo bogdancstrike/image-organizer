@@ -336,6 +336,7 @@ export function LibraryTab({ active, folder, folderLabel, model, onSortBy }: Pro
               </div>
               {hits.length ? <>
                 <Grid items={hits} onOpen={open(hits.map((h) => h.path))} />
+                {hits[0]?.match_explanation && <p className="mt-2 text-xs text-plum/55">{hits[0].match_explanation}</p>}
                 <div className="mt-3 space-y-2">{hits.slice(0, 12).filter(hit=>hit.tags?.length).map(hit=><div key={hit.path} className="flex flex-wrap items-center gap-1 text-xs">
                   <span className="mr-1 max-w-52 truncate text-plum/60">{hit.path.split("/").pop()}</span>
                   {hit.tags!.map(tag=><InfoBadge key={tag.label} message={`${tag.label} · ${tag.source === "metadata" ? "file metadata" : "automatic local AI tag; review if needed"}`} className="rounded bg-tint px-1.5 py-0.5">#{tag.label}</InfoBadge>)}
@@ -343,7 +344,7 @@ export function LibraryTab({ active, folder, folderLabel, model, onSortBy }: Pro
               </> : <Empty description="No matching photos" />}
             </div>
           ) : (
-            <p className="py-10 text-center text-sm text-plum/50">Search by what's in the photo, not by file name. Text inside photos (OCR) counts too.</p>
+            <p className="py-10 text-center text-sm text-plum/50">Search visual content, stored tags or text in photos (OCR). Searches return no results when there is no supporting match.</p>
           )}
         </>
       )}

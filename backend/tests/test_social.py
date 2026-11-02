@@ -93,3 +93,24 @@ def test_burst_alternatives_have_review_labels_instead_of_technical_rejection(se
     assert m._xmp_for('a','burst',{'a':quality()},QualityRules(),{'a':{'best':False}})=={'rating':4,'label':'Yellow'}
     assert m._xmp_for('a','blurry',{'a':quality()},QualityRules(),{})=={'rating':-1,'label':'Red'}
     m.cache.close()
+
+
+def test_cull_has_one_stable_winner_without_changing_rating_bands(settings,fake_embedder):
+    for i in range(3):make_image(settings.library_root/f'photo{i}.jpg',COLORS['red'],fmt='JPEG',noise_seed=i)
+    with TestClient(create_app(settings,embedder_factory=lambda:fake_embedder,llm_factory=lambda:None))as c:
+        job=wait(c,c.post('/api/jobs',json={'strategy':'cull','options':{'near_duplicates':False}}).json()['id'])
+        photos=[p for p in job['plan']if p.get('pick')]
+        winners=[p for p in photos if p['pick'].get('winner')]
+        assert len(winners)==1
+        assert winners[0]['pick']['score']==max(p['pick']['score']for p in photos)
+        assert winners[0]['category_id']in ('picks','keepers','maybe','alternates','smiling')
+        assert 'highest recommendation'in winners[0]['pick']['reasons'][0]
+
+
+def test_best_available_winner_does_not_clear_a_technical_reject(settings,fake_embedder):
+    Image.new('RGB',(400,300),(100,100,100)).save(settings.library_root/'soft.jpg')
+    with TestClient(create_app(settings,embedder_factory=lambda:fake_embedder,llm_factory=lambda:None))as c:
+        job=wait(c,c.post('/api/jobs',json={'strategy':'cull','options':{'quality':{'blur':True,'write_xmp':True}}}).json()['id'])
+        photo=job['plan'][0]
+        assert photo['pick']['winner'] and photo['category_id']=='blurry'
+        assert photo['xmp']['rating']==-1 and 'best available'in photo['pick']['reasons'][0]

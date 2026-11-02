@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { cloneElement, isValidElement, useEffect, useMemo, useState, type ReactNode, type ReactElement, type ImgHTMLAttributes } from "react";
 import { Image, Modal } from "antd";
 import { InfoBadge, SOURCE_HELP } from "./PhotoBadge";
 import { previewUrl, type PlanItem } from "@/api";
@@ -45,7 +45,7 @@ export function FileDetails({ p }: { p: PlanItem }) {
       )}
       {p.pick && (
         <div className="space-y-0.5 opacity-90">
-          <div>{p.pick.picked ? "★ Top pick" : "Recommendation"} · {(p.pick.rating ?? 1 + p.pick.score * 4).toFixed(2)}/5 · {p.pick.profile ?? "general"}</div>
+          <div>{p.pick.winner ? "🥇 Winner photo" : p.pick.picked ? "★ Top pick" : "Recommendation"} · {(p.pick.rating ?? 1 + p.pick.score * 4).toFixed(2)}/5 · {p.pick.profile ?? "general"}</div>
           {p.pick.reasons.length > 0 && <div>{p.pick.reasons.join(" · ")}</div>}
           {p.pick.parts && <div className="flex flex-wrap gap-x-2 opacity-75">
             {Object.entries({ tech: "Technical", expr: "Expression", comp: "Composition", light: "Lighting", aes: "Presentation", detail: "Detail consistency", balance: "Visual balance", separation: "Subject separation", social: "Social readiness", crop: "Crop fit", clarity: "Thumbnail clarity", impact: "Visual story", contrast: "Contrast", color: "Color", novelty: "Unique view", relevance: "Subject relevance", tenengrad: "Gradient focus", directionality: "Directional edges", blocking: "Block artifacts", thumbnail: "Thumbnail detail" }).map(([key, label]) =>
@@ -61,6 +61,76 @@ export function FileDetails({ p }: { p: PlanItem }) {
   );
 }
 
+const SCORE_LABELS: Record<string, [string, string]> = {
+  tech: ["Technical quality", "Subject focus, exposure and noise combined."],
+  expr: ["Expression", "Readable eye, gaze and expression signals, adapted to the photography profile."],
+  comp: ["Composition", "Framing, balance, subject separation and local semantic composition signals."],
+  light: ["Lighting", "Local image/text assessment of lighting and highlight detail."],
+  aes: ["Presentation", "Genre-specific visual presentation; an assisted review signal."],
+  detail: ["Detail consistency", "Edge persistence across resolutions helps distinguish detail from noise."],
+  balance: ["Visual balance", "A weak spatial balance signal from image gradients."],
+  separation: ["Subject separation", "Edge contrast between subject regions and the surrounding image."],
+  tenengrad: ["Gradient focus", "Sobel gradient energy supplements the focus assessment."],
+  blocking: ["Block artifacts", "Higher indicates more block-boundary artifacts; this is a weak indicator."],
+  directionality: ["Directional edges", "Edge orientation strength; deliberate motion and linear subjects can score highly."],
+  thumbnail: ["Thumbnail detail", "Detail that remains visible at a small display size."],
+  social: ["Social readiness", "Posting-readiness blend; does not predict engagement."],
+  crop: ["Crop fit", "Estimated retained content and important faces for the proposed crop."],
+  clarity: ["Thumbnail clarity", "Small-screen detail and recognizability."],
+  impact: ["Visual story", "Semantic evidence of a clear subject or engaging moment."],
+  contrast: ["Contrast", "Tonal separation in the analyzed preview."],
+  color: ["Color", "A weak, restrained colorfulness cue; monochrome remains valid."],
+  novelty: ["Unique view", "Visual difference from nearby alternatives in the scene."],
+  relevance: ["Subject priority", "Local match to your culling priority prompt."],
+  relative: ["Shoot comparison", "Relative rank within the shoot; this is not absolute quality."],
+};
+
+export function PhotoInfoPanel({ p }: { p: PlanItem }) {
+  const rating=p.pick?.rating ?? p.quality?.rating ?? (p.pick ? 1+4*p.pick.score : p.quality ? 1+4*p.quality.score : null);
+  const trashed=p.decision?.action === "recoverable-trash" || p.destination.split("/").includes(".aio-trash");
+  const explanation=p.decision?.explanation ?? (p.duplicate_of ? "A duplicate matcher selected another file to keep." : SOURCE_HELP[p.source] ?? "Review the proposed category before applying.");
+  return <aside aria-label="Photo recommendations" className="min-h-0 overflow-y-auto overscroll-contain rounded-2xl border border-line bg-surface p-5 text-left text-plum shadow-xl"
+    onMouseDown={event=>event.stopPropagation()} onPointerDown={event=>event.stopPropagation()} onWheel={event=>event.stopPropagation()}>
+    <div className="break-words text-base font-semibold">{p.name}</div>
+    {p.rel_path !== p.name && <div className="mt-1 break-all text-[11px] text-plum/55">{p.rel_path}</div>}
+    <div className="mt-4 rounded-xl bg-tint/60 p-3">
+      <div className="flex items-center justify-between gap-2"><span className="text-xs font-medium">{trashed ? "Recoverable trash" : p.pick?.winner ? "🥇 Winner photo" : p.pick?.picked ? "★ Top pick" : "Recommendation"}</span>
+        {rating !== null && <strong className="text-xl tabular-nums">{rating.toFixed(2)}<span className="text-xs font-normal text-plum/50"> / 5</span></strong>}</div>
+      <div className="mt-1 text-sm">{p.category}</div>
+      {p.pick?.profile && <div className="mt-1 text-xs text-plum/55">Profile · {p.pick.profile}</div>}
+    </div>
+    <section className="mt-5"><h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-plum/55">Why this happened</h3>
+      <p className="text-[13px] leading-relaxed">{explanation}</p>
+      {!!p.decision?.evidence.length && <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-plum/70">{p.decision.evidence.map((reason,i)=><li key={i}>{reason}</li>)}</ul>}
+      {p.decision?.kept_path && <p className="mt-2 break-all text-xs">Kept original · {p.decision.kept_path}</p>}
+      {p.decision?.previous && <p className="mt-2 text-xs text-plum/60">Previous suggestion · {p.decision.previous.category}: {p.decision.previous.explanation}</p>}
+      <div className="mt-2 text-xs text-plum/60"><InfoBadge message={SOURCE_HELP[p.source]??p.source}>{SOURCE_LABEL[p.source]??p.source}</InfoBadge></div>
+    </section>
+    {!!p.pick?.reasons.length && <section className="mt-5"><h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-plum/55">Selection notes</h3>
+      <ul className="list-disc space-y-1 pl-4 text-[13px]">{p.pick.reasons.map((reason,i)=><li key={i}>{reason}</li>)}</ul>
+    </section>}
+    {!!p.pick?.parts && <section className="mt-5 space-y-3"><h3 className="text-xs font-semibold uppercase tracking-wide text-plum/55">Algorithm scores</h3>
+      {Object.entries(p.pick.parts).filter(([key,value])=>key!=="pareto"&&Number.isFinite(value)).map(([key,value])=>{
+        const [label,help]=SCORE_LABELS[key]??[key,"A component of the recommendation score."];const percent=Math.round(Math.max(0,Math.min(1,value))*100);
+        return <div key={key}><div className="mb-1 flex justify-between gap-2 text-xs"><InfoBadge message={help}>{label}</InfoBadge><span className="tabular-nums">{percent}%</span></div>
+          <div role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} className="h-1.5 overflow-hidden rounded-full bg-tint">
+            <div className={key==="blocking"?"h-full rounded-full bg-amber-500":"h-full rounded-full bg-plum/65"} style={{width:`${percent}%`}} />
+          </div></div>;
+      })}
+    </section>}
+    {p.quality && <section className="mt-5"><h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-plum/55">Quality checks</h3>
+      <p className="text-xs">{p.quality.faces} detected face{p.quality.faces===1?"":"s"}{p.quality.faces_considered ? ` · eyes open on ${p.quality.eyes_open}/${p.quality.faces_considered}`:""}</p>
+      {p.quality.flags.length ? <div className="mt-2 space-y-2">{p.quality.flags.map(flag=><InfoBadge key={flag} message={FLAG[flag]?.help??flag} className="block text-xs">{FLAG[flag]?.emoji??"!"} {FLAG[flag]?.label??flag}</InfoBadge>)}</div>
+        : <p className="mt-1 text-xs text-plum/55">No enabled quality checks flagged an issue.</p>}
+    </section>}
+    {!!p.tags?.length && <section className="mt-5"><h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-plum/55">Search tags</h3>
+      <div className="flex flex-wrap gap-1">{p.tags.map(tag=><InfoBadge key={tag.label} message={`${tag.label} · ${tag.source==="metadata"?"file metadata":"local AI suggestion"}`} className="rounded bg-tint px-2 py-1 text-xs">#{tag.label}</InfoBadge>)}</div>
+    </section>}
+    {!!p.sidecars?.length && <p className="mt-5 break-all text-xs text-plum/55">Attached · {p.sidecars.map(path=>path.split("/").pop()).join(", ")}</p>}
+    <p className="mt-5 break-all text-[11px] text-plum/50">Destination · {p.destination}/</p>
+  </aside>;
+}
+
 /**
  * Full-size viewer for plan items: photos open in a zoomable lightbox (← → to browse, rotate, zoom),
  * videos in a player. Usage: const viewer = useMediaViewer(items); viewer.open(item); render {viewer.node}.
@@ -69,6 +139,12 @@ export function useMediaViewer(items: PlanItem[]): { open: (p: PlanItem) => void
   const photos = useMemo(() => items.filter((p) => p.kind === "image"), [items]);
   const [current, setCurrent] = useState<number | null>(null);
   const [video, setVideo] = useState<PlanItem | null>(null);
+  useEffect(() => {
+    if (current === null) return;
+    const close = (event: KeyboardEvent) => { if (event.key === "Escape") setCurrent(null); };
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, [current]);
 
   const open = (p: PlanItem) => {
     if (p.kind === "video") setVideo(p);
@@ -84,15 +160,13 @@ export function useMediaViewer(items: PlanItem[]): { open: (p: PlanItem) => void
             open: current !== null,
             current: current ?? 0,
             onOpenChange: (v: boolean) => !v && setCurrent(null),
-            onChange: (c: number) => setCurrent(c),
+            onChange: (c: number) => setCurrent(previous => previous === null ? null : c),
             imageRender: (img: ReactNode, info: { current: number }) => (
-              <div className="flex flex-col items-center gap-3">
-                {img}
-                {photos[info.current] && (
-                  <div className="max-w-[80vw] rounded-lg bg-black/55 px-3 py-1.5 text-white">
-                    <FileDetails p={photos[info.current]} />
-                  </div>
-                )}
+              <div className="grid h-[84vh] max-h-[1100px] w-[96vw] max-w-[1900px] grid-rows-[minmax(0,1fr)_minmax(0,0.8fr)] gap-3 md:grid-cols-[minmax(0,1fr)_340px] md:grid-rows-1">
+                <div className="flex min-h-0 min-w-0 items-center justify-center overflow-hidden rounded-xl" aria-label="Photo preview">
+                  {isValidElement(img) ? cloneElement(img as ReactElement<ImgHTMLAttributes<HTMLImageElement>>, {style:{...(img.props as ImgHTMLAttributes<HTMLImageElement>).style,maxWidth:"100%",maxHeight:"100%",objectFit:"contain"}}) : img}
+                </div>
+                {photos[info.current] && <PhotoInfoPanel p={photos[info.current]} />}
               </div>
             ),
           }}

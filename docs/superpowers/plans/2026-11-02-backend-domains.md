@@ -37,9 +37,9 @@
 
 ## Phase 3: Full-screen photo review
 
-- [ ] Update `frontend/src/components/MediaViewer.tsx`: desktop grid with image left and a persistent scrollable scoring panel right. Show recommendation rating, profile, component scores, reasons, quality flags, face summaries, tags and attached files.
-- [ ] Keep Ant Design zoom, rotation, keyboard navigation and close controls working. Stack the panel on narrow screens.
-- [ ] Add viewer interaction tests and browser checks; retain >=90% frontend lines/statements and a passing build.
+- [x] Update `frontend/src/components/MediaViewer.tsx`: desktop grid with image left and a persistent scrollable scoring panel right. Show recommendation rating, profile, component scores, reasons, quality flags, face summaries, tags and attached files.
+- [x] Keep Ant Design zoom, rotation, keyboard navigation and close controls working. Stack the panel on narrow screens.
+- [x] Add viewer interaction tests and browser checks; retain >=90% frontend lines/statements and a passing build.
 
 ## Phase 4: Verification and delivery
 
@@ -65,3 +65,18 @@
 - OpenAPI compared before/after: 35 paths, identical request/response schemas and operations except added documentation tags.
 - Root entry point is 65 lines; numerical/domain dependencies, model adapters and SQLite stores are separated.
 - Guard tests enforce dependency direction and factory isolation.
+
+## Further requirements received
+
+- [x] Library relevance bug: remove forced minimum-12 results and gate compound concepts. Initial local fix passes 177 BE tests / 91.24%; actual read-only SigLIP query `dog in a snow` returns 0 from the 1,029-photo folder, while portrait returns 15. Add deployment/browser verification.
+- [x] Winner photo: exactly one highlighted recommendation per Cull, retaining its ordinary folder assignment; best-available warning if all candidates have issues.
+- [ ] Research and integrate a licensed CPU-friendly trained aesthetic-preference signal for Social Media; verify exact embedding-space compatibility, model provenance and inference rather than treating semantic prompts as a trained popularity model.
+- [ ] Full-screen two-column viewer is implemented and builds, with a persistent score/reason panel; fix synthetic arrow-key test (Ant Design reads keyCode), finish provenance integration and deploy.
+
+## Viewer, search and Winner checkpoint
+
+- Backend: 179 passing tests; 91.25% coverage. Frontend: 88 passing tests; 93.34% lines and 90.78% statements; production build passes.
+- Chromium verifies Winner entry, desktop image/details columns, score bars, next-photo keyboard navigation, Escape, mobile stacked layout and no page errors.
+- Fixed preview opening during list updates and made dark preview controls visible.
+- Actual read-only library validation: `dog in a snow` returns zero results in 1,029 photos; `portrait` returns relevant results. No minimum result padding.
+- Decision provenance and stronger people matching remain in progress.

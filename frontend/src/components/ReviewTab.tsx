@@ -18,7 +18,7 @@ interface Props {
   onChanged: (changed: PlanItem[], categories: JobCategory[]) => void;
 }
 
-type Filter = "all" | "rejects" | "smiling" | "unsure" | "ai" | "manual" | "bursts" | "picks" | "close" | "unique" | "pareto";
+type Filter = "all" | "rejects" | "smiling" | "unsure" | "ai" | "manual" | "bursts" | "picks" | "close" | "unique" | "pareto" | "winner";
 
 /** The whole plan as a table: filter, inspect, and reassign files before Apply. */
 export function ReviewTab({ jobId, editable, plan, categories, onChanged }: Props) {
@@ -44,6 +44,7 @@ export function ReviewTab({ jobId, editable, plan, categories, onChanged }: Prop
       if (filter === "unsure" && !(p.category_id === "_unsorted" || (p.source === "clip" && p.confidence < 0.45))) return false;
       if (filter === "ai" && p.source !== "ai") return false;
       if (filter === "manual" && p.source !== "manual") return false;
+      if (filter === "winner" && !p.pick?.winner) return false;
       if (filter === "picks" && !p.pick?.picked) return false;
       if (filter === "close" && !(p.burst?.margin !== undefined && p.burst.margin < .025)) return false;
       if (filter === "unique" && (p.pick?.parts?.novelty ?? 0) < .8) return false;
@@ -212,6 +213,7 @@ export function ReviewTab({ jobId, editable, plan, categories, onChanged }: Prop
           onChange={(v) => setFilter(v as Filter)}
           options={[
             { value: "all", label: t("rv.everything") },
+            { value: "winner", label: "Winner photo" },
             { value: "picks", label: "Top picks" },
             { value: "unsure", label: t("rv.unsure") },
             { value: "rejects", label: t("rv.rejects") },

@@ -38,7 +38,7 @@ def categorize(keep, quality, rules, bursts, embedder, opts) -> CullingResult:
     ids = [fid for fid, _ in photos]
     E = np.vstack([e for _, e in photos]).astype(np.float32) if photos else np.empty((0, embs.shape[1]))
     ranking = picks_mod.rank(ids, quality or {}, E, embedder, rules, qopts.get("pick_profile", "auto"), options=qopts)
-    recommendations = {fid: {"score": pi.score, "reasons": pi.reasons, "picked": False,
+    recommendations = {fid: {"score": pi.score, "reasons": pi.reasons, "picked": False, "winner": False,
                            "parts": pi.parts, "profile": pi.profile, "rating": round(1 + pi.score * 4, 2)} for fid, pi in ranking.info.items()}
     # Choose the strongest expression/presentation within each burst, not merely its sharpest frame.
     for group in {b["group"] for b in (bursts or {}).values()}:
@@ -85,5 +85,13 @@ def categorize(keep, quality, rules, bursts, embedder, opts) -> CullingResult:
             if fid not in chosen:
                 recommendations[fid]["reasons"] = ["similar to a stronger pick", *recommendations[fid]["reasons"]][:4]
             used.add(cid)
+    if ids:
+        clean = [fid for fid in ids if verdict(quality[fid], rules)[0] is None]
+        # Stable tie-breaking keeps reruns predictable; the badge never changes folders or suppresses flags.
+        paths = {f.id: f.rel_path for f, _, _ in keep}
+        winner = min(clean or ids, key=lambda fid: (-ranking.info[fid].score, paths[fid]))
+        recommendations[winner]["winner"] = True
+        note = "highest recommendation in this shoot" if clean else "best available; review quality warnings"
+        recommendations[winner]["reasons"] = [note, *recommendations[winner]["reasons"]][:5]
     return CullingResult(assignment, [c for c in cats if c["id"] in used], recommendations)
 

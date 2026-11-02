@@ -20,6 +20,7 @@ export function Thumb({ p, onOpen, size = "md" }: { p: PlanItem; onOpen: () => v
         {p.kind === "video" && <InfoBadge message="Video: opens the video player." className="absolute right-1 top-1 text-white drop-shadow"><Film size={size === "sm" ? 11 : 15} /></InfoBadge>}
         {size === "md" && (
           <div className="absolute inset-x-1 bottom-1 flex flex-wrap gap-0.5">
+            {p.pick?.winner && <InfoBadge message="Winner photo: the highest-ranked photo in this Cull. Review any quality warnings." className="rounded bg-amber-500/90 px-1 text-[10px] text-black">🥇</InfoBadge>}
             {p.source === "ai" && <InfoBadge message={SOURCE_HELP.ai} className="rounded bg-fuchsia-600/85 px-1 text-[10px] text-white">AI</InfoBadge>}
             {p.quality?.flags.map((f) => (
               <InfoBadge key={f} message={FLAG[f]?.help ?? f} className="rounded bg-black/60 px-1 text-[10px] text-white">

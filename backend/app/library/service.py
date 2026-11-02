@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -105,7 +104,7 @@ class Library:
             if p in skip or not os.path.exists(p):
                 continue
             out.append({"path": self._rel(p), "score": round(float(scores[i]), 4), "thumb": f"/api/thumbs/{idx['shas'][i]}",
-                        "captured_at": idx["ts"][i], "tags": idx.get("tags", {}).get(p, [])})
+                        "captured_at": idx["ts"][i], "match_explanation": idx.get("match_explanations", {}).get(p), "tags": idx.get("tags", {}).get(p, [])})
             if len(out) >= limit:
                 break
         return out
@@ -150,36 +149,27 @@ class Library:
             mask &= np.array([all(any(tokens(t["label"]) == wanted for t in idx["tags"].get(path, [])) for wanted in required) for path in idx["paths"]], dtype=bool)
         if not mask.any():
             return {"results": [], "indexed": 0, "took_ms": 0}
-        emb = self.m.embedder_for(model).embed_texts([f"a photo of {query.strip()}"])[0].astype(np.float32)
-        emb /= np.linalg.norm(emb) + 1e-9
-        scores = idx["mat"] @ emb
-        words_for_tags = tokens(query)
-        for i, path in enumerate(idx["paths"]):
-            vocabulary = set().union(*(tokens(t["label"]) for t in idx["tags"].get(path, [])))
-            if words_for_tags:
-                scores[i] += .25 * len(words_for_tags & vocabulary) / len(words_for_tags)
-        # OCR: photos whose text contains the query words get a boost (search inside screenshots, signs, documents)
-        words = [w for w in re.findall(r"\w{3,}", query.lower())]
-        if words:
-            cache = self.m.cache
-            rows = cache.auxiliary_rows("ocr")
-            pos = {p: i for i, p in enumerate(idx["paths"])}
-            for path, data, _, _ in rows:
-                i = pos.get(path)
-                if i is None:
-                    continue
-                text = (json.loads(data) or {}).get("text", "").lower()
-                hit = sum(w in text for w in words)
-                if hit:
-                    scores[i] += 0.12 * hit / len(words) + 0.05
-        scores = np.where(mask, scores, -np.inf)
-        valid = scores[mask]
-        # model-agnostic relevance cut: clearly above the folder's average, at least a dozen results
-        cut = float(valid.mean() + 1.2 * valid.std()) if len(valid) > 12 else -np.inf
+        from app.library.relevance import rank_query
+
+        texts = [""] * len(idx["paths"])
+        positions = {path: i for i, path in enumerate(idx["paths"])}
+        for path, data, size, mtime in self.m.cache.auxiliary_rows("ocr"):
+            i = positions.get(path)
+            if i is None or not mask[i]:
+                continue
+            try:
+                stat = Path(path).stat()
+            except OSError:
+                continue
+            if stat.st_size == size and abs(stat.st_mtime-mtime)<1e-6:
+                texts[i] = (json.loads(data) or {}).get("text", "")
+        scores, eligible, messages = rank_query(idx["mat"], query, self.m.embedder_for(model),
+                                               [idx["tags"].get(path, []) for path in idx["paths"]], texts, browse=bool(tags))
+        scores = np.where(mask & eligible, scores, -np.inf)
         order = [i for i in np.argsort(-scores) if np.isfinite(scores[i])]
-        keep = [i for n, i in enumerate(order) if n < 12 or scores[i] >= cut]
-        return {"results": self._results(idx, keep, scores, limit), "indexed": int(mask.sum()),
-                "took_ms": round((time.time() - t0) * 1000)}
+        idx["match_explanations"] = dict(zip(idx["paths"], messages))
+        return {"results": self._results(idx, order, scores, limit), "indexed": int(self._scope(idx, folder).sum()),
+                "took_ms": round((time.time()-t0)*1000)}
 
     def similar(self, rel_path: str, folder: str, model: str, limit: int = 60, min_sim: float = 0.8) -> dict:
         idx = {**self._index(model), "tags": self._tags(model)}

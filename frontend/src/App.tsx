@@ -16,6 +16,7 @@ import { HistoryDrawer } from "./components/HistoryDrawer";
 import { HistoryTab } from "./components/HistoryTab";
 import { Segmented } from "antd";
 import { LayoutGrid, TableProperties, Tags, Settings2, BarChart3, RotateCcw, Images, TriangleAlert } from "lucide-react";
+import { useMediaViewer } from "./components/MediaViewer";
 import { FilesDrawer } from "./components/FilesDrawer";
 import { FolderPicker, displayPath } from "./components/FolderPicker";
 import { Button } from "./components/ui/button";
@@ -88,6 +89,8 @@ export default function App() {
   const [landed, setLanded] = useState<Record<string, number>>({});
   const [landedKinds, setLandedKinds] = useState({ image: 0, video: 0 });
   const [plan, setPlan] = useState<PlanItem[]>([]);
+  const winner = plan.find(p=>p.pick?.winner);
+  const winnerViewer = useMediaViewer(winner ? [winner] : []);
   const [drawer, setDrawer] = useState<null | "settings" | "history" | "editor" | "folder">(null);
   const [filesFor, setFilesFor] = useState<{ title: string; catId: string; kind: string | null } | null>(null);
   const [applying, setApplying] = useState(false);
@@ -749,6 +752,12 @@ export default function App() {
           )}
         </div>
       </section>
+      {winner && !running && <button onClick={()=>winnerViewer.open(winner)} className="mx-auto mt-5 flex w-full max-w-3xl items-center gap-4 rounded-2xl border border-amber-500/25 bg-surface p-3 text-left shadow-sm transition hover:border-amber-500/60">
+        <img src={winner.thumb} alt="" className="h-20 w-20 shrink-0 rounded-xl object-cover" />
+        <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">🥇 Winner photo</span><span className="mt-1 block truncate text-xs text-plum/65">{winner.name}</span>
+          <span className="mt-1 block text-xs text-plum/55">{winner.quality?.flags.length ? "Best available · review quality warnings" : winner.pick?.reasons[0]}</span></span>
+        <span className="shrink-0 pr-2 text-lg font-semibold tabular-nums">{(winner.pick?.rating ?? 1+4*(winner.pick?.score??0)).toFixed(2)}<span className="text-xs font-normal text-plum/50"> / 5</span></span>
+      </button>}
 
       {(running || job.categories.length > 0) && (
         <div className="mt-4">
@@ -1045,6 +1054,7 @@ export default function App() {
       <HistoryDrawer open={drawer === "history"} onClose={() => setDrawer(null)} onUndone={(id) => {
         setJob((j) => (j.runId === id ? { ...j, status: "undone" } : j));
       }} />
+      {winnerViewer.node}
       <FilesDrawer
         title={filesFor?.title ?? null}
         items={filesItems}
