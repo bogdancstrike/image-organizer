@@ -4,6 +4,7 @@ import type { ColumnsType } from "antd/es/table";
 import { Search, MoveRight } from "lucide-react";
 import { api, type JobCategory, type PlanItem } from "@/api";
 import { InfoBadge, SOURCE_HELP } from "./PhotoBadge";
+import { ComparePhotos } from "./ComparePhotos";
 import { Thumb } from "./FilesDrawer";
 import { FLAG, useMediaViewer } from "./MediaViewer";
 import { fmt } from "@/lib/utils";
@@ -17,7 +18,7 @@ interface Props {
   onChanged: (changed: PlanItem[], categories: JobCategory[]) => void;
 }
 
-type Filter = "all" | "rejects" | "smiling" | "unsure" | "ai" | "manual" | "bursts" | "picks";
+type Filter = "all" | "rejects" | "smiling" | "unsure" | "ai" | "manual" | "bursts" | "picks" | "close" | "unique" | "pareto";
 
 /** The whole plan as a table: filter, inspect, and reassign files before Apply. */
 export function ReviewTab({ jobId, editable, plan, categories, onChanged }: Props) {
@@ -29,6 +30,7 @@ export function ReviewTab({ jobId, editable, plan, categories, onChanged }: Prop
   const [filter, setFilter] = useState<Filter>("all");
   const [selected, setSelected] = useState<string[]>([]);
   const [target, setTarget] = useState<string | undefined>();
+  const [compare, setCompare] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const rows = useMemo(() => {
@@ -36,13 +38,16 @@ export function ReviewTab({ jobId, editable, plan, categories, onChanged }: Prop
     return plan.filter((p) => {
       if (kind !== "all" && p.kind !== kind) return false;
       if (cats.length && !cats.includes(p.category_id)) return false;
-      if (needle && !p.rel_path.toLowerCase().includes(needle) && !(p.text ?? "").toLowerCase().includes(needle)) return false;
+      if (needle && !p.rel_path.toLowerCase().includes(needle) && !(p.text ?? "").toLowerCase().includes(needle) && !p.tags?.some(tag=>tag.label.toLowerCase().includes(needle))) return false;
       if (filter === "rejects" && !(p.quality?.flags.length || p.category_id.startsWith("_reject"))) return false;
       if (filter === "smiling" && !p.quality?.smiling) return false;
       if (filter === "unsure" && !(p.category_id === "_unsorted" || (p.source === "clip" && p.confidence < 0.45))) return false;
       if (filter === "ai" && p.source !== "ai") return false;
       if (filter === "manual" && p.source !== "manual") return false;
       if (filter === "picks" && !p.pick?.picked) return false;
+      if (filter === "close" && !(p.burst?.margin !== undefined && p.burst.margin < .025)) return false;
+      if (filter === "unique" && (p.pick?.parts?.novelty ?? 0) < .8) return false;
+      if (filter === "pareto" && p.pick?.parts?.pareto !== 1) return false;
       if (filter === "bursts" && !p.burst) return false;
       return true;
     });
@@ -58,7 +63,7 @@ export function ReviewTab({ jobId, editable, plan, categories, onChanged }: Prop
       const r = await api.reassign(jobId, ids, categoryId);
       onChanged(r.changed, r.categories);
       message.success(`${ids.length} file${ids.length === 1 ? "" : "s"} → ${r.changed[0]?.category ?? ""}`);
-      setSelected([]);
+      if (!compare) setSelected([]);
     } catch (e) {
       message.error((e as Error).message);
     } finally {
@@ -216,6 +221,11 @@ export function ReviewTab({ jobId, editable, plan, categories, onChanged }: Prop
             { value: "manual", label: t("rv.edited") },
           ]}
         />
+        <Select aria-label="More recommendation filters" placeholder="More review filters" allowClear className="min-w-44"
+          value={["close","unique","pareto"].includes(filter)?filter:undefined} onChange={v=>setFilter(v??"all")}
+          options={[{value:"close",label:"Close burst decisions"},{value:"unique",label:"Unique views"},{value:"pareto",label:"Alternative strengths"}]} />
+        <Button disabled={selected.length<2 || selected.length>4 || plan.filter(p=>selected.includes(p.file_id)).some(p=>p.kind!=="image")}
+          onClick={()=>setCompare(true)}>Compare selected</Button>
         <span className="ml-auto text-xs text-plum/55">
           {t("rv.count", { n: fmt(rows.length), total: fmt(plan.length) })}
         </span>
@@ -240,11 +250,13 @@ export function ReviewTab({ jobId, editable, plan, categories, onChanged }: Prop
         size="small"
         columns={columns}
         dataSource={rows}
-        rowSelection={editable ? { selectedRowKeys: selected, onChange: (k) => setSelected(k as string[]) } : undefined}
+        rowSelection={{ selectedRowKeys: selected, onChange: (k) => setSelected(k as string[]) }}
         pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: [25, 50, 100, 250] }}
         scroll={{ x: 900 }}
       />
       {!editable && <p className="mt-2 text-xs text-plum/50">This plan was already applied. Re-run a sort to edit again.</p>}
+      {compare && <ComparePhotos items={plan.filter(p=>selected.includes(p.file_id))} onClose={()=>setCompare(false)} categories={categories}
+        onAssign={editable ? (id,category)=>move([id],category) : undefined} />}
       {viewer.node}
     </div>
   );

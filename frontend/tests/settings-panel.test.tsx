@@ -104,3 +104,26 @@ it('keeps adjustable Picks and Keepers rating bands ordered',()=>{
  expect(saved().quality.keeper_min_rating).toBe(4.2);expect(saved().quality.pick_min_rating).toBe(4.8);
  expect(saved().quality.keeper_min_stars).toBe(0);
 });
+
+it('configures social-media readiness, format, relevance and alternative selection',async()=>{
+ renderUI(<Panel initial={{...DEFAULT_SETTINGS,strategy:'cull'}}/>);
+ fireEvent.click(screen.getByText('Social Media recommendations').closest('label')!.querySelector('[role=switch]')!);
+ expect(saved().quality.social_media).toBe(true);
+ fireEvent.mouseDown(screen.getByRole('combobox',{name:'Post format'}));fireEvent.click(await screen.findByText('Square · 1:1'));
+ expect(saved().quality.social_format).toBe('square');
+ fireEvent.change(screen.getByLabelText('Culling subject priority'),{target:{value:'a candid laugh'}});expect(saved().quality.subject_prompt).toBe('a candid laugh');
+ fireEvent.click(within(row('Preserve unique views')).getByRole('switch'));expect(saved().quality.preserve_unique).toBe(false);
+ fireEvent.click(within(row('Explain alternative strengths')).getByRole('switch'));expect(saved().quality.pareto_review).toBe(false);
+ fireEvent.click(within(row('Automatic search tags')).getByRole('switch'));expect(saved().autoTags).toBe(false);
+});
+
+it('keeps Quick settings compact with collapsible categories',async()=>{
+ renderUI(<SettingsDrawer open onClose={()=>{}} onOpenAll={()=>{}} settings={{...DEFAULT_SETTINGS,strategy:'cull'}} onChange={()=>{}} presets={presets} customSets={[]} health={health} onEditCategories={()=>{}} onPickFolder={()=>{}}/>);
+ const picks=screen.getByText('Picks & Keepers',{exact:true}).closest('details')!;
+ const technical=screen.getByText('Technical checks & bursts',{exact:true}).closest('details')!;
+ expect(picks).toHaveAttribute('open');expect(technical).not.toHaveAttribute('open');
+ expect(screen.getByRole('spinbutton',{name:'Picks from'})).toBeVisible();
+ fireEvent.click(screen.getByText('Technical checks & bursts',{exact:true}));expect(technical).toHaveAttribute('open');
+ fireEvent.click(screen.getByText('Picks & Keepers',{exact:true}));expect(picks).not.toHaveAttribute('open');
+ fireEvent.click(screen.getByText('Technical checks & bursts',{exact:true}));expect(technical).not.toHaveAttribute('open');
+});

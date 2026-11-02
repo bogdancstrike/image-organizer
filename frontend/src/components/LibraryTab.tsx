@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { App, Button, Empty, Input, Modal, Segmented, Spin, Tag } from "antd";
+import { App, Button, Empty, Input, Modal, Segmented, Select, Spin, Tag } from "antd";
 import { ChevronLeft, ChevronRight, Images, Map as MapIcon, Plane, Search, Sparkles, X } from "lucide-react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -8,6 +8,8 @@ import {
   previewUrl,
   thumbUrl,
   type JobRequest,
+  type ImageTag,
+  type TagFacets,
   type LibResults,
   type MapPoint,
   type PlacesResult,
@@ -15,6 +17,7 @@ import {
   type TripsResult,
 } from "@/api";
 import { Card } from "./ui/card";
+import { InfoBadge } from "./PhotoBadge";
 import { fmt } from "@/lib/utils";
 
 type View = "search" | "trips" | "map";
@@ -61,8 +64,9 @@ function Grid({ items, onOpen }: { items: { path: string; thumb?: string }[]; on
 }
 
 /** Large viewer with keyboard navigation and "Find similar". */
-function Viewer({ paths, index, onIndex, onClose, onSimilar }: {
+function Viewer({ paths, index, onIndex, onClose, onSimilar, tags }: {
   paths: string[];
+  tags?: Record<string, ImageTag[]>;
   index: number | null;
   onIndex: (i: number) => void;
   onClose: () => void;
@@ -97,6 +101,7 @@ function Viewer({ paths, index, onIndex, onClose, onSimilar }: {
       </div>
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
         <span className="min-w-0 truncate text-xs text-plum/60">{path} · {index + 1} / {paths.length}</span>
+        <div className="flex flex-wrap gap-1">{tags?.[path]?.map(tag=><InfoBadge key={tag.label} message={`${tag.label} · ${tag.source === "metadata" ? "file metadata" : "local AI tag"}`} className="rounded bg-tint px-1">#{tag.label}</InfoBadge>)}</div>
         <Button icon={<Sparkles size={14} />} onClick={() => onSimilar(path)}>
           Find similar
         </Button>
@@ -148,6 +153,8 @@ function PhotoMap({ points, onPick }: { points: MapPoint[]; onPick: (p: MapPoint
 export function LibraryTab({ active, folder, folderLabel, model, onSortBy }: Props) {
   const { message } = App.useApp();
   const [view, setView] = useState<View>("search");
+  const [facets, setFacets] = useState<TagFacets | null>(null);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [indexed, setIndexed] = useState<number | null>(null);
   const [indexing, setIndexing] = useState(false);
   const [q, setQ] = useState("");
@@ -162,10 +169,14 @@ export function LibraryTab({ active, folder, folderLabel, model, onSortBy }: Pro
   const reqId = useRef(0);
   const scope = `${folder}|${model}`;
   const [loadedScope, setLoadedScope] = useState(scope);
+  const scopeRef = useRef(scope);scopeRef.current=scope;
 
   // scope changed: results belong to the old folder
   if (loadedScope !== scope) {
+    reqId.current++;
     setLoadedScope(scope);
+    setSelectedTags([]);
+    setFacets(null);
     setRes(null);
     setPlaces(null);
     setTrips(null);
@@ -174,7 +185,9 @@ export function LibraryTab({ active, folder, folderLabel, model, onSortBy }: Pro
   }
 
   const refreshStatus = useCallback(() => {
-    api.libStatus(folder, model).then((s) => setIndexed(s.indexed)).catch(() => setIndexed(0));
+    const requested=`${folder}|${model}`;
+    api.libStatus(folder, model).then((s) => {if(scopeRef.current===requested)setIndexed(s.indexed);}).catch(() => {if(scopeRef.current===requested)setIndexed(0);});
+    api.libTags(folder, model).then(tags=>{if(scopeRef.current===requested)setFacets(tags);}).catch(() => {if(scopeRef.current===requested)setFacets(null);});
   }, [folder, model]);
   useEffect(() => {
     if (active) refreshStatus();
@@ -207,12 +220,12 @@ export function LibraryTab({ active, folder, folderLabel, model, onSortBy }: Pro
       if (id === reqId.current) setBusy(false);
     }
   };
-  const search = (text: string) => {
-    const t = text.trim();
+  const search = (text: string, tags = selectedTags) => {
+    const t = text.trim() || tags.join(" ");
     if (!t) return;
     setQ(t);
     setView("search");
-    run(() => api.libSearch(t, folder, model), `“${t}”`);
+    run(() => tags.length ? api.libSearch(t, folder, model, tags) : api.libSearch(t, folder, model), `“${t}”`);
   };
   const similar = (path: string) => {
     setViewer(null);
@@ -223,12 +236,15 @@ export function LibraryTab({ active, folder, folderLabel, model, onSortBy }: Pro
   const indexNow = async () => {
     setIndexing(true);
     try {
-      const options = { model, near_duplicates: false } as unknown as JobRequest["options"];
+      const options = { model, near_duplicates: false, auto_tags: true } as unknown as JobRequest["options"];
       const { id } = await api.startJob({ source: folder, strategy: "date", set_id: null, options });
       for (;;) {
         await new Promise((r) => setTimeout(r, 1200));
         const s = await api.job(id);
-        if (s.status !== "running") break;
+        if (s.status !== "running") {
+          if (s.status !== "done" && s.status !== "applied") throw Error(s.error || "Indexing did not finish. Retry this folder.");
+          break;
+        }
       }
       refreshStatus();
       message.success("Folder indexed. Search away.");
@@ -272,7 +288,7 @@ export function LibraryTab({ active, folder, folderLabel, model, onSortBy }: Pro
             placeholder="Describe what you're looking for, e.g. red dress at the beach"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            onSearch={search}
+            onSearch={text => search(text)}
             enterButton={<span className="inline-flex items-center gap-1.5"><Search size={15} /> Search</span>}
             loading={busy}
             disabled={indexed === 0}
@@ -284,6 +300,20 @@ export function LibraryTab({ active, folder, folderLabel, model, onSortBy }: Pro
               </Tag>
             ))}
           </div>
+          {!!facets?.tags.length && <div className="rounded-xl border border-line bg-surface/60 p-3">
+            <div className="mb-2 flex items-center justify-between gap-2 text-xs text-plum/60">
+              <span>Filter by tags · {facets.tagged} tagged photos · selected tags must all match</span>
+              {selectedTags.length > 0 && <Button size="small" type="text" onClick={() => { setSelectedTags([]); search(q, []); }}>Clear tags</Button>}
+            </div>
+            <Select aria-label="Filter image tags" mode="multiple" showSearch allowClear maxCount={12} className="w-full"
+              placeholder="Choose subjects, scenes, clothing or lighting…" value={selectedTags}
+              options={facets.tags.map(tag=>({value:tag.label,label:`${tag.label} (${tag.count})`}))}
+              onChange={tags=>{setSelectedTags(tags);search(q,tags);}} />
+          </div>}
+          {!!indexed && <div className="flex items-center justify-between gap-3 text-xs text-plum/55">
+            <span>{facets ? `${facets.tagged} of ${indexed} photos have automatic tags` : "Local tags complement semantic search."}</span>
+            <Button size="small" loading={indexing} onClick={indexNow}>Update search tags</Button>
+          </div>}
           {indexed === 0 ? (
             <Card className="p-6 text-center">
               <p className="mb-3 text-sm text-plum/70">
@@ -303,7 +333,13 @@ export function LibraryTab({ active, folder, folderLabel, model, onSortBy }: Pro
                   {res.missing ? "This photo isn't analyzed yet: run a sort on its folder first." : `${hits.length} results${res.took_ms !== undefined ? ` · ${res.took_ms} ms` : ""}`}
                 </span>
               </div>
-              {hits.length ? <Grid items={hits} onOpen={open(hits.map((h) => h.path))} /> : <Empty description="No matching photos" />}
+              {hits.length ? <>
+                <Grid items={hits} onOpen={open(hits.map((h) => h.path))} />
+                <div className="mt-3 space-y-2">{hits.slice(0, 12).filter(hit=>hit.tags?.length).map(hit=><div key={hit.path} className="flex flex-wrap items-center gap-1 text-xs">
+                  <span className="mr-1 max-w-52 truncate text-plum/60">{hit.path.split("/").pop()}</span>
+                  {hit.tags!.map(tag=><InfoBadge key={tag.label} message={`${tag.label} · ${tag.source === "metadata" ? "file metadata" : "automatic local AI tag; review if needed"}`} className="rounded bg-tint px-1.5 py-0.5">#{tag.label}</InfoBadge>)}
+                </div>)}</div>
+              </> : <Empty description="No matching photos" />}
             </div>
           ) : (
             <p className="py-10 text-center text-sm text-plum/50">Search by what's in the photo, not by file name. Text inside photos (OCR) counts too.</p>
@@ -392,6 +428,7 @@ export function LibraryTab({ active, folder, folderLabel, model, onSortBy }: Pro
         onIndex={(i) => setViewer((v) => (v ? { ...v, index: i } : v))}
         onClose={() => setViewer(null)}
         onSimilar={similar}
+        tags={Object.fromEntries(hits.map(hit=>[hit.path,hit.tags??[]]))}
       />
     </div>
   );

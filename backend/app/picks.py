@@ -58,7 +58,7 @@ def technical(q: Quality, rules: QualityRules | None = None) -> float:
     # Mean brightness alone cannot distinguish bad exposure from intentional low/high-key lighting.
     exposure = 1 - min(0.9, 0.55 * q.dark_clip + 0.9 * q.bright_clip)
     noise = 1 - min(1.0, q.noise / 0.09)
-    return 0.65 * sharp + 0.25 * exposure + 0.10 * noise
+    return (0.60 * sharp + .05 * q.features.get("tenengrad", sharp) + 0.25 * exposure + 0.10 * noise) * (1 - .06*q.features.get("blocking", 0))
 
 
 def face_expression(f: Face, profile: str = "portrait") -> float:
@@ -171,7 +171,7 @@ def _semantic(E: np.ndarray, embedder):
 
 
 def rank(ids: list[str], quality: dict[str, Quality], E: np.ndarray, embedder, rules: QualityRules,
-         profile: str = "auto") -> Ranking:
+         profile: str = "auto", options: dict | None = None) -> Ranking:
     """Explainable recommendations: absolute quality + shoot/scene comparisons, adapted to genre."""
     if profile not in ("auto", *GENRES):
         raise ValueError("Unknown culling profile")
@@ -213,7 +213,39 @@ def rank(ids: list[str], quality: dict[str, Quality], E: np.ndarray, embedder, r
         if expr is None:
             weights["expr"] = 0
         absolute[i] = sum(weights[k] * raw[k][i] for k in weights) / sum(weights.values())
+    options = options or {}
+    relevance = None
+    if options.get("subject_prompt", "").strip():
+        try:
+            T = np.asarray(embedder.embed_texts([options["subject_prompt"].strip(), "a photograph"]), dtype=np.float32)
+            T /= np.linalg.norm(T, axis=1, keepdims=True)+1e-9
+            logits = E @ T.T
+            relevance = 1/(1+np.exp(-np.clip(20*(logits[:,0]-logits[:,1]),-30,30)))
+            absolute = .9*absolute+.1*relevance
+        except (RuntimeError, ValueError, OSError):
+            pass
+    social = {}
+    if options.get("social_media"):
+        from .social import assess
+        social = assess(ids, quality, E, embedder, options.get("social_format", "portrait"))
+        weight = float(options.get("social_weight", .25))
+        absolute = (1-weight)*absolute + weight*np.array([social[fid]["social"] for fid in ids])
     labels = scenes(E)
+    novelty = np.zeros(n)
+    frontier = np.zeros(n)
+    vectors = np.column_stack([raw[k] for k in ("tech", "expr", "comp", "light", "aes")])
+    for lab in np.unique(labels):
+        group = np.where(labels == lab)[0]
+        # Bounded chunks avoid allocating the full similarity/dominance matrix for large shoots.
+        for start in range(0, len(group), 128):
+            positions = group[start:start+128]
+            similarities = E[positions] @ E[group].T
+            similarities[np.arange(len(positions)), np.arange(start,start+len(positions))] = -1
+            novelty[positions] = np.clip((1-similarities.max(axis=1))/.3, 0, 1)
+            other = vectors[group][None, :, :]; current = vectors[positions][:, None, :]
+            frontier[positions] = ~np.any(np.all(other >= current, axis=2) & np.any(other > current+.01, axis=2), axis=1)
+    if options.get("preserve_unique", True):
+        absolute = .97*absolute + .03*novelty
     global_rank = _pct(absolute)
     local_rank = global_rank.copy()
     for lab in np.unique(labels):
@@ -232,9 +264,22 @@ def rank(ids: list[str], quality: dict[str, Quality], E: np.ndarray, embedder, r
         parts = {k: round(float(v[i]), 3) for k, v in raw.items()}
         if not q.faces or WEIGHTS[kind]["expr"] == 0:
             parts.pop("expr")
-        parts.update({key: q.features[key] for key in ("detail", "balance", "separation") if key in q.features})
+        parts.update({key: q.features[key] for key in ("detail", "balance", "separation", "tenengrad", "directionality", "blocking", "thumbnail") if key in q.features})
+        parts.update(social.get(fid, {}))
+        if relevance is not None:
+            parts["relevance"] = round(float(relevance[i]),3)
+        parts["novelty"] = round(float(novelty[i]), 3)
+        parts["pareto"] = float(frontier[i]) if options.get("pareto_review", True) else 0.
         parts["relative"] = round(float(global_rank[i]), 3)
         reasons = []
+        if social and social[fid]["crop"] < .65:
+            reasons.append("proposed social crop may cut important content")
+        if social and social[fid]["clarity"] >= .75:
+            reasons.append("clear at thumbnail size")
+        if frontier[i] and options.get("pareto_review", True):
+            reasons.append("alternative strengths in its scene")
+        if novelty[i] >= .8:
+            reasons.append("distinct view in its scene")
         if parts["tech"] >= .80:
             reasons.append("sharp eyes" if q.faces else "clear detail")
         if kind in ("portrait", "group") and parts.get("expr", 0) >= .8:

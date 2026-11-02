@@ -39,6 +39,7 @@ export function FileDetails({ p }: { p: PlanItem }) {
         <div className="opacity-75">
           sharpness {pct(q.sharpness)} · {q.faces} face{q.faces === 1 ? "" : "s"}
           {q.faces ? ` · eyes closed ${pct(q.blink)} · smile ${pct(q.smile)}` : ""}
+          {q.faces_considered ? ` · ${q.eyes_open}/${q.faces_considered} faces with eyes open` : ""}
           {q.flags.length ? ` · ${q.flags.map((f) => FLAG[f]?.label ?? f).join(", ")}` : ""}
         </div>
       )}
@@ -47,11 +48,14 @@ export function FileDetails({ p }: { p: PlanItem }) {
           <div>{p.pick.picked ? "★ Top pick" : "Recommendation"} · {(p.pick.rating ?? 1 + p.pick.score * 4).toFixed(2)}/5 · {p.pick.profile ?? "general"}</div>
           {p.pick.reasons.length > 0 && <div>{p.pick.reasons.join(" · ")}</div>}
           {p.pick.parts && <div className="flex flex-wrap gap-x-2 opacity-75">
-            {Object.entries({ tech: "Technical", expr: "Expression", comp: "Composition", light: "Lighting", aes: "Presentation", detail: "Detail consistency", balance: "Visual balance", separation: "Subject separation" }).map(([key, label]) =>
+            {Object.entries({ tech: "Technical", expr: "Expression", comp: "Composition", light: "Lighting", aes: "Presentation", detail: "Detail consistency", balance: "Visual balance", separation: "Subject separation", social: "Social readiness", crop: "Crop fit", clarity: "Thumbnail clarity", impact: "Visual story", contrast: "Contrast", color: "Color", novelty: "Unique view", relevance: "Subject relevance", tenengrad: "Gradient focus", directionality: "Directional edges", blocking: "Block artifacts", thumbnail: "Thumbnail detail" }).map(([key, label]) =>
               p.pick?.parts?.[key] !== undefined && <span key={key}>{label} {Math.round(p.pick.parts[key] * 100)}%</span>)}
           </div>}
         </div>
       )}
+      {!!p.tags?.length && <div className="flex flex-wrap gap-1">{p.tags.map(tag => <InfoBadge key={tag.label}
+        message={`${tag.label} · ${tag.source === "metadata" ? "file metadata" : `local AI tag, ${Math.round(tag.score*100)}% heuristic strength`}`}
+        className="rounded bg-current/10 px-1">#{tag.label}</InfoBadge>)}</div>}
       {p.sidecars?.length ? <div className="opacity-75">+ {p.sidecars.map((s) => s.split("/").pop()).join(", ")}</div> : null}
     </div>
   );
@@ -75,7 +79,7 @@ export function useMediaViewer(items: PlanItem[]): { open: (p: PlanItem) => void
     <>
       <div className="hidden">
         <Image.PreviewGroup
-          items={photos.map((p) => previewUrl(p.rel_path))}
+          items={photos.map((p) => previewUrl(p.preview_path ?? p.rel_path))}
           preview={{
             open: current !== null,
             current: current ?? 0,

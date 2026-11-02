@@ -38,6 +38,7 @@ export function mockApi(){
   aiDefaults:{naming_prompt:'Name {groups}',assist_prompt:'Sort {count}',naming_placeholders:['{groups}'],assist_placeholders:['{count}'],naming_format:'JSON',assist_format:'JSON'},aiModels:{models:['test-model']},
   places:[{id:'pictures',name:'Pictures',path:'Pictures'}],folders:{path:'Trip',name:'Trip',media_count:3,folders:[{name:'Holiday',path:'Trip/Holiday',media_count:2,has_children:false}],samples:[]},
   faces:[{id:'face-one',name:'Alex',cover:null,faces_in_photo:1}],libStatus:{indexed:3},libSearch:{results:plan.slice(0,2).map(p=>({path:p.rel_path,score:.9})),took_ms:10},libSimilar:{results:[{path:plan[0].rel_path,score:1}]},
+  libTags:{tags:[],tagged:3,indexed:3},
   libPlaces:{photos:3,located:0,points:[],countries:[],cities:[]},libTrips:{photos:3,located:0,trips:[],home:null},history,runs:[run],job,startJob:{id:'job-one'},apply:{run_id:'run-one',moved:3,failed:[],skipped:0},undo:{run_id:'run-one',status:'undone',undo:{restored:3,problems:[]}},
   emptyTrash:{deleted:1,freed_bytes:1000},renameCategory:{categories,plan},reassign:{changed:[{...plan[0],category_id:'food',category:'Food'}],categories,stats:job.stats},factoryReset:{ok:true},addFace:{id:'new-face',name:'Sam',cover:'/thumb/new',faces_in_photo:2},
   stats:{sorts:1,failed_sorts:0,files_processed:3,files_analyzed:3,photos_organized:0,applies:0,processing_seconds:4,avg_seconds_per_sort:4,avg_files_per_second:.75,ai_tokens:0,phase_seconds:{scanning:.1,analyzing:3.9},by_strategy:{rules:1},by_model:{clip:1},recent:[{...historyItem,status:'done',embedded:3}]}};

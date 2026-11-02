@@ -125,7 +125,7 @@ it('sorts folder photos by descending score by default and switches to ascending
  const order=()=>screen.getAllByRole('button',{name:/^Open .*\.jpg$/}).map(b=>b.getAttribute('aria-label'));
  expect(order()).toEqual(['Open high.jpg','Open middle.jpg','Open low.jpg','Open unknown.jpg']);
  fireEvent.mouseDown(screen.getByRole('combobox',{name:'Sort photos by score'}));
- fireEvent.click(await screen.findByText('Score · lowest first'));
+ fireEvent.click(await screen.findByText('Lowest score first'));
  expect(order()).toEqual(['Open low.jpg','Open middle.jpg','Open high.jpg','Open unknown.jpg']);
 });
 

@@ -66,6 +66,23 @@ class AnalysisCache:
             )
             self._db.commit()
 
+    def copy_paths(self, pairs: list[tuple[str, str]]) -> None:
+        """Preserve analysis at Apply destinations. Original entries support Undo without re-inference."""
+        with self._lock:
+            tables = {r[0] for r in self._db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+            for src, dst in pairs:
+                try:
+                    stat = Path(dst).stat()
+                except OSError:
+                    continue
+                self._db.execute("INSERT OR REPLACE INTO files SELECT ?,size,mtime,meta,emb FROM files WHERE path=? AND size=? AND ABS(mtime-?)<0.000001",
+                                 (dst, src, stat.st_size, stat.st_mtime))
+                for table in ("tags", "quality", "ocr", "faceid", "geo"):
+                    if table in tables:
+                        self._db.execute(f"INSERT OR REPLACE INTO {table} SELECT ?,size,mtime,data FROM {table} WHERE path=? AND size=? AND ABS(mtime-?)<0.000001",
+                                         (dst, src, stat.st_size, stat.st_mtime))
+            self._db.commit()
+
     def wipe(self) -> None:
         """Drop every cached analysis (embeddings, quality, OCR, faces, GPS…); files are re-analyzed on the next sort."""
         with self._lock:

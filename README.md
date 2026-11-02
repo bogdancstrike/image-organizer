@@ -78,6 +78,7 @@ Open **http://localhost:8080**, click the folder name in *"Sorting my **…** fo
 | **By person** | One folder per recognized person + Groups, Other people, No people. Clear faces anchor identities; pose fragments are consolidated using cluster evidence. Uncertain face matches stay in Other people; faceless photos can be matched by appearance. Group photos: main face only, or a copy for every person. Or **upload a face** and move only that person's photos | Families, events, model shoots |
 | **By trip** | Trips from GPS + dates, named like *Rome · May 2025*, plus *Everyday* | Phone camera rolls, travel |
 | **By place** | One folder per country or city (offline reverse geocoding) | Travel archives |
+| **Social Media** | Cull with posting-readiness, thumbnail clarity, crop suitability and visual variety; adjustable formats and influence | Creators |
 | **Cull** | Picks ★ · Keepers · Smiling · Maybe · Blurry · Eyes closed · Too dark/bright · Noisy · Burst extras | Photographers |
 
 **Presets:** Lifestyle · People & Style · Boudoir & glamour · Boudoir session (poses & light) · Photoshoot themes (wedding, halloween, moto, pool, studio …) · Wedding day ·
@@ -110,7 +111,17 @@ Multiscale detail, edge balance and subject/background separation add pixel-leve
 score descending by default; switch to ascending from the folder’s score control. Group photos consider
 important faces together, or your selected main subject. Fashion poses need not smile or look straight at the camera.
 Low-key images are not penalized simply for being dark. Picks are recommendations for your review, not an objective
-beauty score. Read the [research and scoring policy](docs/culling-research.md).
+beauty score. Read the [research and scoring policy](docs/culling-research.md) and [30-method implementation checklist](docs/culling-algorithms.md).
+
+**Review faster:** compare 2–4 photos side by side at Fit, 100% or 200%, synchronize pan, inspect face crops, and
+override destinations. Close-burst, Unique views and Alternative strengths filters surface decisions worth checking.
+Quick settings has collapsible categories; folder ordering uses a compact score toolbar. Hover or focus badges to
+read their meaning.
+
+**Searchable automatic tags:** local CLIP/SigLIP tags cover subjects, scenes, outfits, activities, lighting and framing.
+Tags are visible in photo details and search results. Library supports exact tag filters (all selected tags must match),
+semantic queries and OCR matches. Use **Update search tags** to backfill an existing index; no Apply is needed. Tags and
+embeddings remain searchable after Apply and Undo. Automatic labels are suggestions, not verified object annotations.
 
 Use **Cull** on its own, or switch on *quality checks* with any other mode to set rejects aside in `_Rejects/<reason>`.
 

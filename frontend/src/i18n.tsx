@@ -12,6 +12,7 @@ export const LANGS: { id: Lang; label: string; flag: string }[] = [
 type Dict = Record<string, string>;
 
 const en: Dict = {
+  "r.social-media.t": "Social Media", "r.social-media.d": "Posting candidates: clarity, crop fit, visual story and variety",
   "tab.library": "Library",
   "reset": "Start over",
   "reset.hint": "Clear the last sort from this screen. Files on disk are not touched.",

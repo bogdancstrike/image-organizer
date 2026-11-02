@@ -58,3 +58,23 @@ it('explains missing GPS and no matching search results',async()=>{
  fireEvent.click(screen.getByText('Trips',{exact:true}));expect(await screen.findByText(/No trips found/)).toBeInTheDocument();
  fireEvent.click(screen.getByText('Map',{exact:true}));expect(await screen.findByText(/No photos with GPS/)).toBeInTheDocument();
 });
+
+it('filters with stored tags and shows local tag evidence in search and viewer',async()=>{
+ const tags=[{label:'mountains',score:.9,group:'scene',source:'local-ai'},{label:'horizontal',score:1,group:'format',source:'metadata'}];
+ vi.mocked(api.libTags).mockResolvedValue({tags:[{label:'mountains',count:1},{label:'horizontal',count:2}],tagged:3,indexed:3});
+ vi.mocked(api.libSearch).mockResolvedValue({results:[{path:plan[0].rel_path,score:.8,tags,thumb:'/t',captured_at:0}],indexed:3});
+ renderUI(<LibraryTab {...props}/>);
+ fireEvent.mouseDown(await screen.findByRole('combobox',{name:'Filter image tags'}));fireEvent.click(await screen.findByText('mountains (1)'));
+ await waitFor(()=>expect(api.libSearch).toHaveBeenCalledWith('mountains','Trip','clip',['mountains']));
+ expect(await screen.findByText('#mountains')).toBeInTheDocument();
+ fireEvent.click(screen.getByTitle(plan[0].rel_path));const dialog=await screen.findByRole('dialog');expect(within(dialog).getByText('#mountains')).toBeInTheDocument();
+ fireEvent.keyDown(document,{key:'Escape'});fireEvent.click(screen.getByRole('button',{name:'Clear tags'}));
+ await waitFor(()=>expect(api.libSearch).toHaveBeenLastCalledWith('mountains','Trip','clip'));
+});
+
+it('reports a failed tag refresh instead of saying the folder was indexed',async()=>{
+ vi.mocked(api.job).mockResolvedValue({...mockApi().job,status:'error',error:'Cannot read folder'}as never);
+ renderUI(<LibraryTab {...props}/>);fireEvent.click(await screen.findByRole('button',{name:'Update search tags'}));
+ expect(await screen.findByText('Cannot read folder',{}, {timeout:3000})).toBeInTheDocument();
+ expect(screen.queryByText('Folder indexed. Search away.')).not.toBeInTheDocument();
+});

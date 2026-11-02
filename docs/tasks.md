@@ -80,3 +80,10 @@ Status: `[x]` done · `[ ]` open. Each task lists the specs it covers and its "d
 
 - [x] T47 Reliable identity anchors, evidence-gated pose consolidation, co-occurrence safeguards and ambiguous-view matching; read-only 1,029-photo regression returned four representative people instead of 29.
 - [x] T48 Adjustable decimal Picks/Keepers bands in Quick settings (4.5/4.0 defaults), Similar alternatives, multiscale detail/balance/separation, folder score ascending/descending (descending default).
+
+- [x] T49 Accessible hover/focus explanations for photo badges and status icons.
+- [x] T50 Local automatic tags, scoped exact tag facets and hybrid search, with Apply/Undo metadata continuity.
+- [x] T51 Social Media preset and Cull controls: crop formats, thumbnail clarity, visual story and optional prompt relevance.
+- [x] T52 Expanded culling methods: Tenengrad, dHash guard, native analysis face focus, novelty, Pareto alternatives and burst margins; 30 article ideas mapped to code/tests.
+- [x] T53 Compare 2–4 originals with synchronized pan/zoom, face crops and destination overrides.
+- [x] T54 Compact folder score toolbar and collapsible Quick settings/full settings categories.

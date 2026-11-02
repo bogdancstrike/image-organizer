@@ -51,6 +51,7 @@ class Analysis:
     phash: str | None
     is_screenshot: bool
     duration: float | None = None
+    dhash: str | None = None
 
     def to_dict(self) -> dict:
         return dict(self.__dict__)
@@ -180,6 +181,7 @@ def decode_image(path: Path, mtime: float) -> Decoded:
         captured_at=captured or mtime,
         sha256=sha256_file(path),
         phash=str(imagehash.phash(small)),
+        dhash=str(imagehash.dhash(small)),
         is_screenshot=is_screenshot_like(path.name, fmt, has_camera, orig_w, orig_h),
     )
     return Decoded(a, [small], make_thumb(small))
@@ -268,6 +270,7 @@ def decode_video(path: Path, mtime: float) -> Decoded:
         captured_at=created or mtime,
         sha256=sha256_file(path),
         phash=str(imagehash.phash(middle)),
+        dhash=str(imagehash.dhash(middle)),
         is_screenshot=False,
         duration=duration,
     )

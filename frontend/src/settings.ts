@@ -29,6 +29,7 @@ export interface UiSettings {
   recipeFor: string | null; // folder the recipe was recommended for
   model: "clip" | "siglip2";
   ocr: boolean;
+  autoTags: boolean;
   peopleMinPhotos: number;
   peopleSimilarity: number;
   peopleMulti: "main" | "copy";
@@ -55,6 +56,12 @@ export const DEFAULT_SETTINGS: UiSettings = {
   recursive: true,
   pairSidecars: true,
   quality: {
+    subject_prompt: "",
+    social_media: false,
+    social_format: "portrait",
+    social_weight: .25,
+    preserve_unique: true,
+    pareto_review: true,
     enabled: false,
     blur: false,
     eyes_closed: false,
@@ -93,6 +100,7 @@ export const DEFAULT_SETTINGS: UiSettings = {
   recipeFor: null,
   model: "clip",
   ocr: false,
+  autoTags: true,
   peopleMinPhotos: 3,
   peopleSimilarity: 0.363,
   peopleMulti: "main",

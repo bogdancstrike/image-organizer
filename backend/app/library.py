@@ -17,6 +17,7 @@ import numpy as np
 
 from .geo import Item, detect_trips, places_for, read_geo
 from .scanner import MediaFile
+from .tagging import VERSION as TAG_VERSION, tokens
 
 WORKERS = min(8, os.cpu_count() or 2)
 
@@ -94,7 +95,7 @@ class Library:
     def _scope(self, idx, folder: str) -> np.ndarray:
         base = str((self.root / folder).resolve()) if folder else str(self.root)
         prefix = base.rstrip("/") + "/"
-        return np.array([p.startswith(prefix) for p in idx["paths"]], dtype=bool) if idx["paths"] else np.zeros(0, bool)
+        return np.array([p.startswith(prefix) and os.path.isfile(p) for p in idx["paths"]], dtype=bool) if idx["paths"] else np.zeros(0, bool)
 
     def _rel(self, abs_path: str) -> str:
         return Path(abs_path).relative_to(self.root).as_posix()
@@ -106,24 +107,61 @@ class Library:
             if p in skip or not os.path.exists(p):
                 continue
             out.append({"path": self._rel(p), "score": round(float(scores[i]), 4), "thumb": f"/api/thumbs/{idx['shas'][i]}",
-                        "captured_at": idx["ts"][i]})
+                        "captured_at": idx["ts"][i], "tags": idx.get("tags", {}).get(p, [])})
             if len(out) >= limit:
                 break
         return out
 
+    def _tags(self, model: str) -> dict[str, list[dict]]:
+        cache = self.m.cache_for(model)
+        with cache._lock:
+            exists = cache._db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='tags'").fetchone()
+            rows = cache._db.execute("SELECT t.path, t.data, t.size, t.mtime FROM tags t JOIN files f ON f.path=t.path AND f.size=t.size AND ABS(f.mtime-t.mtime)<0.000001").fetchall() if exists else []
+        out = {}
+        for path, raw, size, mtime in rows:
+            try:
+                stat = Path(path).stat()
+            except OSError:
+                continue
+            data = json.loads(raw)
+            if stat.st_size == size and abs(stat.st_mtime-mtime)<1e-6 and data.get("v") == TAG_VERSION:
+                out[path] = data["tags"]
+        return out
+
     def status(self, folder: str, model: str) -> dict:
         idx = self._index(model)
-        return {"indexed": int(self._scope(idx, folder).sum()), "model": model}
-
-    def search(self, query: str, folder: str, model: str, limit: int = 60) -> dict:
-        t0 = time.time()
-        idx = self._index(model)
         mask = self._scope(idx, folder)
+        tags = self._tags(model)
+        return {"indexed": int(mask.sum()), "tagged": sum(path in tags for path, yes in zip(idx["paths"], mask) if yes), "model": model}
+
+    def tag_facets(self, folder: str, model: str) -> dict:
+        idx = self._index(model); mask = self._scope(idx, folder); tags = self._tags(model)
+        counts = {}; tagged = 0
+        for path, yes in zip(idx["paths"], mask):
+            if not yes or path not in tags:
+                continue
+            tagged += 1
+            for label in {t["label"] for t in tags[path]}:
+                counts[label] = counts.get(label, 0) + 1
+        return {"tags": [{"label": label, "count": count} for label, count in sorted(counts.items(), key=lambda item: (-item[1], item[0]))], "tagged": tagged, "indexed": int(mask.sum())}
+
+    def search(self, query: str, folder: str, model: str, limit: int = 60, tags: list[str] | None = None) -> dict:
+        t0 = time.time()
+        idx = {**self._index(model), "tags": self._tags(model)}
+        mask = self._scope(idx, folder)
+        if tags:
+            required = [tokens(t) for t in tags]
+            mask &= np.array([all(any(tokens(t["label"]) == wanted for t in idx["tags"].get(path, [])) for wanted in required) for path in idx["paths"]], dtype=bool)
         if not mask.any():
             return {"results": [], "indexed": 0, "took_ms": 0}
         emb = self.m.embedder_for(model).embed_texts([f"a photo of {query.strip()}"])[0].astype(np.float32)
         emb /= np.linalg.norm(emb) + 1e-9
         scores = idx["mat"] @ emb
+        words_for_tags = tokens(query)
+        for i, path in enumerate(idx["paths"]):
+            vocabulary = set().union(*(tokens(t["label"]) for t in idx["tags"].get(path, [])))
+            if words_for_tags:
+                scores[i] += .25 * len(words_for_tags & vocabulary) / len(words_for_tags)
         # OCR: photos whose text contains the query words get a boost (search inside screenshots, signs, documents)
         words = [w for w in re.findall(r"\w{3,}", query.lower())]
         if words:
@@ -152,7 +190,7 @@ class Library:
                 "took_ms": round((time.time() - t0) * 1000)}
 
     def similar(self, rel_path: str, folder: str, model: str, limit: int = 60, min_sim: float = 0.8) -> dict:
-        idx = self._index(model)
+        idx = {**self._index(model), "tags": self._tags(model)}
         target = str((self.root / rel_path).resolve())
         try:
             i0 = idx["paths"].index(target)

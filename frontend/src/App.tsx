@@ -310,7 +310,9 @@ export default function App() {
 
   // fetch the full plan once a job is done
   useEffect(() => {
-    if (job.status === "done" && job.id) api.job(job.id).then((s) => setPlan(s.plan ?? [])).catch(() => {});
+    let alive = true;
+    if ((job.status === "done" || job.status === "applied") && job.id) api.job(job.id).then((s) => { if (alive) setPlan(s.plan ?? []); }).catch(() => {});
+    return () => { alive = false; };
     // errors are shown inline (themed card under the Sort button), not as a toast
   }, [job.status, job.id, job.error, message]);
 
@@ -379,6 +381,7 @@ export default function App() {
           ai: s.ai,
           model: s.model,
           ocr: s.ocr,
+          auto_tags: s.autoTags,
           people_min_photos: s.peopleMinPhotos,
           people_similarity: s.peopleSimilarity,
           people_multi: s.peopleMulti,
@@ -468,7 +471,8 @@ export default function App() {
 
   // Settings are the source of truth even when a previously saved recipe no longer matches.
   const recipeMatches = (r: Recipe) => r.strategy === settings.strategy &&
-    (r.strategy !== "preset" || r.set_id === settings.presetId);
+    (r.strategy !== "preset" || r.set_id === settings.presetId) &&
+    (r.strategy !== "cull" || (r.id === "social-media") === settings.quality.social_media);
   const activeRecipeId = recipes.find((r) => r.id === settings.recipeId && recipeMatches(r))?.id ??
     recipes.find(recipeMatches)?.id ?? null;
 
@@ -823,7 +827,9 @@ export default function App() {
             customSets={customSets}
             activeId={settings.strategy === "preset" ? settings.presetId : settings.strategy === "custom" ? settings.customSetId : null}
             onUse={(set, custom) => {
-              setSettings(custom ? { ...settings, strategy: "custom", customSetId: set.id } : { ...settings, strategy: "preset", presetId: set.id });
+              if (!custom && set.id === "social-media") {
+                setSettings({ ...settings, strategy: "cull", presetId: set.id, recipeId: "social-media", quality: { ...settings.quality, social_media: true } });
+              } else setSettings(custom ? { ...settings, strategy: "custom", customSetId: set.id } : { ...settings, strategy: "preset", presetId: set.id });
               message.success(`Using “${set.name}”. Press Sort when ready`);
               setTab("sort");
             }}

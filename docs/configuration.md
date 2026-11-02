@@ -40,6 +40,10 @@ Every variable is optional.
 | `min_confidence` | `0.30` | Below it, a file goes to `Unsorted` |
 | `near_duplicates` | `true` | pHash ≤ 4 **and** CLIP cosine ≥ 0.90 |
 | `rules_prompt` | `""` | Required non-empty instructions for `strategy: "rules"`, up to 4,000 characters |
+| `auto_tags` | `true` | Generate local multi-label search tags using the selected embedding model |
+| `quality.social_media` | `false` | Add social posting-readiness signals to Cull |
+| `quality.social_format` | `portrait` | Crop assessment only: portrait, square, vertical, landscape or original |
+| `quality.social_weight` | `0.25` | Share of the absolute quality blend, 0–0.5 |
 | `quality.pick_profile` | `auto` | Auto, portrait, fashion, landscape or general; adapts keeper and top-pick ranking locally |
 | `quality.pick_min_rating` | `4.5` | Picks need at least this decimal rating / 5; adjustable in Quick settings |
 | `quality.keeper_min_rating` | `4.0` | Keepers need this rating and stay below Picks; 1–5 and no higher than Picks |
@@ -72,3 +76,5 @@ improvement can consolidate pose/lighting fragments; reliable co-occurring faces
 Higher similarity settings above 0.45 retain the stricter cut. Partial faces can match an existing gallery with
 a confidence margin, but cannot create identities. Uncertain face matches stay in Other people. Appearance matching
 for faceless photos remains an optional heuristic, not proof of identity. The face cache refreshes once after upgrade.
+
+See [implemented culling methods](culling-algorithms.md) for the 30-idea checklist, tests, research and model limits.

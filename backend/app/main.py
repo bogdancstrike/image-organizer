@@ -58,6 +58,12 @@ class QualityOptions(BaseModel):
     tilt_check: bool = False  # experimental: consistent horizon lines leaning 1.5–8°
     tilt_tolerance: float = Field(1.5, ge=0.5, le=8.0)
     face_crop: bool = False
+    subject_prompt: str = Field("", max_length=300)
+    social_media: bool = False
+    social_format: Literal["portrait", "square", "vertical", "landscape", "original"] = "portrait"
+    social_weight: float = Field(.25, ge=0, le=.5)
+    preserve_unique: bool = True
+    pareto_review: bool = True
     pick_min_rating: float = Field(4.5, ge=1, le=5)
     keeper_min_rating: float = Field(4.0, ge=1, le=5)
     pick_profile: Literal["auto", "portrait", "fashion", "landscape", "general"] = "auto"
@@ -96,6 +102,7 @@ class JobOptions(BaseModel):
     date_granularity: Literal["year", "month", "day"] = "month"
     max_clusters: int = Field(12, ge=2, le=30)
     model: Literal["clip", "siglip2"] = "clip"  # recognition model: CLIP (fast) or SigLIP 2 (more accurate)
+    auto_tags: bool = True
     ocr: bool = False  # read text in photos: text-heavy ones go to the set's text/documents folder
     ocr_min_chars: int = Field(25, ge=1, le=2000)
     ocr_min_coverage: float = Field(0.03, ge=0.0, le=1.0)
@@ -134,6 +141,9 @@ class JobRequest(BaseModel):
 
     @model_validator(mode="after")
     def _rules_prompt(self):
+        if self.strategy == "preset" and self.set_id == "social-media":
+            self.strategy = "cull"
+            self.options.quality.social_media = True
         if self.strategy == "rules" and not self.options.rules_prompt.strip():
             raise ValueError("Describe how to sort photos in options.rules_prompt")
         return self
@@ -263,11 +273,15 @@ def create_app(settings: Settings | None = None, embedder_factory=None, llm_fact
     def library_status(folder: str = "", model: str = "clip"):
         return lib.status(_folder(folder), _model(model))
 
+    @app.get("/api/library/tags")
+    def library_tags(folder: str = "", model: str = "clip"):
+        return lib.tag_facets(_folder(folder), _model(model))
+
     @app.get("/api/library/search")
     async def library_search(q: str = Query(..., min_length=1, max_length=200), folder: str = "", model: str = "clip",
-                             limit: int = Query(60, ge=1, le=300)):
+                             limit: int = Query(60, ge=1, le=300), tag: list[str] = Query(default=[], max_length=12)):
         try:
-            return await run_in_threadpool(lib.search, q, _folder(folder), _model(model), limit)
+            return await run_in_threadpool(lib.search, q, _folder(folder), _model(model), limit, tag)
         except RuntimeError as exc:  # model not available
             raise HTTPException(503, str(exc)) from exc
 

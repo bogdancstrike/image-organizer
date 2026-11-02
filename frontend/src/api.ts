@@ -56,7 +56,13 @@ export interface JobCategory extends Category {
   videos: number;
 }
 
+export interface ImageTag { label: string; score: number; group: string; source: string }
+
+export interface TagFacets { tags: { label: string; count: number }[]; tagged: number; indexed: number }
+
 export interface PlanItem {
+  preview_path?: string;
+  tags?: ImageTag[];
   pick?: { rating?: number; score: number; reasons: string[]; picked: boolean; profile?: string; parts?: Record<string, number> } | null;
   file_id: string;
   rel_path: string;
@@ -71,11 +77,15 @@ export interface PlanItem {
   duplicate_of: string | null;
   sidecars: string[];
   quality: QualitySummary | null;
-  burst: { group: number; size: number; best: boolean } | null;
+  burst: { group: number; size: number; best: boolean; margin?: number } | null;
   text?: string | null;
 }
 
 export interface QualitySummary {
+  eyes_open?: number;
+  faces_considered?: number;
+  aspect_ratio?: number;
+  face_regions?: { box: number[]; sharpness: number | null; blink: number }[];
   rating?: number;
   score: number;
   stars: number;
@@ -90,6 +100,12 @@ export interface QualitySummary {
 }
 
 export interface QualityOptions {
+  subject_prompt: string;
+  social_media: boolean;
+  social_format: "portrait" | "square" | "vertical" | "landscape" | "original";
+  social_weight: number;
+  preserve_unique: boolean;
+  pareto_review: boolean;
   enabled: boolean;
   blur: boolean;
   eyes_closed: boolean;
@@ -243,6 +259,7 @@ export interface JobRequest {
     ai_max_files: number;
     model: "clip" | "siglip2";
     ocr: boolean;
+    auto_tags?: boolean;
     people_min_photos: number;
     people_similarity: number;
     people_multi: "main" | "copy";
@@ -279,6 +296,7 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export interface LibHit {
+  tags?: ImageTag[];
   path: string;
   score: number;
   thumb: string;
@@ -402,9 +420,13 @@ export const api = {
   emptyTrash: (runId: string) =>
     req<{ deleted: number; freed_bytes: number }>(`/api/runs/${runId}/empty-trash`, { method: "POST" }),
   libStatus: (folder: string, model: string) =>
-    req<{ indexed: number }>(`/api/library/status?${new URLSearchParams({ folder, model })}`),
-  libSearch: (q: string, folder: string, model: string) =>
-    req<LibResults>(`/api/library/search?${new URLSearchParams({ q, folder, model })}`),
+    req<{ indexed: number; tagged?: number }>(`/api/library/status?${new URLSearchParams({ folder, model })}`),
+  libTags: (folder: string, model: string) => req<TagFacets>(`/api/library/tags?${new URLSearchParams({ folder, model })}`),
+  libSearch: (q: string, folder: string, model: string, tags: string[] = []) => {
+    const params = new URLSearchParams({ q, folder, model });
+    tags.forEach(tag => params.append("tag", tag));
+    return req<LibResults>(`/api/library/search?${params}`);
+  },
   libSimilar: (path: string, folder: string, model: string) =>
     req<LibResults>(`/api/library/similar?${new URLSearchParams({ path, folder, model })}`),
   libPlaces: (folder: string) => req<PlacesResult>(`/api/library/places?${new URLSearchParams({ folder })}`),

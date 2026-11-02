@@ -134,7 +134,7 @@ def test_cull_best_of_burst_and_maybe(settings, fake_embedder):
 
         # a soft (but not rejected) frame scores below 5 stars -> "Maybe" when keepers need 5 stars
         Image.open(lib / "solo.jpg").filter(ImageFilter.GaussianBlur(3)).save(lib / "soft.jpg")
-        opts = {"near_duplicates": False, "quality": {"bursts": False, "blur": False, "keeper_min_stars": 4}}
+        opts = {"near_duplicates": False, "quality": {"bursts": False, "blur": False, "keeper_min_rating": 3.5}}
         job = wait(c, c.post("/api/jobs", json={"strategy": "cull", "options": opts}).json()["id"])
         cat = {p["name"]: p["category"] for p in job["plan"]}
         assert cat["soft.jpg"] == "Maybe" and cat["solo.jpg"] == "Keepers"

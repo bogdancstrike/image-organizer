@@ -84,3 +84,9 @@ it('migrates legacy keeper stars to the visible decimal threshold',()=>{
  expect(migrated.quality.keeper_min_rating).toBe(3);expect(migrated.quality.pick_min_rating).toBe(4.5);
  expect(migrated.quality.keeper_min_stars).toBe(0);
 });
+
+it('encodes tag filters as separate query parameters',async()=>{
+ const fetcher=vi.spyOn(globalThis,'fetch').mockImplementation(async()=>new Response('{}',{status:200}));
+ await api.libTags('Trip','siglip2');await api.libSearch('red dress','Trip','siglip2',['red','dress']);
+ expect(fetcher).toHaveBeenLastCalledWith(expect.stringContaining('tag=red&tag=dress'),expect.anything());
+});

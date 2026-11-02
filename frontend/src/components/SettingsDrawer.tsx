@@ -5,6 +5,7 @@ import { Button, Checkbox, Drawer, Input, InputNumber, Modal, Popconfirm, Radio,
 import {
   Aperture,
   CalendarDays,
+  ChevronDown,
   Users,
   Plane,
   MapPin,
@@ -26,7 +27,6 @@ import { THEMES, useTheme } from "@/theme";
 import { LANGS, useI18n } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { displayPath } from "./FolderPicker";
-import { Card } from "./ui/card";
 
 interface PanelProps {
   settings: UiSettings;
@@ -198,36 +198,30 @@ type SectionId = (typeof SECTIONS)[number]["id"];
 
 const OnlyCtx = createContext<SectionId[] | null>(null);
 
-function Section({ id, page, children }: { id: SectionId; page: boolean; children: ReactNode }) {
+function SettingsGroup({ title, page, children, initialOpen = false }: { title: string; page: boolean; children: ReactNode; initialOpen?: boolean }) {
+  return <details open={page || initialOpen} className="group/settings my-2 rounded-xl border border-line bg-surface/50">
+    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-[13px] font-semibold text-plum marker:content-none">
+      {title}<ChevronDown size={15} className="shrink-0 text-plum/45 transition-transform group-open/settings:rotate-180" />
+    </summary>
+    <div className="divide-y divide-line/50 px-4 pb-2">{children}</div>
+  </details>;
+}
+
+function Section({ id, page, children, initialOpen = false }: { id: SectionId; page: boolean; children: ReactNode; initialOpen?: boolean }) {
   const only = useContext(OnlyCtx);
   const { t } = useI18n();
   if (only && !only.includes(id)) return null;
   const meta = SECTIONS.find((s) => s.id === id)!;
   const Icon = meta.icon;
-  if (!page) {
-    return (
-      <section className="border-b border-line py-4 last:border-0">
-        <div className="mb-1 flex items-center gap-2 label-caps">
-          <Icon size={13} /> {t(meta.key)}
-        </div>
-        <div className="divide-y divide-line/60">{children}</div>
-      </section>
-    );
-  }
-  return (
-    <Card id={`settings-${id}`} className="scroll-mt-6 px-6 py-5">
-      <header className="mb-2 flex items-start gap-3">
-        <span className="rounded-xl bg-tint p-2 text-plum/80">
-          <Icon size={18} />
-        </span>
-        <div>
-          <h3 className="text-[16px] font-semibold text-plum">{t(meta.key)}</h3>
-          <p className="text-xs text-plum/55">{meta.desc}</p>
-        </div>
-      </header>
-      <div className="divide-y divide-line/60">{children}</div>
-    </Card>
-  );
+  return <details id={`settings-${id}`} open={page || initialOpen || id === "organize"}
+    className={cn("group/section", page ? "scroll-mt-6 rounded-2xl border border-line bg-surface px-6 py-4" : "border-b border-line py-3 last:border-0")}>
+    <summary className="flex cursor-pointer list-none items-center gap-2 py-1 text-[13px] font-semibold text-plum marker:content-none">
+      <Icon size={15} /><span className="flex-1">{t(meta.key)}</span>
+      <ChevronDown size={15} className="text-plum/45 transition-transform group-open/section:rotate-180" />
+    </summary>
+    {page && <p className="mt-1 text-xs text-plum/55">{meta.desc}</p>}
+    <div className="mt-2 divide-y divide-line/50">{children}</div>
+  </details>;
 }
 
 /** A prompt shown pre-filled with the default; editing stores a custom template, Reset goes back to the default. */
@@ -351,6 +345,21 @@ export function SettingsPanel({
   const { theme, setTheme } = useTheme();
   const { t } = useI18n();
   const ai = !!health?.ai_available;
+  const strategyOptions = [
+              { value: "rules", label: <span className="inline-flex items-center gap-1"><Wand2 size={14} />{t("rules.title")}</span> },
+              { value: "preset", label: <span className="inline-flex items-center gap-1"><Shapes size={14} />Preset</span> },
+              { value: "custom", label: <span className="inline-flex items-center gap-1"><PencilLine size={14} />Mine</span> },
+              { value: "auto", label: <span className="inline-flex items-center gap-1"><Wand2 size={14} />Auto</span> },
+              { value: "date", label: <span className="inline-flex items-center gap-1"><CalendarDays size={14} />Date</span> },
+              { value: "cull", label: <span className="inline-flex items-center gap-1"><Aperture size={14} />Cull</span> },
+              { value: "people", label: <span className="inline-flex items-center gap-1"><Users size={14} />People</span> },
+              ...(gpsAvailable || settings.strategy === "trips" || settings.strategy === "places"
+                ? [
+                    { value: "trips", label: <span className="inline-flex items-center gap-1"><Plane size={14} />Trips</span> },
+                    { value: "places", label: <span className="inline-flex items-center gap-1"><MapPin size={14} />Places</span> },
+                  ]
+                : []),
+            ];
   const page = layout === "page";
   const folderName = settings.source ? settings.source.split("/").pop() + "/" : "";
   const example = `${folderName}${settings.outputMode === "subfolder" ? `${settings.outputDir || "Organized"}/` : ""}${settings.splitMedia ? "Photos/" : ""}Food & cafés/IMG_0042.jpg`;
@@ -412,26 +421,8 @@ export function SettingsPanel({
 
       <Section id="organize" page={page}>
         <Row label="Strategy">
-          <Segmented
-            block
-            value={settings.strategy}
-            onChange={(v) => set("strategy", v as UiSettings["strategy"])}
-            options={[
-              { value: "rules", label: <span className="inline-flex items-center gap-1"><Wand2 size={14} />{t("rules.title")}</span> },
-              { value: "preset", label: <span className="inline-flex items-center gap-1"><Shapes size={14} />Preset</span> },
-              { value: "custom", label: <span className="inline-flex items-center gap-1"><PencilLine size={14} />Mine</span> },
-              { value: "auto", label: <span className="inline-flex items-center gap-1"><Wand2 size={14} />Auto</span> },
-              { value: "date", label: <span className="inline-flex items-center gap-1"><CalendarDays size={14} />Date</span> },
-              { value: "cull", label: <span className="inline-flex items-center gap-1"><Aperture size={14} />Cull</span> },
-              { value: "people", label: <span className="inline-flex items-center gap-1"><Users size={14} />People</span> },
-              ...(gpsAvailable || settings.strategy === "trips" || settings.strategy === "places"
-                ? [
-                    { value: "trips", label: <span className="inline-flex items-center gap-1"><Plane size={14} />Trips</span> },
-                    { value: "places", label: <span className="inline-flex items-center gap-1"><MapPin size={14} />Places</span> },
-                  ]
-                : []),
-            ]}
-          />
+          {page ? <Segmented block value={settings.strategy} onChange={(v)=>set("strategy",v as UiSettings["strategy"])} options={strategyOptions} />
+            : <Select aria-label="Organizing strategy" className="w-full" value={settings.strategy} onChange={(v)=>set("strategy",v as UiSettings["strategy"])} options={strategyOptions} />}
           <p className="mt-2 text-xs text-plum/60">
             {settings.strategy === "trips" && "Trips from GPS and dates, named like “Rome · May 2025”. Everything else goes to Everyday."}
             {settings.strategy === "places" && "One folder per country (or city) from GPS. Place names are looked up offline."}
@@ -448,12 +439,17 @@ export function SettingsPanel({
           </p>
         </Row>
 
+        <Row label="Automatic search tags" hint="subjects, scenes, clothing and lighting; generated locally during analysis" inline>
+          <Switch checked={settings.autoTags} onChange={(v) => set("autoTags", v)} />
+        </Row>
         {settings.strategy === "rules" && (
           <PromptRulesInput value={settings.rulesPrompt} onChange={(v) => set("rulesPrompt", v)} aiAvailable={ai} />
         )}
         {settings.strategy === "preset" && (
           <Row label="Preset" hint={<a onClick={onEditCategories}>edit presets…</a>}>
-            <SetPicker sets={presets} value={settings.presetId} onPick={(id) => set("presetId", id)} />
+            <SetPicker sets={presets} value={settings.presetId} onPick={(id) => id === "social-media"
+              ? onChange({ ...settings, strategy: "cull", presetId: id, recipeId: id, quality: { ...Q, social_media: true } })
+              : set("presetId", id)} />
           </Row>
         )}
 
@@ -575,7 +571,53 @@ export function SettingsPanel({
         )}
       </Section>
 
-      <Section id="pro" page={page}>
+      <Section id="pro" page={page} initialOpen={settings.strategy === "cull"}>
+        {settings.strategy === "cull" && <>
+          <SettingsGroup title="Picks & Keepers" page={page} initialOpen>
+            <Row label="Picks from" hint="/ 5 · strongest unique photos; similar frames go to Similar alternatives">
+              <InputNumber aria-label="Picks from" min={1} max={5} step={0.1} precision={1} value={Q.pick_min_rating}
+                onChange={(v) => v !== null && setQ({ pick_min_rating: v, keeper_min_rating: Math.min(Q.keeper_min_rating, v), keeper_min_stars: 0 })} />
+            </Row>
+            <Row label="Keepers from" hint={`/ 5 · up to ${Q.pick_min_rating.toFixed(1)}, then Picks; lower ratings go to Maybe`}>
+              <InputNumber aria-label="Keepers from" min={1} max={5} step={0.1} precision={1} value={Q.keeper_min_rating}
+                onChange={(v) => v !== null && setQ({ keeper_min_rating: v, pick_min_rating: Math.max(Q.pick_min_rating, v), keeper_min_stars: 0 })} />
+            </Row>
+            <Row label="Recommendation profile" hint="adapts keeper ratings and top picks to the kind of photography">
+              <Select aria-label="Recommendation profile" className="w-full" value={Q.pick_profile ?? "auto"}
+                onChange={(v) => setQ({ pick_profile: v })}
+                options={[
+                  { value: "auto", label: "Auto · detect per photo" },
+                  { value: "portrait", label: "Portrait · eyes, expression, light" },
+                  { value: "fashion", label: "Fashion / modeling · pose, styling, light" },
+                  { value: "landscape", label: "Landscape · detail, depth, light" },
+                  { value: "general", label: "General · detail, composition, story" },
+                ]} />
+              <p className="mt-2 text-[11px] leading-relaxed text-plum/55">
+                Scores combine technical quality, expression, composition and local AI presentation signals.
+                Picks favor variety and skip near-duplicates. Review the reasons in the photo viewer.
+              </p>
+            </Row>
+          </SettingsGroup>
+          <SettingsGroup title="Social Media" page={page} initialOpen={Q.social_media}>
+            <Check label="Social Media recommendations" hint="posting readiness: clarity, crop fit, impact and visual variety" on={Q.social_media} set={(v) => setQ({ social_media: v })}>
+              <Row label="Post format" hint="assesses crop suitability; originals are never cropped">
+                <Select aria-label="Post format" className="w-full" value={Q.social_format} onChange={(v) => setQ({ social_format: v })}
+                  options={[{value:"portrait",label:"Portrait · 4:5"},{value:"square",label:"Square · 1:1"},{value:"vertical",label:"Vertical · 9:16"},{value:"landscape",label:"Landscape · 16:9"},{value:"original",label:"Original proportions"}]} />
+              </Row>
+              <Row label="Social influence" hint={`${Math.round(Q.social_weight*100)}% of the quality blend`}>
+                <Slider min={0} max={50} step={5} value={Math.round(Q.social_weight*100)} onChange={(v) => setQ({ social_weight: v/100 })} />
+              </Row>
+            </Check>
+          </SettingsGroup>
+          <SettingsGroup title="Ranking details" page={page}>
+            <Row label="Prioritize a subject" hint="optional local AI relevance, e.g. a candid laugh or a sharp action moment">
+              <Input aria-label="Culling subject priority" value={Q.subject_prompt} maxLength={300} onChange={e=>setQ({subject_prompt:e.target.value})} />
+            </Row>
+            <Row label="Preserve unique views" hint="a small novelty contribution; technical rejects still apply" inline><Switch checked={Q.preserve_unique} onChange={(v) => setQ({preserve_unique:v})} /></Row>
+            <Row label="Explain alternative strengths" hint="show photos that excel in different quality criteria" inline><Switch checked={Q.pareto_review} onChange={(v) => setQ({pareto_review:v})} /></Row>
+          </SettingsGroup>
+        </>}
+        <SettingsGroup title="Technical checks & bursts" page={page}>
         <p className="pb-1 text-[11px] text-plum/55">
           Every check is optional. Turn one on and its controls appear below it.
           {settings.strategy === "cull" ? " Cull always sorts into Keepers, Rejects and Maybe." : ""}
@@ -646,33 +688,8 @@ export function SettingsPanel({
             </div>
           )}
         </Check>
-        {settings.strategy === "cull" && (
-          <>
-            <Row label="Recommendation profile" hint="adapts keeper ratings and top picks to the kind of photography">
-              <Select aria-label="Recommendation profile" className="w-full" value={Q.pick_profile ?? "auto"}
-                onChange={(v) => setQ({ pick_profile: v })}
-                options={[
-                  { value: "auto", label: "Auto · detect per photo" },
-                  { value: "portrait", label: "Portrait · eyes, expression, light" },
-                  { value: "fashion", label: "Fashion / modeling · pose, styling, light" },
-                  { value: "landscape", label: "Landscape · detail, depth, light" },
-                  { value: "general", label: "General · detail, composition, story" },
-                ]} />
-              <p className="mt-2 text-[11px] leading-relaxed text-plum/55">
-                Scores combine technical quality, expression, composition and local AI presentation signals.
-                Picks favor variety and skip near-duplicates. Review the reasons in the photo viewer.
-              </p>
-            </Row>
-            <Row label="Picks from" hint="/ 5 · strongest unique photos; similar frames go to Similar alternatives">
-              <InputNumber aria-label="Picks from" min={1} max={5} step={0.1} precision={1} value={Q.pick_min_rating}
-                onChange={(v) => v !== null && setQ({ pick_min_rating: v, keeper_min_rating: Math.min(Q.keeper_min_rating, v), keeper_min_stars: 0 })} />
-            </Row>
-            <Row label="Keepers from" hint={`/ 5 · up to ${Q.pick_min_rating.toFixed(1)}, then Picks; lower ratings go to Maybe`}>
-              <InputNumber aria-label="Keepers from" min={1} max={5} step={0.1} precision={1} value={Q.keeper_min_rating}
-                onChange={(v) => v !== null && setQ({ keeper_min_rating: v, pick_min_rating: Math.max(Q.pick_min_rating, v), keeper_min_stars: 0 })} />
-            </Row>
-          </>
-        )}
+        </SettingsGroup>
+        <SettingsGroup title="Ratings & export" page={page}>
         <Check label="🏷️ Write ratings to XMP on Apply" hint="★ + color labels for Lightroom / Capture One" on={Q.write_xmp} set={(v) => setQ({ write_xmp: v })} />
         {settings.strategy !== "cull" && anyCheck && (
           <Row label="Bad shots">
@@ -688,6 +705,7 @@ export function SettingsPanel({
           </Row>
         )}
         {!faces && <p className="py-2 text-[11px] text-plum/50">Face model not found: eyes, smile and face-crop checks are unavailable.</p>}
+        </SettingsGroup>
       </Section>
 
       <Section id="files" page={page}>

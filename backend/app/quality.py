@@ -63,7 +63,7 @@ class Quality:
                    d.get("noise", 0.0), d.get("tilt"), d.get("v", 1), d.get("features", {}))
 
 
-QUALITY_VERSION = 4  # 4: multiscale detail, saliency balance and subject separation
+QUALITY_VERSION = 5  # 5: thumbnail clarity, crop dimensions, gradients and compression indicators
 
 
 def _expression(sc: dict, lms) -> dict:
@@ -300,6 +300,29 @@ def perceptual_signals(gray: np.ndarray, faces: list[Face]) -> dict[str, float]:
     return {"detail": round(float(detail),3), "balance": round(float(balance),3), "separation": round(float(separation),3)}
 
 
+def advanced_signals(rgb: np.ndarray, gray: np.ndarray, width: int, height: int) -> dict[str, float]:
+    """Weak, inspectable signals. Directional edges are not proof of unwanted motion blur."""
+    import cv2
+    g = gray.astype(np.float32)
+    gx, gy = cv2.Sobel(g, cv2.CV_32F, 1, 0), cv2.Sobel(g, cv2.CV_32F, 0, 1)
+    xx, yy, xy = float((gx*gx).mean()), float((gy*gy).mean()), float((gx*gy).mean())
+    tenengrad = min(1., math.log10(1+xx+yy)/5)
+    direction = math.sqrt((xx-yy)**2+4*xy*xy)/(xx+yy+1e-6)
+    dx, dy = np.abs(np.diff(g, axis=1)), np.abs(np.diff(g, axis=0))
+    boundaries = np.concatenate([dx[:, 7::8].ravel(), dy[7::8, :].ravel()])
+    ordinary = np.concatenate([dx[:, 3::8].ravel(), dy[3::8, :].ravel()])
+    blocking = min(1., max(0., (float(boundaries.mean())-float(ordinary.mean()))/25)) if len(boundaries) and len(ordinary) else 0.
+    thumbnail = cv2.resize(gray, (96, 96), interpolation=cv2.INTER_AREA)
+    thumb = _norm_sharp(_lap_var(thumbnail))
+    p5, p95 = np.percentile(g, [5, 95]); contrast = min(1., float(p95-p5)/150)
+    colors = rgb.astype(np.float32)/255
+    chroma = colors.max(axis=2)-colors.min(axis=2)
+    color = .5 if float(chroma.mean()) < .035 else float(np.clip(1-abs(float(chroma.mean())-.25)*1.5, .2, 1))
+    return {"tenengrad": round(tenengrad,3), "directionality": round(direction,3), "blocking": round(blocking,3),
+            "thumbnail": round(thumb,3), "contrast": round(contrast,3), "color": round(color,3),
+            "aspect_ratio": width/max(1,height), "resolution": min(1., math.sqrt(width*height/(1080*1350)))}
+
+
 def analyze_image(img: Image.Image, faces: FaceAnalyzer | None) -> Quality:
     """img: RGB, any size (it is reduced here)."""
     big = img.convert("RGB")
@@ -318,14 +341,15 @@ def analyze_image(img: Image.Image, faces: FaceAnalyzer | None) -> Quality:
     gray.thumbnail((512, 512))
     g = np.asarray(gray)
     lum = g.astype(np.float32) / 255.0
+    face_gray = np.asarray(ImageOps.grayscale(big))
     for face in found:
         x0, y0, x1, y1 = face.box
-        crop = g[int(y0 * g.shape[0]):int((y0 + (y1 - y0) * .6) * g.shape[0]) + 1,
-                 int(x0 * g.shape[1]):int(x1 * g.shape[1]) + 1]
+        crop = face_gray[int(y0 * face_gray.shape[0]):int((y0 + (y1 - y0) * .6) * face_gray.shape[0]) + 1,
+                         int(x0 * face_gray.shape[1]):int(x1 * face_gray.shape[1]) + 1]
         if crop.size >= 400:
             face.sharpness = round(_norm_sharp(_lap_var(crop)), 4)
     return Quality(
-        features=perceptual_signals(g, found),
+        features={**perceptual_signals(g, found), **advanced_signals(np.asarray(im), g, img.width, img.height)},
         noise=round(noise_sigma(g), 4),
         tilt=horizon_tilt(g),
         sharpness=round(sharpness(g, found), 4),
@@ -455,6 +479,10 @@ def summary(q: Quality, r: QualityRules) -> dict:
         "sharpness": q.sharpness,
         "brightness": q.brightness,
         "faces": len(q.faces),
+        "faces_considered": len(_faces(q, r)),
+        "eyes_open": sum(f.blink < r.blink_threshold for f in _faces(q, r)),
+        "aspect_ratio": q.features.get("aspect_ratio", 1.),
+        "face_regions": [{"box": list(f.box), "sharpness": f.sharpness, "blink": f.blink} for f in q.faces],
         "blink": max((f.blink for f in q.faces), default=None),
         "smile": min((f.smile for f in q.faces), default=None),
         "flags": flags,

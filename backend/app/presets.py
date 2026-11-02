@@ -317,6 +317,11 @@ PRESETS += [
         ],
     },
 ]
+PRESETS.append({"id": "social-media", "name": "Social Media", "description": "Pick posting candidates with quality, thumbnail clarity, crop suitability and visual variety. Uses Cull.",
+                "categories": [_c("picks", "Picks ★", "🏆", "a strong photograph for a social media post"),
+                               _c("keepers", "Keepers", "✅", "a usable photograph"),
+                               _c("maybe", "Maybe", "🤔", "a photograph to review"),
+                               _c("alternates", "Similar alternatives", "🎞️", "similar photographic frames")]})
 PRESETS_BY_ID = {p["id"]: p for p in PRESETS}
 
 # Vocabulary for naming auto-discovered clusters without an LLM (label, emoji).
@@ -427,6 +432,7 @@ THEMES: list[tuple[str, str]] = [
 # ------------------------------------------------------------ recipes (what the UI recommends)
 # One click sets everything up. The UI translates titles/descriptions by id.
 RECIPES: list[dict] = [
+    {"id": "social-media", "emoji": "📣", "strategy": "cull", "set_id": "social-media", "options": {"quality": {"social_media": True, "social_format": "portrait", "social_weight": .25, "pick_min_rating": 4.5, "keeper_min_rating": 4.0}}},
     {"id": "camera-roll", "emoji": "📱", "strategy": "preset", "set_id": "lifestyle", "options": {}},
     {"id": "photoshoot", "emoji": "📸", "strategy": "cull",
      "options": {"quality": {"blur": True, "eyes_closed": True, "exposure": True, "smiles": True, "bursts": True, "pick_min_rating": 4.5, "keeper_min_rating": 4.0}}},

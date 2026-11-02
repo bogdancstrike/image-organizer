@@ -10,7 +10,7 @@ it('Quick settings Auto replaces the previously selected Boudoir recipe on Sort'
  renderUI(<App/>);
  await screen.findByRole('button',{name:/Boudoir \/ glamour/});
  fireEvent.click(screen.getByRole('button',{name:'Quick settings'}));
- fireEvent.click(await screen.findByText('Auto',{exact:true}));
+ fireEvent.mouseDown(screen.getByRole('combobox',{name:'Organizing strategy'}));fireEvent.click(await screen.findByText('Auto',{exact:true}));
  fireEvent.keyDown(document,{key:'Escape'});
  await waitFor(()=>expect(screen.getByRole('button',{name:/Not sure: discover/})).toHaveAttribute('aria-pressed','true'));
  expect(screen.getByRole('button',{name:/Boudoir \/ glamour/})).toHaveAttribute('aria-pressed','false');
@@ -22,7 +22,7 @@ it('a late folder recommendation cannot overwrite an explicit Quick settings cho
  vi.mocked(api.getSettings).mockResolvedValue({...DEFAULT_SETTINGS,source:'Trip',recipeFor:null,presetId:'boudoir',recipeId:'boudoir'});
  vi.mocked(api.suggest).mockImplementation(()=>new Promise(r=>{resolve=r}));
  renderUI(<App/>);await waitFor(()=>expect(api.suggest).toHaveBeenCalled());
- fireEvent.click(screen.getByRole('button',{name:'Quick settings'}));fireEvent.click(await screen.findByText('Auto',{exact:true}));
+ fireEvent.click(screen.getByRole('button',{name:'Quick settings'}));fireEvent.mouseDown(screen.getByRole('combobox',{name:'Organizing strategy'}));fireEvent.click(await screen.findByText('Auto',{exact:true}));
  await waitFor(()=>expect(screen.getByTitle('Change how files are organized')).toHaveTextContent('Auto-discover'));
  await act(async()=>resolve({photos:4,videos:0,suggestions:[{recipe:'boudoir',reason:{key:'theme',theme:'Studio',pct:90}}]}));
  expect(screen.getByTitle('Change how files are organized')).toHaveTextContent('Auto-discover');

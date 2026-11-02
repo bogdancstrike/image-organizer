@@ -18,6 +18,7 @@ class DupItem:
     rel_path: str
     duration: float | None = None
     embedding: np.ndarray | None = None
+    dhash: str | None = None
 
 
 class _UF:
@@ -80,6 +81,9 @@ def find_duplicates(
                     i, j = idx[a], idx[a + 1 + int(off)]
                     ii, jj = items[i], items[j]
                     if kind == "video" and abs((ii.duration or 0) - (jj.duration or 0)) > 0.5:
+                        continue
+                    # Independent spatial gradient check helps retain different burst expressions/poses.
+                    if ii.dhash and jj.dhash and (int(ii.dhash,16)^int(jj.dhash,16)).bit_count() > max(8, max_distance*2):
                         continue
                     if ii.embedding is not None and jj.embedding is not None:
                         if float(np.dot(ii.embedding, jj.embedding)) < min_cosine:

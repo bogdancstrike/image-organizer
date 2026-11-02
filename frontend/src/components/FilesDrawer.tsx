@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Button, Drawer, Empty, Input, Select, Tooltip } from "antd";
 import { useI18n } from "@/i18n";
-import { Film, Paperclip } from "lucide-react";
+import { ArrowDownWideNarrow, Film, Paperclip } from "lucide-react";
 import type { PlanItem } from "@/api";
 import { InfoBadge, SOURCE_HELP } from "./PhotoBadge";
 import { FLAG, FileDetails, useMediaViewer } from "./MediaViewer";
@@ -75,8 +75,12 @@ export function FilesDrawer({
         </div>
       )}
       {items[0] && <div className="mb-3 truncate text-xs text-plum/55">→ {items[0].destination}/ · click a photo to view it large</div>}
-      {items.length > 0 && <Select aria-label="Sort photos by score" className="mb-3 w-full" value={order}
-        onChange={setOrder} options={[{ value: "desc", label: "Score · highest first" }, { value: "asc", label: "Score · lowest first" }]} />}
+      {items.length > 0 && <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-line bg-tint/40 px-3 py-2">
+        <span className="text-xs text-plum/55">{items.length} file{items.length === 1 ? "" : "s"}</span>
+        <Select aria-label="Sort photos by score" size="small" variant="borderless" className="min-w-48" value={order}
+          suffixIcon={<ArrowDownWideNarrow size={14} />} popupMatchSelectWidth={220} onChange={setOrder}
+          options={[{ value: "desc", label: "Highest score first" }, { value: "asc", label: "Lowest score first" }]} />
+      </div>}
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
         {sortedItems.map((p) => (
           <Thumb key={p.file_id} p={p} onOpen={() => viewer.open(p)} />

@@ -198,6 +198,8 @@ class JobManager:
             job = self.get(d["id"]) if d else None
         if job and job.status == "applied":
             job.status, job.run_id = "done", None
+            for item in job.plan:
+                item.pop("preview_path", None)
             self._persist(job)
 
     def cancel(self, job_id: str) -> bool:
@@ -228,6 +230,19 @@ class JobManager:
         except Exception:
             job.status = "done"
             raise
+        pairs = [(str(self.s.library_root/op["src"]), str(self.s.library_root/op["dst"]))
+                 for op in journal["ops"] if "src" in op and "dst" in op]
+        for model in ("clip", "siglip2"):
+            cache_path = self.s.data_dir/("cache.db" if model == "clip" else "cache-siglip2.db")
+            if cache_path.exists():
+                try:
+                    self.cache_for(model).copy_paths(pairs)
+                except Exception as exc:
+                    log.warning("search metadata copy skipped: %s", exc)
+                    job.warnings.append("Search metadata could not be refreshed; index the destination folder again.")
+        moved = {op["src"]: op["dst"] for op in journal["ops"] if "src" in op and "dst" in op}
+        for item in job.plan:
+            item["preview_path"] = moved.get(item["rel_path"], item["rel_path"])
         job.status = "applied"
         job.run_id = journal["run_id"]
         self._persist(job)
@@ -238,12 +253,12 @@ class JobManager:
         q = quality.get(fid)
         if q is None:
             return None
-        rejected = cid in REASONS or cid.startswith("_reject-") or (bursts.get(fid) and not bursts[fid]["best"])
+        rejected = (cid in REASONS and cid != "burst") or (cid.startswith("_reject-") and cid != "_reject-burst")
         if rejected:
             return {"rating": -1, "label": "Red"}
         recommended = getattr(self, "_pick_info", {}).get(fid)
         rating = stars(recommended["score"] if recommended else score(q, rules))
-        return {"rating": rating, "label": "Green" if cid == "picks" else None}
+        return {"rating": rating, "label": "Green" if cid == "picks" else "Yellow" if cid in ("burst", "_reject-burst", "alternates") else None}
 
     def reassign(self, job_id: str, file_ids: list[str], category_id: str) -> dict:
         """Manual override before Apply: move files to another category of the same job."""
@@ -356,6 +371,11 @@ class JobManager:
                     d = decode(f.path, f.kind, f.mtime)
                     tp.parent.mkdir(parents=True, exist_ok=True)
                     tp.write_bytes(d.thumb)
+                if analysis.dhash is None:
+                    import imagehash
+                    with Image.open(tp) as thumb:
+                        analysis.dhash = str(imagehash.dhash(thumb))
+                    cache.put(key, f.size, f.mtime, analysis, emb)
                 return ("cached", f, analysis, emb)
             d = decode(f.path, f.kind, f.mtime)
             tp = self.thumb_path(d.analysis.sha256)
@@ -444,6 +464,15 @@ class JobManager:
 
         ordered = [results[f.id] for f in files if f.id in results]
 
+        tags = {}
+        if ordered and opts.get("auto_tags", True):
+            try:
+                from .tagging import tag_images
+                tags = tag_images(cache, ordered, embedder)
+            except Exception as exc:
+                log.warning("auto tagging skipped: %s", exc)
+                job.warnings.append("Automatic tags could not be generated; the sorting plan is still available.")
+
         # 2b. quality signals (culling): only when asked for
         qopts = opts.get("quality") or {}
         rules = QualityRules(**{k: qopts[k] for k in QualityRules.__dataclass_fields__ if k in qopts})
@@ -475,7 +504,7 @@ class JobManager:
         self._phase(job, "deduplicating")
         dup_items = [
             DupItem(f.id, f.kind, a.sha256, a.phash, (a.width or 0) * (a.height or 0), f.size, a.captured_at,
-                    f.rel_path, a.duration, e)
+                    f.rel_path, a.duration, e, a.dhash)
             for f, a, e in ordered
         ]
         dup_map = find_duplicates(dup_items, near=opts.get("near_duplicates", True),
@@ -559,6 +588,7 @@ class JobManager:
                 "quality": summary(quality[f.id], rules) if f.id in quality else None,
                 "burst": bursts.get(f.id),
                 "pick": getattr(self, "_pick_info", {}).get(f.id),
+                "tags": tags.get(f.id, []),
                 "text": (texts.get(f.id) or {}).get("text") or None,
                 "also": [destination(source_rel, out_dir, f.kind, cats_by_id[c], split) for c in sorted(getattr(self, "_extra", {}).get(f.id, ()))
                          if c in cats_by_id] or None,
@@ -962,7 +992,7 @@ class JobManager:
             photos = [(f.id, e) for f, _, e in keep if f.kind == "image" and f.id in (quality or {})]
             ids = [fid for fid, _ in photos]
             E = np.vstack([e for _, e in photos]).astype(np.float32) if photos else np.empty((0, embs.shape[1]))
-            ranking = picks_mod.rank(ids, quality or {}, E, embedder, rules, qopts.get("pick_profile", "auto"))
+            ranking = picks_mod.rank(ids, quality or {}, E, embedder, rules, qopts.get("pick_profile", "auto"), options=qopts)
             self._pick_info = {fid: {"score": pi.score, "reasons": pi.reasons, "picked": False,
                                    "parts": pi.parts, "profile": pi.profile, "rating": round(1 + pi.score * 4, 2)} for fid, pi in ranking.info.items()}
             # Choose the strongest expression/presentation within each burst, not merely its sharpest frame.
@@ -970,8 +1000,13 @@ class JobManager:
                 members = [fid for fid in ids if (bursts or {}).get(fid, {}).get("group") == group]
                 if members:
                     best = max(members, key=lambda fid: ranking.info[fid].score)
+                    ranked = sorted(members, key=lambda fid: ranking.info[fid].score, reverse=True)
+                    margin = ranking.info[ranked[0]].score-ranking.info[ranked[1]].score if len(ranked)>1 else 1.
                     for fid in members:
                         bursts[fid]["best"] = fid == best
+                        bursts[fid]["margin"] = round(margin, 3)
+                        if margin < .025:
+                            self._pick_info[fid]["reasons"].insert(0, "close burst alternatives; compare before choosing")
             used: set[str] = set()
             for f, _, _ in keep:
                 if f.kind == "video":

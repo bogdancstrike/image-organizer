@@ -94,3 +94,28 @@ With `write_xmp`, integer ratings match `quality.stars`, picks receive Green lab
 `picks_percent` is deprecated and ignored; the legacy positive `keeper_min_stars` overrides the keeper threshold
 (capped at the Picks threshold). New clients should send the decimal fields and leave `keeper_min_stars: 0`.
 Enabled reject checks remain authoritative. `/api/jobs/{id}/plan` manual changes update pick markers and XMP labels.
+
+## Automatic search tags
+
+`options.auto_tags` defaults to true. Each plan item can include `tags: [{label, score, group, source}]`; source is
+`local-ai` or `metadata`. Scores are heuristic strengths, not calibrated probabilities. Caches are per-model and
+invalidated by file size/mtime or tag pipeline version. Tagging failure warns without preventing a sorting plan.
+
+`GET /api/library/tags?folder=Trip&model=siglip2` returns `{tags:[{label,count}],tagged,indexed}`.
+Search accepts repeated `tag` parameters (up to 12), with AND semantics and exact label/alias matching:
+`GET /api/library/search?q=red+dress&folder=Trip&tag=red&tag=dress`. Results include stored tags; keyword/alias matches
+boost semantic ranking. Folder validation applies to facets and search. Stale/missing-file tags are excluded.
+
+## Social Media and advanced review
+
+`strategy: preset, set_id: social-media` normalizes to Cull with `quality.social_media: true`. The recipe also exposes
+this mode. Quality options add `social_format: portrait|square|vertical|landscape|original`, `social_weight: 0–0.5`
+(default .25), `subject_prompt` (up to 300 characters), `preserve_unique` and `pareto_review` (both default true).
+Social parts include crop, clarity, impact, contrast, color and social. Additional parts expose novelty, Pareto status,
+gradient focus and artifact indicators. `burst.margin` records the strongest/runner-up score difference.
+`quality.face_regions` contains normalized face boxes, focus and blink values for comparison; `eyes_open` and
+`faces_considered` summarize the configured face rule.
+
+Burst extras and high-rated similar alternatives keep their integer rating with a Yellow XMP label; technical rejects
+remain -1/Red, and Picks Green. Applied plans expose `preview_path` so viewers open actual destinations; Undo restores
+source preview paths. Search metadata is copied to Apply destinations, with original entries retained for Undo.
