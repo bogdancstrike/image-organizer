@@ -35,8 +35,9 @@ def test_tag_cache_reuses_vectors_and_invalidates_on_version_size_and_mtime(sett
     first=tag_images(cache,ordered,spy)
     assert {'horizontal','screenshot','photo'}<={t['label']for t in first[f.id]}
     spy.embed_texts.reset_mock();assert tag_images(cache,ordered,spy)==first;spy.embed_texts.assert_not_called()
-    monkeypatch.setattr(tagging,'VERSION',VERSION+1);tag_images(cache,ordered,spy);assert spy.embed_texts.call_count==1
-    tag_images(cache,[(replace(f,size=f.size+1,mtime=f.mtime+1),a,E)],spy);assert spy.embed_texts.call_count==2
+    monkeypatch.setattr(tagging,'VERSION',VERSION+1);tag_images(cache,ordered,spy);assert spy.embed_texts.called
+    spy.embed_texts.reset_mock()
+    tag_images(cache,[(replace(f,size=f.size+1,mtime=f.mtime+1),a,E)],spy);assert spy.embed_texts.called
     assert tag_images(cache,[],spy)=={}
     cache.close()
 

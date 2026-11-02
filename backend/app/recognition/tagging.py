@@ -6,7 +6,7 @@ import unicodedata
 
 import numpy as np
 
-VERSION = 2
+VERSION = 3
 # Each group has its own reference. Multiple subjects may be present; none is required.
 VOCAB = {
     "subject": ("an empty scene with no main subject", {
@@ -17,7 +17,8 @@ VOCAB = {
     "scene": ("an unspecified location", {
         "beach": "a beach by the sea", "mountains": "mountains", "forest": "a forest", "lake": "a lake",
         "city": "a city street", "garden": "a garden", "snow": "a snowy landscape", "studio": "a photography studio",
-        "bedroom": "a bedroom", "restaurant": "a restaurant", "cafe": "a cafe", "office": "an office",
+        "kitchen": "a kitchen", "bathroom": "a bathroom", "living room": "a living room",
+        "hallway": "a hallway", "balcony": "a balcony", "bedroom": "a bedroom", "restaurant": "a restaurant", "cafe": "a cafe", "office": "an office",
         "indoors": "an indoor scene", "outdoors": "an outdoor scene", "river": "a river", "waterfall": "a waterfall"}),
     "clothing": ("a scene without visible clothing", {
         "dress": "a person wearing a dress", "suit": "a person wearing a suit", "jacket": "a person wearing a jacket",
@@ -63,8 +64,10 @@ def predict(E: np.ndarray, embedder) -> list[list[dict]]:
     X = E / (np.linalg.norm(E, axis=1, keepdims=True) + 1e-9)
     paired = (X @ T.T).reshape(len(E), len(entries), 2)
     strengths = 1 / (1 + np.exp(-np.clip(24 * (paired[:, :, 0] - paired[:, :, 1]), -30, 30)))
+    from app.recognition.scenes import room_evidence
+    rooms = room_evidence(X, embedder)
     out = []
-    for row in strengths:
+    for index, row in enumerate(strengths):
         chosen, groups = [], {}
         for i in np.argsort(-row, kind="stable"):
             group, label = entries[i]
@@ -85,6 +88,12 @@ def predict(E: np.ndarray, embedder) -> list[list[dict]]:
             groups[group] = groups.get(group, 0) + 1
             if len(chosen) >= 12:
                 break
+        supported = [(room, float(context[index])) for room, (yes, context) in rooms.items() if yes[index]]
+        if supported:
+            room, context = max(supported, key=lambda item: item[1])
+            indoor = set(rooms)
+            chosen = [tag for tag in chosen if tag["label"] not in indoor]
+            chosen.append({"label": room, "score": round(float(1/(1+np.exp(-24*context))),3), "group": "scene", "source": "local-ai"})
         out.append(chosen)
     return out
 
