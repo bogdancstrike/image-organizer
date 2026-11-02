@@ -3,11 +3,11 @@ import { Button, Drawer, Empty, Input, Select, Tooltip } from "antd";
 import { useI18n } from "@/i18n";
 import { Film, Paperclip } from "lucide-react";
 import type { PlanItem } from "@/api";
+import { InfoBadge, SOURCE_HELP } from "./PhotoBadge";
 import { FLAG, FileDetails, useMediaViewer } from "./MediaViewer";
 
 export function Thumb({ p, onOpen, size = "md" }: { p: PlanItem; onOpen: () => void; size?: "sm" | "md" }) {
   return (
-    <Tooltip title={<FileDetails p={p} />} mouseEnterDelay={0.4}>
       <button
         onClick={onOpen}
         className={
@@ -16,27 +16,26 @@ export function Thumb({ p, onOpen, size = "md" }: { p: PlanItem; onOpen: () => v
         }
         aria-label={`Open ${p.name}`}
       >
-        <img src={p.thumb} alt={p.name} loading="lazy" className="h-full w-full object-cover" />
-        {p.kind === "video" && <Film size={size === "sm" ? 11 : 15} className="absolute right-1 top-1 text-white drop-shadow" />}
+        <Tooltip title={<FileDetails p={p} />} mouseEnterDelay={0.4}><img src={p.thumb} alt={p.name} loading="lazy" className="h-full w-full object-cover" /></Tooltip>
+        {p.kind === "video" && <InfoBadge message="Video: opens the video player." className="absolute right-1 top-1 text-white drop-shadow"><Film size={size === "sm" ? 11 : 15} /></InfoBadge>}
         {size === "md" && (
           <div className="absolute inset-x-1 bottom-1 flex flex-wrap gap-0.5">
-            {p.source === "ai" && <span className="rounded bg-fuchsia-600/85 px-1 text-[10px] text-white">AI</span>}
+            {p.source === "ai" && <InfoBadge message={SOURCE_HELP.ai} className="rounded bg-fuchsia-600/85 px-1 text-[10px] text-white">AI</InfoBadge>}
             {p.quality?.flags.map((f) => (
-              <span key={f} className="rounded bg-black/60 px-1 text-[10px] text-white" title={FLAG[f]?.label}>
+              <InfoBadge key={f} message={FLAG[f]?.help ?? f} className="rounded bg-black/60 px-1 text-[10px] text-white">
                 {FLAG[f]?.emoji ?? "!"}
-              </span>
+              </InfoBadge>
             ))}
-            {p.quality?.smiling && <span className="rounded bg-black/40 px-1 text-[10px]">😄</span>}
+            {p.quality?.smiling && <InfoBadge message="Smile detected on a face included by your quality settings." className="rounded bg-black/40 px-1 text-[10px]">😄</InfoBadge>}
             {p.sidecars?.length ? (
-              <span className="inline-flex items-center rounded bg-black/50 px-1 text-[10px] text-white">
+              <InfoBadge message={`Attached files: ${p.sidecars.map(s => s.split("/").pop()).join(", ")}. These travel with the photo.`} className="inline-flex items-center rounded bg-black/50 px-1 text-[10px] text-white">
                 <Paperclip size={9} />
                 {p.sidecars.length}
-              </span>
+              </InfoBadge>
             ) : null}
           </div>
         )}
       </button>
-    </Tooltip>
   );
 }
 

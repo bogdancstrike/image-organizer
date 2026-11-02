@@ -1,3 +1,4 @@
+import { InfoBadge } from "./PhotoBadge";
 import { FolderClosed, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { CountUp } from "./CountUp";
@@ -37,7 +38,7 @@ export function CategoryCard({ name, emoji, count, total, slotRef, onClick, vari
             <Icon className="h-3.5 w-3.5 shrink-0 text-plum/60" strokeWidth={1.8} />
           )}
           <span className="truncate">{variant === "trash" ? `${name} → trash` : name}</span>
-          {emoji && variant !== "trash" && <span className="text-xs opacity-80">{emoji}</span>}
+          {emoji && variant !== "trash" && <InfoBadge message={`${name} folder`} className="text-xs opacity-80">{emoji}</InfoBadge>}
         </CardTitle>
         <CountUp value={count} className="text-[15px] font-semibold tabular-nums text-plum/80" />
       </CardHeader>

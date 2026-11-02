@@ -3,6 +3,7 @@ import { App, Button, Empty, Input, Progress, Rate, Segmented, Select, Table, Ta
 import type { ColumnsType } from "antd/es/table";
 import { Search, MoveRight } from "lucide-react";
 import { api, type JobCategory, type PlanItem } from "@/api";
+import { InfoBadge, SOURCE_HELP } from "./PhotoBadge";
 import { Thumb } from "./FilesDrawer";
 import { FLAG, useMediaViewer } from "./MediaViewer";
 import { fmt } from "@/lib/utils";
@@ -104,11 +105,11 @@ export function ReviewTab({ jobId, editable, plan, categories, onChanged }: Prop
       sorter: (a, b) => a.confidence - b.confidence,
       render: (_, p) =>
         ["clip", "ai", "cluster"].includes(p.source) ? (
-          <Tooltip title={p.source === "ai" ? "placed by AI assist" : "CLIP similarity"}>
+          <Tooltip title={SOURCE_HELP[p.source] ?? p.source}>
             <Progress percent={Math.round(p.confidence * 100)} size="small" showInfo={false} />
           </Tooltip>
         ) : (
-          <Tag className="m-0">{p.source}</Tag>
+          <InfoBadge message={SOURCE_HELP[p.source] ?? p.source}><Tag className="m-0">{p.source}</Tag></InfoBadge>
         ),
     },
     {
@@ -123,12 +124,12 @@ export function ReviewTab({ jobId, editable, plan, categories, onChanged }: Prop
               <span className="tabular-nums text-plum/60">{Math.round(p.quality.sharpness * 100)}%</span>
             </Tooltip>
             {p.quality.flags.map((f) => (
-              <Tooltip key={f} title={FLAG[f]?.label}>
+              <Tooltip key={f} title={FLAG[f]?.help ?? f}>
                 <span>{FLAG[f]?.emoji}</span>
               </Tooltip>
             ))}
-            {p.quality.smiling && <Tooltip title="Smiling">😄</Tooltip>}
-            {p.quality.faces > 0 && <span className="text-plum/45">· {p.quality.faces}👤</span>}
+            {p.quality.smiling && <InfoBadge message="Smile detected on a face included by your quality settings.">😄</InfoBadge>}
+            {p.quality.faces > 0 && <InfoBadge message={`${p.quality.faces} detected face${p.quality.faces === 1 ? "" : "s"}. Quality checks use your main-face or group setting.`} className="text-plum/45">· {p.quality.faces}👤</InfoBadge>}
           </span>
         ) : (
           <span className="text-plum/30">–</span>
@@ -152,7 +153,7 @@ export function ReviewTab({ jobId, editable, plan, categories, onChanged }: Prop
           <Tooltip title={`keeper score ${Math.round(p.quality.score * 100)}/100${p.burst ? ` · burst of ${p.burst.size}${p.burst.best ? " · best" : ""}` : ""}`}>
             <span className="inline-flex items-center gap-1">
               <Rate disabled value={p.quality.stars} className="!text-[11px]" />
-              {p.burst && <span className="text-[11px]">{p.burst.best ? "🏆" : "🎞️"}</span>}
+              {p.burst && <InfoBadge message={p.burst.best ? `Best frame in a group of ${p.burst.size} similar shots.` : `Alternative frame in a group of ${p.burst.size} similar shots.`} className="text-[11px]">{p.burst.best ? "🏆" : "🎞️"}</InfoBadge>}
             </span>
           </Tooltip>
         ) : (

@@ -1,5 +1,6 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { Image, Modal } from "antd";
+import { InfoBadge, SOURCE_HELP } from "./PhotoBadge";
 import { previewUrl, type PlanItem } from "@/api";
 
 const pct = (v: number | null | undefined) => (v === null || v === undefined ? "–" : `${Math.round(v * 100)}%`);
@@ -15,14 +16,14 @@ const SOURCE_LABEL: Record<string, string> = {
   manual: "set by you",
 };
 
-export const FLAG: Record<string, { label: string; emoji: string }> = {
-  blurry: { label: "Blurry", emoji: "🌫️" },
-  "eyes-closed": { label: "Eyes closed", emoji: "😑" },
-  "too-dark": { label: "Too dark", emoji: "🌑" },
-  "too-bright": { label: "Too bright", emoji: "☀️" },
-  noisy: { label: "Noisy", emoji: "🌪️" },
-  tilted: { label: "Tilted horizon", emoji: "📐" },
-  "cropped-face": { label: "Face cut off", emoji: "✂️" },
+export const FLAG: Record<string, { label: string; emoji: string; help: string }> = {
+  blurry: { label: "Blurry", emoji: "🌫️", help: "Focus check: the subject may be blurry or out of focus." },
+  "eyes-closed": { label: "Eyes closed", emoji: "😑", help: "Eye check: closed eyes were detected on a face included by your settings." },
+  "too-dark": { label: "Too dark", emoji: "🌑", help: "Exposure check: too much shadow detail may be lost." },
+  "too-bright": { label: "Too bright", emoji: "☀️", help: "Exposure check: highlights may be clipped." },
+  noisy: { label: "Noisy", emoji: "🌪️", help: "Noise check: strong image grain was detected." },
+  tilted: { label: "Tilted horizon", emoji: "📐", help: "Horizon check: consistent lines appear tilted. This is an experimental check." },
+  "cropped-face": { label: "Face cut off", emoji: "✂️", help: "Framing check: a detected face touches the image edge." },
 };
 
 export function FileDetails({ p }: { p: PlanItem }) {
@@ -31,7 +32,7 @@ export function FileDetails({ p }: { p: PlanItem }) {
     <div className="space-y-0.5 text-xs">
       <div className="break-all font-medium">{p.rel_path}</div>
       <div className="opacity-75">
-        {p.category} · {SOURCE_LABEL[p.source] ?? p.source}
+        {p.category} · <InfoBadge message={SOURCE_HELP[p.source] ?? p.source}>{SOURCE_LABEL[p.source] ?? p.source}</InfoBadge>
         {["clip", "ai", "cluster"].includes(p.source) ? ` ${pct(p.confidence)}` : ""}
       </div>
       {q && (

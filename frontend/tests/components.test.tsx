@@ -128,3 +128,13 @@ it('sorts folder photos by descending score by default and switches to ascending
  fireEvent.click(await screen.findByText('Score · lowest first'));
  expect(order()).toEqual(['Open low.jpg','Open middle.jpg','Open high.jpg','Open unknown.jpg']);
 });
+
+it('explains AI and photo status badges on hover and keyboard focus',async()=>{
+ renderUI(<FilesDrawer title="Nature" items={[plan[0]]} onClose={()=>{}}/>);
+ fireEvent.mouseEnter(screen.getByLabelText(/^AI: assigned/));
+ expect(await screen.findByRole('tooltip')).toHaveTextContent('optional OpenAI analysis');
+ fireEvent.mouseLeave(screen.getByLabelText(/^AI: assigned/));
+ const smile=screen.getByLabelText(/^Smile detected/);fireEvent.focus(smile);
+ await waitFor(()=>expect(screen.getAllByRole('tooltip').some(t=>t.textContent?.includes('Smile detected'))).toBe(true));
+ expect(screen.getByLabelText(/^Attached files:/)).toHaveAccessibleName(expect.stringContaining('mountain.xmp'));
+});
