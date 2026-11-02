@@ -2,6 +2,7 @@ import type { AIOptions, QualityOptions, Strategy } from "./api";
 
 export interface UiSettings {
   source: string;
+  rulesPrompt: string;
   strategy: Strategy;
   presetId: string;
   customSetId: string | null;
@@ -38,6 +39,7 @@ export interface UiSettings {
 
 export const DEFAULT_SETTINGS: UiSettings = {
   source: "",
+  rulesPrompt: "",
   strategy: "preset",
   presetId: "lifestyle",
   customSetId: null,

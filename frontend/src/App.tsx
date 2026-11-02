@@ -24,6 +24,7 @@ import { Card } from "./components/ui/card";
 import { loadSettings, saveSettings, type UiSettings } from "./settings";
 import { ThemeSwitcher, useTheme } from "./theme";
 import { LANGS, useI18n } from "./i18n";
+import { PromptRulesInput } from "./components/PromptRulesInput";
 import { RecipePicker } from "./components/RecipePicker";
 import { StatisticsTab } from "./components/StatisticsTab";
 import { LibraryTab } from "./components/LibraryTab";
@@ -333,6 +334,10 @@ export default function App() {
   };
 
   const startSort = async () => {
+    if (settings.strategy === "rules" && (!health?.ai_available || !settings.rulesPrompt.trim())) {
+      message.info(!health?.ai_available ? t("rules.noai") : t("rules.instructions"));
+      return;
+    }
     clearStage();
     setJob({ ...INITIAL, status: "running", phase: "starting" });
     const s = settings;
@@ -348,6 +353,7 @@ export default function App() {
         strategy: s.strategy,
         set_id: s.strategy === "preset" ? s.presetId : s.strategy === "custom" ? s.customSetId : null,
         options: {
+          rules_prompt: s.rulesPrompt,
           min_confidence: s.minConfidence,
           near_duplicates: s.nearDuplicates,
           split_media: s.splitMedia,
@@ -455,6 +461,12 @@ export default function App() {
         ? customSets.find((p) => p.id === settings.customSetId)
         : undefined;
 
+  // Settings are the source of truth even when a previously saved recipe no longer matches.
+  const recipeMatches = (r: Recipe) => r.strategy === settings.strategy &&
+    (r.strategy !== "preset" || r.set_id === settings.presetId);
+  const activeRecipeId = recipes.find((r) => r.id === settings.recipeId && recipeMatches(r))?.id ??
+    recipes.find(recipeMatches)?.id ?? null;
+
   const stats = {
     total: job.total,
     photos: landedKinds.image - 0,
@@ -474,6 +486,7 @@ export default function App() {
         if (job.phase === "checking") return t("status.checking");
         if (job.phase === "reading") return t("status.reading");
         if (job.phase === "faces") return t("status.faces");
+        if (job.phase === "rules") return t("rules.compiling");
         if (job.phase === "ai") return t("status.ai");
         return t("status.sorting");
       case "done":
@@ -490,7 +503,7 @@ export default function App() {
   }, [job.status, job.phase, job.analyzed, job.total, settled, t]);
 
   const strategyLabel =
-    settings.strategy === "preset"
+    settings.strategy === "rules" ? t("rules.title") : settings.strategy === "preset"
       ? `Preset · ${activeSet?.name ?? settings.presetId}`
       : settings.strategy === "custom"
         ? `My categories · ${activeSet?.name ?? "none"}`
@@ -548,7 +561,7 @@ export default function App() {
     });
   };
   useEffect(() => {
-    if (!health?.library_ok) return;
+    if (!health?.library_ok || settings.strategy === "rules") return;
     let alive = true;
     setSuggesting(true);
     setSuggestion(null);
@@ -567,7 +580,7 @@ export default function App() {
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settings.source, settings.recursive, health?.library_ok, recipes.length]);
+  }, [settings.source, settings.recursive, health?.library_ok, recipes.length, settings.strategy]);
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-[2200px] flex-col px-4 pb-6 pt-5 sm:px-8 lg:w-[80vw] lg:px-0">
@@ -643,12 +656,17 @@ export default function App() {
           </span>
         </button>
 
-        {(job.status === "idle" || job.status === "undone") && (
+        {(job.status === "idle" || job.status === "undone") && settings.strategy === "rules" && (
+          <div className="mt-6 w-full max-w-2xl">
+            <PromptRulesInput value={settings.rulesPrompt} onChange={(rulesPrompt) => setSettings({ ...settings, rulesPrompt })} aiAvailable={!!health?.ai_available} />
+          </div>
+        )}
+        {(job.status === "idle" || job.status === "undone") && settings.strategy !== "rules" && (
           <RecipePicker
             recipes={recipes}
             suggestion={suggestion}
             loading={suggesting}
-            active={settings.recipeId}
+            active={activeRecipeId}
             disabled={running}
             onPick={(r) => applyRecipe(r)}
           />
@@ -661,7 +679,7 @@ export default function App() {
             </Button>
           ) : (
             job.status === "idle" ? (
-              <Button size="xl" onClick={startSort} disabled={!health?.library_ok} className="min-w-52">
+              <Button size="xl" onClick={startSort} disabled={!health?.library_ok || (settings.strategy === "rules" && (!health?.ai_available || !settings.rulesPrompt.trim()))} className="min-w-52">
                 <LogoMark className="h-6 w-6" /> {t("sort")}
               </Button>
             ) : (
@@ -707,7 +725,7 @@ export default function App() {
               <Sparkles size={11} /> Looks like: {job.context.theme}
             </Badge>
           )}
-          {settings.aiAssist && health?.ai_available && settings.strategy !== "auto" && settings.strategy !== "date" && (
+          {settings.aiAssist && health?.ai_available && (settings.strategy === "preset" || settings.strategy === "custom") && (
             <Badge>
               <Sparkles size={11} /> AI assist
             </Badge>

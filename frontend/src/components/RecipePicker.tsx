@@ -20,6 +20,8 @@ export function RecipePicker({ recipes, suggestion, loading, active, disabled, o
   const suggested = (suggestion?.suggestions ?? [])
     .map((s) => ({ s, r: recipes.find((r) => r.id === s.recipe) }))
     .filter((x): x is { s: Suggestion["suggestions"][number]; r: Recipe } => !!x.r);
+  const activeRecipe = recipes.find((r) => r.id === active);
+  const activeIsSuggested = suggested.some(({ r }) => r.id === active);
   const reason = (s: Suggestion["suggestions"][number]) =>
     t(`reason.${s.reason.key}`, { theme: s.reason.theme ?? "", pct: s.reason.pct ?? 0 });
 
@@ -29,6 +31,7 @@ export function RecipePicker({ recipes, suggestion, loading, active, disabled, o
       <button
         key={r.id}
         disabled={disabled}
+        aria-pressed={on}
         onClick={() => onPick(r)}
         className={cn(
           "relative flex min-w-0 cursor-pointer items-start gap-3 rounded-2xl border p-3.5 text-left transition-all hover:-translate-y-0.5 disabled:cursor-default disabled:opacity-60",
@@ -61,14 +64,14 @@ export function RecipePicker({ recipes, suggestion, loading, active, disabled, o
       {loading && !suggested.length ? (
         <div className="shimmer flex h-[76px] items-center justify-center rounded-2xl text-xs text-plum/50">{t("recipe.looking")}</div>
       ) : (
-        <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">{suggested.map(({ s, r }, i) => card(r, reason(s), i === 0))}</div>
+        <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">{suggested.map(({ s, r }, i) => card(r, reason(s), i === 0))}{activeRecipe && !activeIsSuggested && card(activeRecipe)}</div>
       )}
       <button onClick={() => setAll((v) => !v)} className="mt-2.5 inline-flex cursor-pointer items-center gap-1 text-xs text-plum/55 hover:text-plum">
         {all ? <ChevronUp size={13} /> : <ChevronDown size={13} />} {all ? t("recipe.less") : t("recipe.more")}
       </button>
       {all && (
         <div className="pop-in mt-2.5 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-          {recipes.filter((r) => !suggested.some((x) => x.r.id === r.id)).map((r) => card(r))}
+          {recipes.filter((r) => r.id !== active && !suggested.some((x) => x.r.id === r.id)).map((r) => card(r))}
         </div>
       )}
     </div>

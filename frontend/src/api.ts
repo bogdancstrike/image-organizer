@@ -1,4 +1,4 @@
-export type Strategy = "preset" | "custom" | "auto" | "date" | "cull" | "people" | "trips" | "places";
+export type Strategy = "preset" | "custom" | "auto" | "date" | "cull" | "people" | "trips" | "places" | "rules";
 
 export interface Recipe {
   id: string;
@@ -227,6 +227,7 @@ export interface JobRequest {
   strategy: Strategy;
   set_id: string | null;
   options: {
+    rules_prompt?: string;
     min_confidence: number;
     near_duplicates: boolean;
     split_media: boolean;

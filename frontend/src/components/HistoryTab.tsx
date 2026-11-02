@@ -12,7 +12,7 @@ const OUTCOME: Record<string, { label: string; dot: string; hint: string }> = {
   failed: { label: "Failed", dot: "bg-red-500", hint: "An error stopped it." },
 };
 const STRATEGY: Record<string, string> = {
-  preset: "preset", custom: "my categories", auto: "auto-discover", date: "by date", cull: "culling",
+  rules: "AI prompt rules", preset: "preset", custom: "my categories", auto: "auto-discover", date: "by date", cull: "culling",
   people: "by person", trips: "by trip", places: "by place",
 };
 const PAGE = 40;

@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { PromptRulesInput } from "./PromptRulesInput";
 import { FacePicker } from "./FacePicker";
 import { Button, Checkbox, Drawer, Input, InputNumber, Modal, Popconfirm, Radio, Rate, Segmented, Select, Slider, Switch, Tag, Tooltip } from "antd";
 import {
@@ -404,8 +405,8 @@ export function SettingsPanel({
           </div>
           <p className="mt-2 truncate font-mono text-[11px] text-plum/50">→ {example}</p>
         </Row>
-        <Row label="Separate Photos/ and Videos/" inline>
-          <Switch checked={settings.splitMedia} onChange={(v) => set("splitMedia", v)} />
+        <Row label="Separate Photos/ and Videos/" hint={settings.strategy === "rules" ? "Prompt rules use your exact destination paths." : undefined} inline>
+          <Switch checked={settings.splitMedia && settings.strategy !== "rules"} disabled={settings.strategy === "rules"} onChange={(v) => set("splitMedia", v)} />
         </Row>
       </Section>
 
@@ -416,6 +417,7 @@ export function SettingsPanel({
             value={settings.strategy}
             onChange={(v) => set("strategy", v as UiSettings["strategy"])}
             options={[
+              { value: "rules", label: <span className="inline-flex items-center gap-1"><Wand2 size={14} />{t("rules.title")}</span> },
               { value: "preset", label: <span className="inline-flex items-center gap-1"><Shapes size={14} />Preset</span> },
               { value: "custom", label: <span className="inline-flex items-center gap-1"><PencilLine size={14} />Mine</span> },
               { value: "auto", label: <span className="inline-flex items-center gap-1"><Wand2 size={14} />Auto</span> },
@@ -446,6 +448,9 @@ export function SettingsPanel({
           </p>
         </Row>
 
+        {settings.strategy === "rules" && (
+          <PromptRulesInput value={settings.rulesPrompt} onChange={(v) => set("rulesPrompt", v)} aiAvailable={ai} />
+        )}
         {settings.strategy === "preset" && (
           <Row label="Preset" hint={<a onClick={onEditCategories}>edit presets…</a>}>
             <SetPicker sets={presets} value={settings.presetId} onPick={(id) => set("presetId", id)} />

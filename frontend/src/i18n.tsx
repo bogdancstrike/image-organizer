@@ -252,8 +252,55 @@ const fr: Dict = {
 };
 
 import { MORE } from "./i18n-more";
+const RULES: Record<Lang, Dict> = {
+  "en": {
+    "rules.title": "AI rules",
+    "rules.instructions": "Sorting instructions",
+    "rules.example": "Put landscape photos into landscapes/{date}; everything else into others/{date}.",
+    "rules.privacy": "AI reads these instructions and a thumbnail for each non-duplicate file. Review the plan before applying.",
+    "rules.noai": "Set OPENAI_API_KEY in .env to use AI rules. Other sorting modes work offline.",
+    "rules.paths": "Paths are relative to your output folder. Dates: {date} = DD.MM.YYYY; {iso} = YYYY-MM-DD. No Photos/ or Videos/ prefix is added.",
+    "rules.compiling": "Reading your sorting instructions…"
+  },
+  "ro": {
+    "rules.title": "Reguli AI",
+    "rules.instructions": "Instrucțiuni de sortare",
+    "rules.example": "Pune pozele cu peisaje în peisaje/{date}; restul în altele/{date}.",
+    "rules.privacy": "AI citește instrucțiunile și o miniatură pentru fiecare fișier unic. Verifică planul înainte de aplicare.",
+    "rules.noai": "Setează OPENAI_API_KEY în .env pentru reguli AI. Celelalte moduri funcționează offline.",
+    "rules.paths": "Căile sunt relative la folderul de ieșire. Date: {date} = ZZ.LL.AAAA; {iso} = AAAA-LL-ZZ. Nu se adaugă Photos/ sau Videos/.",
+    "rules.compiling": "Citesc instrucțiunile de sortare…"
+  },
+  "es": {
+    "rules.title": "Reglas IA",
+    "rules.instructions": "Instrucciones de clasificación",
+    "rules.example": "Pon los paisajes en paisajes/{date}; el resto en otras/{date}.",
+    "rules.privacy": "La IA lee las instrucciones y una miniatura de cada archivo único. Revisa el plan antes de aplicarlo.",
+    "rules.noai": "Configura OPENAI_API_KEY en .env para usar reglas IA. Los otros modos funcionan sin conexión.",
+    "rules.paths": "Rutas relativas a la carpeta de salida. {date} = DD.MM.AAAA; {iso} = AAAA-MM-DD. Sin prefijo Photos/ o Videos/.",
+    "rules.compiling": "Leyendo tus instrucciones…"
+  },
+  "de": {
+    "rules.title": "KI-Regeln",
+    "rules.instructions": "Sortieranweisungen",
+    "rules.example": "Landschaftsfotos nach landschaften/{date}; alles andere nach andere/{date}.",
+    "rules.privacy": "Die KI liest die Anweisungen und ein Vorschaubild jeder eindeutigen Datei. Prüfe den Plan vor dem Anwenden.",
+    "rules.noai": "Setze OPENAI_API_KEY in .env für KI-Regeln. Andere Sortiermodi funktionieren offline.",
+    "rules.paths": "Pfade relativ zum Ausgabeordner. {date} = TT.MM.JJJJ; {iso} = JJJJ-MM-TT. Kein Präfix Photos/ oder Videos/.",
+    "rules.compiling": "Sortieranweisungen werden gelesen…"
+  },
+  "fr": {
+    "rules.title": "Règles IA",
+    "rules.instructions": "Instructions de tri",
+    "rules.example": "Place les paysages dans paysages/{date} ; le reste dans autres/{date}.",
+    "rules.privacy": "L’IA lit les instructions et une miniature de chaque fichier unique. Vérifie le plan avant de l’appliquer.",
+    "rules.noai": "Configure OPENAI_API_KEY dans .env pour les règles IA. Les autres modes fonctionnent hors ligne.",
+    "rules.paths": "Chemins relatifs au dossier de sortie. {date} = JJ.MM.AAAA ; {iso} = AAAA-MM-JJ. Sans préfixe Photos/ ou Videos/.",
+    "rules.compiling": "Lecture des instructions de tri…"
+  }
+};
 const DICTS: Record<Lang, Dict> = {
-  en: { ...en, ...MORE.en }, ro: { ...ro, ...MORE.ro }, es: { ...es, ...MORE.es }, de: { ...de, ...MORE.de }, fr: { ...fr, ...MORE.fr },
+  en: { ...en, ...MORE.en, ...RULES.en }, ro: { ...ro, ...MORE.ro, ...RULES.ro }, es: { ...es, ...MORE.es, ...RULES.es }, de: { ...de, ...MORE.de, ...RULES.de }, fr: { ...fr, ...MORE.fr, ...RULES.fr },
 };
 const KEY = "aio.lang";
 

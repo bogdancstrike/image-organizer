@@ -6,7 +6,7 @@ import { Card } from "./ui/card";
 import { fmt } from "@/lib/utils";
 
 const PHASE_LABEL: Record<string, string> = {
-  scanning: "Scanning", analyzing: "Analyzing", checking: "Quality checks", reading: "OCR", faces: "Faces",
+  rules: "AI rules", scanning: "Scanning", analyzing: "Analyzing", checking: "Quality checks", reading: "OCR", faces: "Faces",
   deduplicating: "Duplicates", categorizing: "Categorizing", ai: "AI", naming: "AI naming", planning: "Planning",
 };
 const PHASE_COLOR = ["#71717a", "#a1a1aa", "#3f3f46", "#d4d4d8", "#52525b", "#b8467d", "#27272a", "#e4e4e7", "#8b5cf6"];
