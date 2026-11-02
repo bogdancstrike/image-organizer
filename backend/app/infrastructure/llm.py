@@ -19,7 +19,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from .rules import MAX_RULES, Rule, validate_rules
+from app.recognition.rules import MAX_RULES, Rule, validate_rules
 
 log = logging.getLogger(__name__)
 

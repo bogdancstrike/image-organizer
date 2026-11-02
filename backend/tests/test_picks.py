@@ -1,8 +1,8 @@
 """Picks: expression, composition, story coverage, no near-duplicates."""
 import numpy as np
 
-from app.picks import Ranking, PickInfo, composition, expression, select
-from app.quality import Face, Quality
+from app.culling.ranking import Ranking, PickInfo, composition, expression, select
+from app.culling.quality import Face, Quality
 
 
 def q(faces=(), sharp=0.8, tilt=None):
@@ -53,7 +53,7 @@ def test_select_tells_the_story_and_skips_near_duplicates():
 
 
 def test_dark_intentional_photo_is_not_punished_for_mean_brightness():
-    from app.picks import technical
+    from app.culling.ranking import technical
     lit=q([],sharp=.8);dark=q([],sharp=.8);dark.brightness=.12
     assert abs(technical(lit)-technical(dark))<.1
     blown=q([],sharp=.8);blown.bright_clip=.8
@@ -61,7 +61,7 @@ def test_dark_intentional_photo_is_not_punished_for_mean_brightness():
 
 
 def test_main_face_preference_and_small_background_faces():
-    from app.quality import QualityRules
+    from app.culling.quality import QualityRules
     main=face();background=face(blink=.99);background.area=.001
     mixed=q([main,background])
     assert expression(mixed,QualityRules(faces_rule='any'))==expression(q([main]),QualityRules())
@@ -70,7 +70,7 @@ def test_main_face_preference_and_small_background_faces():
 
 
 def test_fashion_profile_does_not_require_eye_contact_or_a_smile():
-    from app.picks import face_expression
+    from app.culling.ranking import face_expression
     turned=face(gaze=.9,yaw=.7,smile=0)
     assert face_expression(turned,'fashion')>face_expression(turned,'portrait')
 
@@ -83,8 +83,8 @@ def test_rejected_or_low_scoring_frames_never_fill_the_picks_quota():
 
 
 def test_rank_includes_profile_and_absolute_quality_even_for_a_single_photo(fake_embedder):
-    from app.picks import rank
-    from app.quality import QualityRules
+    from app.culling.ranking import rank
+    from app.culling.quality import QualityRules
     poor=q([],sharp=.15)
     rules=QualityRules(blur=False,eyes_closed=False,exposure=False)
     ranking=rank(['poor'],{'poor':poor},np.array([[1,0,0,.05]],np.float32),fake_embedder,rules,profile='landscape')
@@ -94,15 +94,15 @@ def test_rank_includes_profile_and_absolute_quality_even_for_a_single_photo(fake
 
 
 def test_group_focus_uses_the_weakest_important_face_but_honors_main_subject():
-    from app.picks import technical
-    from app.quality import QualityRules
+    from app.culling.ranking import technical
+    from app.culling.quality import QualityRules
     main,other=face(),face();main.sharpness=.9;other.sharpness=.2
     assert technical(q([main,other]),QualityRules(faces_rule='any')) < technical(q([main,other]),QualityRules(faces_rule='main'))-.2
 
 
 def test_semantic_genre_auto_detection_and_fallbacks(fake_embedder,monkeypatch):
-    import app.picks as picks
-    from app.quality import QualityRules
+    import app.culling.ranking as picks
+    from app.culling.quality import QualityRules
     E=np.array([[1,0,0,.05],[0,1,0,.05]],np.float32)
     monkeypatch.setattr(picks,'_semantic',lambda E,e:(np.array([[.01,.97,.01,.01],[.01,.01,.97,.01]]),np.full((2,7),.9)))
     ranked=picks.rank(['fashion','landscape'],{'fashion':q([face()]),'landscape':q()},E,fake_embedder,QualityRules())
@@ -117,15 +117,15 @@ def test_semantic_genre_auto_detection_and_fallbacks(fake_embedder,monkeypatch):
 
 
 def test_scene_assignment_scales_and_keeps_a_small_shoot_together():
-    from app.picks import scenes
+    from app.culling.ranking import scenes
     assert scenes(np.eye(4)).tolist()==[0,0,0,0]
     rng=np.random.default_rng(12);E=rng.normal(size=(2501,8));E/=np.linalg.norm(E,axis=1,keepdims=True)
     assert len(scenes(E))==2501
 
 
 def test_auto_landscapes_keep_landscape_criteria_when_people_are_incidental(fake_embedder,monkeypatch):
-    import app.picks as picks
-    from app.quality import QualityRules
+    import app.culling.ranking as picks
+    from app.culling.quality import QualityRules
     monkeypatch.setattr(picks,'_semantic',lambda E,e:(np.array([[.01,.01,.97,.01]]),np.full((1,7),.7)))
     a,b=face(),face();a.area=b.area=.002
     result=picks.rank(['hike'],{'hike':q([a,b])},np.array([[1,0,0,.05]],np.float32),fake_embedder,QualityRules())
@@ -134,7 +134,7 @@ def test_auto_landscapes_keep_landscape_criteria_when_people_are_incidental(fake
 
 
 def test_multiscale_detail_distinguishes_noise_from_real_edges():
-    from app.quality import perceptual_signals
+    from app.culling.quality import perceptual_signals
     rng=np.random.default_rng(7)
     noise=rng.integers(0,255,(128,128),dtype=np.uint8)
     edges=np.zeros((128,128),np.uint8);edges[32:96,32:96]=220

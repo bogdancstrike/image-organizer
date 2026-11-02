@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from app.scanner import PathError, list_folders, resolve_in_library, scan
+from app.media.scanning import PathError, list_folders, resolve_in_library, scan
 from tests.conftest import make_image
 
 

@@ -5,7 +5,7 @@ import numpy as np
 from fastapi.testclient import TestClient
 from PIL import Image
 
-from app.geo import Item, detect_trips, read_geo
+from app.library.geography import Item, detect_trips, read_geo
 from app.main import create_app
 from tests.conftest import COLORS, make_image
 from tests.test_api import wait

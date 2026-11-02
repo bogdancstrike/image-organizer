@@ -8,7 +8,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .media import Analysis
+from app.media.decoding import Analysis
 
 
 class AnalysisCache:

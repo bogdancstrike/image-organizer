@@ -15,9 +15,9 @@ from pathlib import Path
 
 import numpy as np
 
-from .geo import Item, detect_trips, places_for, read_geo
-from .scanner import MediaFile
-from .tagging import VERSION as TAG_VERSION, tokens
+from app.library.geography import Item, detect_trips, places_for, read_geo
+from app.media.scanning import MediaFile
+from app.recognition.tagging import VERSION as TAG_VERSION, tokens
 
 WORKERS = min(8, os.cpu_count() or 2)
 
@@ -203,7 +203,7 @@ class Library:
 
     # ------------------------------------------------------------------ places & trips
     def _files(self, folder: str) -> list[MediaFile]:
-        from .scanner import resolve_in_library, scan
+        from app.media.scanning import resolve_in_library, scan
 
         src = resolve_in_library(self.root, folder)
         return scan(self.root, src, self.m.s.output_dir_name, recursive=True, pair_sidecars=False)

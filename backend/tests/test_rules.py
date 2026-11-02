@@ -7,9 +7,9 @@ import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
 
-from app.llm import LLMClient
+from app.infrastructure.llm import LLMClient
 from app.main import create_app
-from app.rules import Rule, validate_rules
+from app.recognition.rules import Rule, validate_rules
 from tests.conftest import COLORS, make_image
 from tests.test_api import wait
 

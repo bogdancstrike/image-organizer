@@ -16,20 +16,20 @@ from fastapi.staticfiles import StaticFiles
 from PIL import Image, ImageOps
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from . import __version__
-from .categories import CategorySetIn, CategoryStore, all_presets
-from .config import Settings, load_settings
-from .embedder import get_clip_embedder
-from .jobs import BusyError, JobManager
-from .llm import LLMClient
-from .db import OUTCOMES, AppDB, history, summarize
-from .library import Library
-from .organizer import empty_trash, list_runs, undo_run
-from .media import open_any
-from .ocr import get_text_reader
-from .people import get_face_identifier
-from .presets import RECIPES, RECIPES_BY_ID, SHOOT_THEMES, THEME_TO_RECIPE
-from .scanner import PathError, list_folders, list_places, media_kind, resolve_in_library, scan
+from app import __version__
+from app.catalog.categories import CategorySetIn, CategoryStore, all_presets
+from app.infrastructure.config import Settings, load_settings
+from app.infrastructure.embeddings import get_clip_embedder
+from app.organization.jobs import BusyError, JobManager
+from app.infrastructure.llm import LLMClient
+from app.infrastructure.database import OUTCOMES, AppDB, history, summarize
+from app.library.service import Library
+from app.organization.operations import empty_trash, list_runs, undo_run
+from app.media.decoding import open_any
+from app.recognition.ocr import get_text_reader
+from app.recognition.people import get_face_identifier
+from app.catalog.presets import RECIPES, RECIPES_BY_ID, SHOOT_THEMES, THEME_TO_RECIPE
+from app.media.scanning import PathError, list_folders, list_places, media_kind, resolve_in_library, scan
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 SHA_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -226,7 +226,7 @@ def create_app(settings: Settings | None = None, embedder_factory=None, llm_fact
     @app.get("/api/ai/defaults")
     def ai_defaults():
         """Default prompt templates, so the UI can show them pre-filled and editable."""
-        from .llm import ASSIST_FORMAT, DEFAULT_ASSIST_PROMPT, DEFAULT_NAMING_PROMPT, NAMING_FORMAT
+        from app.infrastructure.llm import ASSIST_FORMAT, DEFAULT_ASSIST_PROMPT, DEFAULT_NAMING_PROMPT, NAMING_FORMAT
 
         return {
             "naming_prompt": DEFAULT_NAMING_PROMPT,
@@ -445,8 +445,8 @@ def create_app(settings: Settings | None = None, embedder_factory=None, llm_fact
         """Look at a sample of the folder and recommend recipes, so users don't have to know the options."""
         import numpy as np
 
-        from . import classify
-        from .embedder import normalize
+        from app.recognition import classification as classify
+        from app.infrastructure.embeddings import normalize
 
         try:
             src = resolve_in_library(s.library_root, path)
@@ -496,7 +496,7 @@ def create_app(settings: Settings | None = None, embedder_factory=None, llm_fact
             if x["recipe"] not in seen and x["recipe"] in RECIPES_BY_ID:
                 seen.add(x["recipe"])
                 uniq.append(x)
-        from .library import locate_files
+        from app.library.service import locate_files
 
         geo = locate_files(manager.cache, picked)
         gps_share = sum(1 for g in geo.values() if g.get("lat") is not None) / max(1, len(picked))

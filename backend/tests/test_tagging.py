@@ -5,11 +5,11 @@ from unittest.mock import Mock
 import numpy as np
 from fastapi.testclient import TestClient
 
-from app.cache import AnalysisCache
+from app.infrastructure.cache import AnalysisCache
 from app.main import create_app
-from app.media import decode_image
-from app.scanner import scan
-from app.tagging import VERSION, predict, tag_images, tokens
+from app.media.decoding import decode_image
+from app.media.scanning import scan
+from app.recognition.tagging import VERSION, predict, tag_images, tokens
 from tests.conftest import COLORS, make_image
 from tests.test_api import wait
 
@@ -25,7 +25,7 @@ def test_independent_tags_abstain_without_evidence_and_recognize_color(fake_embe
 
 
 def test_tag_cache_reuses_vectors_and_invalidates_on_version_size_and_mtime(settings,fake_embedder,monkeypatch):
-    import app.tagging as tagging
+    import app.recognition.tagging as tagging
     path=make_image(settings.library_root/'screenshot-red.png',COLORS['red'])
     f=scan(settings.library_root,settings.library_root)[0]
     a=decode_image(path,f.mtime).analysis
@@ -68,7 +68,7 @@ def test_tag_facets_exact_and_filters_aliases_and_stale_files(settings,fake_embe
 
 
 def test_tags_can_be_disabled_and_failures_leave_a_reviewable_plan(settings,fake_embedder,monkeypatch):
-    import app.tagging as tagging
+    import app.recognition.tagging as tagging
     make_image(settings.library_root/'photo.jpg',COLORS['red'],fmt='JPEG')
     with TestClient(create_app(settings,embedder_factory=lambda:fake_embedder,llm_factory=lambda:None))as c:
         j=wait(c,c.post('/api/jobs',json={'strategy':'date','options':{'auto_tags':False}}).json()['id'])

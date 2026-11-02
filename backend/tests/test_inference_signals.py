@@ -6,9 +6,9 @@ from types import SimpleNamespace
 import numpy as np
 from PIL import Image
 
-from app.ocr import TextReader
-from app.people import FaceIdentifier, FaceID
-from app.quality import FaceAnalyzer, _expression, sharpness, Face
+from app.recognition.ocr import TextReader
+from app.recognition.people import FaceIdentifier, FaceID
+from app.culling.quality import FaceAnalyzer, _expression, sharpness, Face
 
 
 def test_ocr_reads_confident_text_and_caps_coverage(monkeypatch):
@@ -66,7 +66,7 @@ def test_group_face_tiles_deduplicate_and_preserve_expression(tmp_path,monkeypat
 
 
 def test_detected_face_eye_focus_is_cached_with_the_new_analysis_version():
-    from app.quality import analyze_image, QUALITY_VERSION
+    from app.culling.quality import analyze_image, QUALITY_VERSION
     face=Face(.1,.8,.25,(.2,.2,.8,.8))
     analyzer=SimpleNamespace(available=True,detect=lambda rgb:[face])
     noise=np.random.default_rng(1).integers(0,255,(240,320,3),dtype=np.uint8)

@@ -11,7 +11,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
-from .presets import PRESETS, PRESETS_BY_ID
+from app.catalog.presets import PRESETS, PRESETS_BY_ID
 
 
 def slugify(name: str) -> str:

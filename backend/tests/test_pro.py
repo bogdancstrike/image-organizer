@@ -3,9 +3,9 @@ import numpy as np
 from fastapi.testclient import TestClient
 from PIL import Image, ImageFilter
 
-from app.organizer import apply_plan, undo_run
-from app.quality import Face, Quality, QualityRules, analyze_image, verdict
-from app.scanner import scan
+from app.organization.operations import apply_plan, undo_run
+from app.culling.quality import Face, Quality, QualityRules, analyze_image, verdict
+from app.media.scanning import scan
 from tests.conftest import make_image
 from tests.test_api import wait
 
@@ -78,7 +78,7 @@ def test_cull_strategy_and_reject_overlay(settings, fake_embedder):
 
 
 # ---------------------------------------------------------------- pro culling
-from app.quality import find_bursts, score, stars  # noqa: E402
+from app.culling.quality import find_bursts, score, stars  # noqa: E402
 
 
 def test_score_and_stars_rank_shots():
@@ -141,7 +141,7 @@ def test_cull_best_of_burst_and_maybe(settings, fake_embedder):
 
 
 # ---------------------------------------------------------------- more pro checks
-from app.quality import horizon_tilt, noise_sigma  # noqa: E402
+from app.culling.quality import horizon_tilt, noise_sigma  # noqa: E402
 
 
 def test_noise_estimate_separates_grainy_from_clean():
@@ -207,7 +207,7 @@ def test_picks_and_xmp_ratings_with_undo(settings, fake_embedder):
 
 def test_cull_recommendations_drive_keeper_thresholds_even_without_picks(settings, fake_embedder):
     from app.main import create_app
-    from app.quality import stars
+    from app.culling.quality import stars
     lib=settings.library_root
     for i in range(4):
         _noise(lib/f'landscape{i}.jpg',50+i)
@@ -247,7 +247,7 @@ def test_xmp_ratings_work_with_a_preset_without_enabling_reject_checks(settings,
 
 def test_rating_bands_use_decimal_scores_and_custom_thresholds(settings,fake_embedder,monkeypatch):
     from app.main import create_app
-    import app.picks as picks
+    import app.culling.ranking as picks
     for i in range(6):_noise(settings.library_root/f'{i}.jpg',i+80)
     scores=[.90,.875,.80,.75,.749,.74]  # 4.6, 4.5, 4.2, 4.0, 4.0 rounded
     def rank(ids,*args,**kwargs):

@@ -3,9 +3,9 @@ import numpy as np
 from fastapi.testclient import TestClient
 from PIL import Image
 
-import app.jobs as jobs_mod
+import app.organization.jobs as jobs_mod
 from app.main import create_app
-from app.people import FaceID, cluster_people
+from app.recognition.people import FaceID, cluster_people
 from tests.conftest import COLORS, make_image
 from tests.test_api import RED_GREEN, client, wait  # noqa: F401  (fixture)
 
@@ -167,7 +167,7 @@ def test_reference_face_moves_only_that_person(settings, fake_embedder, monkeypa
 
 
 def test_assign_by_appearance_gender_decides_then_outfit():
-    from app.people import assign_by_appearance
+    from app.recognition.people import assign_by_appearance
 
     groom, bride = np.array([1.0, 0, 0]), np.array([0, 1.0, 0])
     protos = np.vstack([groom, bride])
@@ -211,7 +211,7 @@ def test_history_lists_every_sort_with_outcome_and_pages(settings, fake_embedder
 
 
 def test_partial_faces_match_known_galleries_without_creating_new_identities():
-    from app.people import match_identity
+    from app.recognition.people import match_identity
     a,b=_vec(1),_vec(2)
     galleries=[np.vstack([a,a]),np.vstack([b,b])]
     assert match_identity(a,galleries)[0]==0
@@ -260,7 +260,7 @@ def test_random_face_embeddings_do_not_collapse_to_an_invented_identity():
 
 
 def test_presence_and_gender_do_not_force_a_faceless_identity():
-    from app.people import assign_by_appearance
+    from app.recognition.people import assign_by_appearance
     protos=np.eye(3)[:2]
     assert assign_by_appearance(np.array([[-.6,-.5,.1]]),protos,np.array([.9,.1]),np.array([.95]),present=np.array([.99]))[0][0]==-1
     assert assign_by_appearance(np.array([[.5,.5,.1]]),protos,np.array([.5,.5]),np.array([.5]),present=np.array([.99]))[0][0]==-1

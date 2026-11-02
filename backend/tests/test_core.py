@@ -5,11 +5,11 @@ import numpy as np
 import pytest
 from pydantic import ValidationError
 
-from app import classify
-from app.categories import CategorySetIn, CategoryStore
-from app.dedupe import DupItem, find_duplicates
-from app.media import MediaError, decode_image, is_screenshot_like
-from app.planner import DUPLICATES, destination
+from app.recognition import classification as classify
+from app.catalog.categories import CategorySetIn, CategoryStore
+from app.culling.duplicates import DupItem, find_duplicates
+from app.media.decoding import MediaError, decode_image, is_screenshot_like
+from app.organization.planner import DUPLICATES, destination
 from tests.conftest import FakeEmbedder, make_image
 
 
@@ -159,13 +159,13 @@ def test_media_specific_folders():
 
 def test_custom_set_keeps_media():
     s = CategorySetIn(name="IG", categories=[{"name": "video indoor", "media": "video"}, {"name": "selfies"}])
-    from app.categories import to_set_dict
+    from app.catalog.categories import to_set_dict
     d = to_set_dict("x", s)
     assert [c["media"] for c in d["categories"]] == ["video", "any"]
 
 
 def test_more_formats_detected():
-    from app.scanner import media_kind
+    from app.media.scanning import media_kind
     for n in ["a.JXL", "b.jfif", "c.psd", "d.avif", "e.DNG", "f.tga"]:
         assert media_kind(n) == "image", n
     for n in ["a.MTS", "b.m2ts", "c.wmv", "d.mpg", "e.flv", "f.ogv"]:
@@ -180,7 +180,7 @@ def test_jxl_decodes(tmp_path):
 
 
 def test_sampled_hash_for_big_files(tmp_path, monkeypatch):
-    import app.media as m
+    import app.media.decoding as m
     monkeypatch.setattr(m, "FULL_HASH_LIMIT", 1000)
     monkeypatch.setattr(m, "SAMPLE", 100)
     a, b = tmp_path / "a.bin", tmp_path / "b.bin"

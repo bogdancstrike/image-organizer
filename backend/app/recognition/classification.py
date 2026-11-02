@@ -6,8 +6,8 @@ from datetime import datetime
 
 import numpy as np
 
-from .embedder import Embedder, normalize
-from .presets import FACETS, THEMES, VOCABULARY
+from app.infrastructure.embeddings import Embedder, normalize
+from app.catalog.presets import FACETS, THEMES, VOCABULARY
 
 LOGIT_SCALE = 100.0
 STRICT_SCREENSHOT = 0.6

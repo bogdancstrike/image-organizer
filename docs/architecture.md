@@ -17,16 +17,33 @@ flowchart LR
   S --> LIB
 ```
 
+## Backend packages
+
+`app.main:create_app` remains the Docker entry point. Modules are grouped by responsibility:
+
+| Package | Responsibility |
+|---|---|
+| `app.catalog` | Category definitions, presets and category-set management |
+| `app.media` | Scanning, decoding, metadata and media inputs |
+| `app.recognition` | Classification, person matching, text recognition, tags and prompt rules |
+| `app.culling` | Quality signals, ranking, duplicates and social readiness |
+| `app.organization` | Job orchestration, destinations and journaled file operations |
+| `app.library` | Search, tag facets, geographic groups and trips |
+| `app.infrastructure` | Configuration, SQLite cache/history, embeddings and optional OpenAI provider |
+
+Package initializers stay small; import concrete modules explicitly. Internal Python import paths changed; HTTP
+routes, stored data, environment variables and the Docker entry point remain compatible.
+
 ## Pipeline (one job)
 | Step | What happens | Module |
 |---|---|---|
-| rules (rule strategy) | Vision AI compiles natural-language instructions into validated relative paths before any analysis. Dates are frozen at sort start. | `rules.py`, `llm.py` |
-| scan | Walk the chosen folder (optionally recursively). Hidden folders, the output folder and `_Duplicates` are skipped. | `scanner.py` |
-| analyze | Decode with draft-mode JPEG, EXIF orientation and date, HEIC. Video keyframes come from ffmpeg (20/50/80%). SHA-256, pHash, screenshot signal, 160 px WebP thumbnail, CLIP embedding (videos: mean of frames). Results are cached by (path, size, mtime). | `media.py`, `embedder.py`, `cache.py` |
-| dedupe | Union-find over SHA-256 matches plus pHash ≤ 4 with CLIP cosine ≥ 0.90. Keeper = most pixels, then size, then oldest. | `dedupe.py` |
-| categorize | Preset/custom: zero-shot `softmax(100·cos)` over averaged prompt embeddings, a screenshot rule, per-category floors, optional AI assist. Auto: KMeans + silhouette, named by Luna or the vocabulary. Date: capture date. | `classify.py`, `llm.py` |
-| plan | Destination per file: `<folder>/<output>/Photos|Videos/<Category>/`; AI rules use their explicit relative paths without media prefixes | `planner.py` |
-| apply / undo | Move or copy with collision-safe names, a journal written as it goes, reverse replay, and cleanup of the folders it created | `organizer.py` |
+| rules (rule strategy) | Vision AI compiles natural-language instructions into validated relative paths before any analysis. Dates are frozen at sort start. | `recognition/rules.py`, `infrastructure/llm.py` |
+| scan | Walk the chosen folder (optionally recursively). Hidden folders, the output folder and `_Duplicates` are skipped. | `media/scanning.py` |
+| analyze | Decode with draft-mode JPEG, EXIF orientation and date, HEIC. Video keyframes come from ffmpeg (20/50/80%). SHA-256, pHash, screenshot signal, 160 px WebP thumbnail, CLIP embedding (videos: mean of frames). Results are cached by (path, size, mtime). | `media/decoding.py`, `infrastructure/embeddings.py`, `infrastructure/cache.py` |
+| dedupe | Union-find over SHA-256 matches plus pHash ≤ 4 with CLIP cosine ≥ 0.90. Keeper = most pixels, then size, then oldest. | `culling/duplicates.py` |
+| categorize | Preset/custom: zero-shot `softmax(100·cos)` over averaged prompt embeddings, a screenshot rule, per-category floors, optional AI assist. Auto: KMeans + silhouette, named by Luna or the vocabulary. Date: capture date. | `recognition/classification.py`, `infrastructure/llm.py` |
+| plan | Destination per file: `<folder>/<output>/Photos|Videos/<Category>/`; AI rules use their explicit relative paths without media prefixes | `organization/planner.py` |
+| apply / undo | Move or copy with collision-safe names, a journal written as it goes, reverse replay, and cleanup of the folders it created | `organization/operations.py` |
 
 Each step emits events (`phase`, `scanned`, `file`, `progress`, `stats`, `categories`, `assign`, `done`) into an append-only log.
 `GET /api/jobs/{id}/events` streams it as Server-Sent Events, and late subscribers get a replay.
@@ -47,11 +64,11 @@ Each step emits events (`phase`, `scanned`, `file`, `progress`, `stats`, `catego
 
 ## Culling recommendations
 
-`picks.py` adapts weights to detected or explicitly selected photography profiles. Technical focus/clipping/noise,
+`culling/ranking.py` adapts weights to detected or explicitly selected photography profiles. Technical focus/clipping/noise,
 face expressions, geometry and paired CLIP/SigLIP presentation prompts form absolute component scores. These are
 blended with within-shoot and scene rankings. Keeper thresholds, Review stars and XMP ratings share this score.
 Selection covers scenes, suppresses near-duplicates and leaves the quota unfilled when candidates are weak.
-Quality cache version 3 stores per-face eye focus alongside expressions. See [research notes](culling-research.md).
+Quality cache version 5 stores per-face eye focus and the expanded image-quality signals. See [research notes](culling-research.md).
 
 ## Device selection
 

@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from .quality import Face, Quality, QualityRules, verdict
+from app.culling.quality import Face, Quality, QualityRules, verdict
 
 NEAR_DUPLICATE = 0.93  # cosine above which a candidate is "the same frame" as an existing pick
 
@@ -226,7 +226,7 @@ def rank(ids: list[str], quality: dict[str, Quality], E: np.ndarray, embedder, r
             pass
     social = {}
     if options.get("social_media"):
-        from .social import assess
+        from app.culling.social import assess
         social = assess(ids, quality, E, embedder, options.get("social_format", "portrait"))
         weight = float(options.get("social_weight", .25))
         absolute = (1-weight)*absolute + weight*np.array([social[fid]["social"] for fid in ids])

@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import pytest
 from fastapi.testclient import TestClient
 
-from app.llm import LLMClient
+from app.infrastructure.llm import LLMClient
 from app.main import create_app
 from tests.conftest import COLORS, HAS_FFMPEG, FakeEmbedder, make_image, make_video
 

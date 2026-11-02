@@ -4,11 +4,11 @@ import pytest
 from PIL import Image, ImageFilter
 from fastapi.testclient import TestClient
 
-from app.quality import Face, Quality, QualityRules, advanced_signals, analyze_image
-from app.social import assess, crop_fit
-from app.picks import rank
+from app.culling.quality import Face, Quality, QualityRules, advanced_signals, analyze_image
+from app.culling.social import assess, crop_fit
+from app.culling.ranking import rank
 from app.main import create_app
-from app.dedupe import DupItem, find_duplicates
+from app.culling.duplicates import DupItem, find_duplicates
 from tests.conftest import make_image, COLORS
 from tests.test_api import wait
 
@@ -86,8 +86,8 @@ def test_social_media_preset_uses_culling_and_keeps_originals(settings,fake_embe
 
 
 def test_burst_alternatives_have_review_labels_instead_of_technical_rejection(settings,fake_embedder):
-    from app.jobs import JobManager
-    from app.categories import CategoryStore
+    from app.organization.jobs import JobManager
+    from app.catalog.categories import CategoryStore
     m=JobManager(settings,lambda:fake_embedder,CategoryStore(settings.data_dir/'sets.db'))
     m._pick_info={'a':{'score':.85}}
     assert m._xmp_for('a','burst',{'a':quality()},QualityRules(),{'a':{'best':False}})=={'rating':4,'label':'Yellow'}

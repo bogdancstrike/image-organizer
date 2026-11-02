@@ -15,28 +15,27 @@ from typing import Any, Callable
 
 import numpy as np
 
-from . import classify
-from .rules import validate_rules
-from .cache import AnalysisCache
-from .categories import CategoryStore, slugify
-from .config import Settings
-from .dedupe import DupItem, find_duplicates
-from .embedder import Embedder, normalize
-from .llm import LLMClient, contact_sheet, load_thumb
-from .media import Analysis, MediaError, decode, load_for_quality
-from .quality import QUALITY_VERSION, REASONS, Quality, QualityRules, analyze_image, find_bursts, get_face_analyzer, score, stars, summary, verdict
-from .ocr import get_text_reader, text_category
-from .organizer import apply_plan
+from app.recognition import classification as classify
+from app.recognition.rules import validate_rules
+from app.infrastructure.cache import AnalysisCache
+from app.catalog.categories import CategoryStore, slugify
+from app.infrastructure.config import Settings
+from app.culling.duplicates import DupItem, find_duplicates
+from app.infrastructure.embeddings import Embedder, normalize
+from app.infrastructure.llm import LLMClient, contact_sheet, load_thumb
+from app.media.decoding import Analysis, MediaError, decode, load_for_quality
+from app.culling.quality import QUALITY_VERSION, REASONS, Quality, QualityRules, analyze_image, find_bursts, get_face_analyzer, score, stars, summary, verdict
+from app.recognition.ocr import get_text_reader, text_category
+from app.organization.operations import apply_plan
 from PIL import Image, ImageOps
 
-from .library import add_places, locate_files, trips_for
-from . import picks as picks_mod
+from app.library.service import add_places, locate_files, trips_for
+from app.culling import ranking as picks_mod
 
-from .people import (IDENTITY_VERSION, FaceID, match_identity, assign_by_appearance, cluster_people, face_crop_webp, get_face_identifier, man_probability,
-                     person_presence, text_bank)
-from .planner import DUPLICATES, UNSORTED, destination
-from .presets import FOCUS_FACETS, FOCUS_HINT, VOCABULARY
-from .scanner import MediaFile, resolve_in_library, scan
+from app.recognition.people import IDENTITY_VERSION, FaceID, match_identity, assign_by_appearance, cluster_people, face_crop_webp, get_face_identifier, man_probability, person_presence, text_bank
+from app.organization.planner import DUPLICATES, UNSORTED, destination
+from app.catalog.presets import FOCUS_FACETS, FOCUS_HINT, VOCABULARY
+from app.media.scanning import MediaFile, resolve_in_library, scan
 
 log = logging.getLogger(__name__)
 
@@ -467,7 +466,7 @@ class JobManager:
         tags = {}
         if ordered and opts.get("auto_tags", True):
             try:
-                from .tagging import tag_images
+                from app.recognition.tagging import tag_images
                 tags = tag_images(cache, ordered, embedder)
             except Exception as exc:
                 log.warning("auto tagging skipped: %s", exc)

@@ -6,9 +6,9 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from app.config import load_settings
-from app.embedder import ClipEmbedder, execution_providers, get_clip_embedder
-import app.embedder as embedding
+from app.infrastructure.config import load_settings
+from app.infrastructure.embeddings import ClipEmbedder, execution_providers, get_clip_embedder
+import app.infrastructure.embeddings as embedding
 
 
 def test_device_defaults_to_cpu_and_rejects_typos(monkeypatch):

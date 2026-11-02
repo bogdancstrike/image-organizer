@@ -10,8 +10,8 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from app.config import Settings
-from app.embedder import normalize
+from app.infrastructure.config import Settings
+from app.infrastructure.embeddings import normalize
 
 COLORS = {"red": (220, 30, 30), "green": (30, 180, 40), "blue": (30, 60, 220)}
 

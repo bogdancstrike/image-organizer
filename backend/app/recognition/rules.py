@@ -5,7 +5,7 @@ import re
 from dataclasses import asdict, dataclass
 from datetime import date
 
-from .planner import safe_folder
+from app.organization.planner import safe_folder
 
 MAX_RULES = 12
 _BAD = re.compile(r'[\\:*?"<>|{}\x00-\x1f\x7f]')
