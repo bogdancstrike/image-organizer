@@ -447,7 +447,7 @@ class JobManager:
         # 2b. quality signals (culling): only when asked for
         qopts = opts.get("quality") or {}
         rules = QualityRules(**{k: qopts[k] for k in QualityRules.__dataclass_fields__ if k in qopts})
-        need_quality = req["strategy"] == "cull" or qopts.get("enabled", False)
+        need_quality = req["strategy"] == "cull" or qopts.get("enabled", False) or qopts.get("write_xmp", False)
         quality: dict[str, Quality] = self._quality(job, ordered) if need_quality else {}
         if job.cancel_requested:
             return

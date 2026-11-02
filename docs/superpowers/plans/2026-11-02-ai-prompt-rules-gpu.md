@@ -63,8 +63,8 @@ Files: `backend/tests/test_people_ocr.py`, `backend/tests/test_pro.py`, `backend
 
 ## Verified checkpoints
 
-- Backend: 131 tests passing; 90.42% line coverage without models (CI-like environment). Earlier bundled-model run: 90.64%.
-- Frontend: 60 tests passing; 92.80% lines and 90.51% statements across all TypeScript/TSX source.
+- Backend: 132 tests passing; 90.42% line coverage without models (CI-like environment). Earlier bundled-model run: 90.64%.
+- Frontend: 67 tests passing; 92.80% lines and 90.51% statements across all TypeScript/TSX source.
 - GPU: actual CLIP (512 dimensions) and SigLIP 2 (768 dimensions) image/text inference on NVIDIA RTX 3080.
 - Live AI: three-sample prompt-rule plan, two API calls, expected landscape/other routing, no source moves.
 - Real cull/OCR/XMP: seven samples, portrait and landscape picks, invoice text read, seven copied sidecars, successful Undo.

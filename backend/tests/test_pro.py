@@ -232,3 +232,14 @@ def test_manual_pick_changes_update_the_recommendation_marker_and_xmp_label(sett
         item=r.json()['changed'][0]
         assert not item['pick']['picked'] and item['xmp']['label'] is None
         assert item['xmp']['rating']==item['quality']['stars']
+
+
+def test_xmp_ratings_work_with_a_preset_without_enabling_reject_checks(settings,fake_embedder):
+    from app.main import create_app
+    _noise(settings.library_root/'photo.jpg',99)
+    with TestClient(create_app(settings,embedder_factory=lambda:fake_embedder,llm_factory=lambda:None)) as c:
+        j=wait(c,c.post('/api/jobs',json={'strategy':'preset','set_id':'lifestyle','options':{'quality':{'write_xmp':True}}}).json()['id'])
+        item=j['plan'][0]
+        assert item['quality'] is not None
+        assert item['xmp']=={'rating':item['quality']['stars'],'label':None}
+        assert not item['quality']['flags']

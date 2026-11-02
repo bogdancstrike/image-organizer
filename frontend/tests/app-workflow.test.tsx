@@ -67,14 +67,23 @@ it('submits the entered AI instructions and persists them',async()=>{
  await waitFor(()=>expect(api.startJob).toHaveBeenCalledWith(expect.objectContaining({strategy:'rules',options:expect.objectContaining({rules_prompt:expect.stringContaining('Landscapes')})})));
 });
 
-it('navigates every URL tab and applies a chosen category set',async()=>{
+it.each(['Review','Library','Statistics','History','Settings','Categories'])('navigates to the %s URL tab',async(tab)=>{
  renderUI(<App/>);await waitFor(()=>expect(api.getSettings).toHaveBeenCalled());
- for(const tab of ['Review','Library','Statistics','History','Settings','Categories']){nav(tab);expect(window.location.pathname).toBe('/'+tab.toLowerCase());}
+ nav(tab);expect(window.location.pathname).toBe('/'+tab.toLowerCase());
+});
+
+it('uses a chosen category set from Categories and returns to Sort',async()=>{
+ renderUI(<App/>);await waitFor(()=>expect(api.getSettings).toHaveBeenCalled());nav('Categories');
  fireEvent.click((await screen.findAllByRole('button',{name:'Use',exact:true}))[0]);expect(window.location.pathname).toBe('/sort');
+});
+
+it('opens full settings, chooses a folder and handles browser history navigation',async()=>{
+ renderUI(<App/>);await waitFor(()=>expect(api.getSettings).toHaveBeenCalled());
  fireEvent.click(screen.getByRole('button',{name:'Quick settings'}));fireEvent.click(await screen.findByRole('button',{name:'All settings →'}));expect(window.location.pathname).toBe('/settings');
  fireEvent.click(screen.getByRole('button',{name:'Change…'}));expect(await screen.findByRole('dialog')).toBeInTheDocument();
  fireEvent.click(screen.getByRole('button',{name:'Use this folder'}));await waitFor(()=>expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
- window.history.pushState({},'','/review');fireEvent.popState(window);expect(window.location.pathname).toBe('/review');expect(screen.queryByRole('button',{name:'Apply · move files'})).not.toBeInTheDocument();
+ window.history.pushState({},'','/review');fireEvent.popState(window);expect(window.location.pathname).toBe('/review');
+ expect(screen.queryByRole('button',{name:'Apply · move files'})).not.toBeInTheDocument();
 });
 
 it.each(['done','applied'])('restores a saved %s plan after reloading',async(status)=>{

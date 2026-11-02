@@ -42,7 +42,7 @@ Every variable is optional.
 | `rules_prompt` | `""` | Required non-empty instructions for `strategy: "rules"`, up to 4,000 characters |
 | `quality.pick_profile` | `auto` | Auto, portrait, fashion, landscape or general; adapts keeper and top-pick ranking locally |
 | `quality.picks_percent` | `0` | Upper bound on top picks, 0–50%; weak/near-duplicate frames do not fill the quota |
-| `quality.write_xmp` | `false` | Export the same recommendation stars plus Green for picks/Red for rejects on Apply |
+| `quality.write_xmp` | `false` | Export stars plus Green for picks/Red for rejects on Apply; computes scores even with reject checks off |
 | `ai_assist` | `false` | Needs a key |
 | `max_clusters` | `12` | Auto mode upper bound; the best k is picked by silhouette score |
 | `date_granularity` | `month` | `year`, `month` or `day` |
