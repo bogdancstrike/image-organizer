@@ -35,7 +35,7 @@ benchmark. Training preferences and dataset bias can differ from this photograph
 
 The signal contributes 30% of the optional Social Media overlay; that overlay's influence
 is user-controlled. These blend weights are product heuristics, not published optimal weights.
-CLIP jobs reuse every technically viable photo's existing vector. Other encoders evaluate
-up to 256 technically viable photos ranked by baseline quality, with a visible warning if
-limited. Unevaluated photos keep their ordinary scores; no learned score is invented.
+CLIP jobs reuse every nonduplicate photo's existing vector. Other encoders evaluate
+every nonduplicate photo using separately cached CLIP vectors. Quality warnings do not exclude
+photos from learned assessment. Work runs in batches with progress; no shortlist cap applies.
 Cache keys include the original file size/mtime and the packaged model version/checksum.

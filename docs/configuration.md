@@ -88,7 +88,7 @@ See [implemented culling methods](culling-algorithms.md) for the 31-idea checkli
 Enable Social Media recommendations and leave **Learned visual appeal · LAION** on (`quality.social_aesthetic`,
 default true within Social Media). The bundled MIT LAION head runs with NumPy on CPU and uses
 normalized OpenAI CLIP B/32 vectors. CLIP jobs reuse existing embeddings; other recognition models
-evaluate up to 256 technically viable photos through the separate CLIP tower, showing a warning
-when limited. Outputs are cached by file identity and model checksum. Disable the option to use
+evaluate every nonduplicate photo through the separate CLIP tower, including photos with quality
+warnings. Work runs in small batches with progress and cached results. Outputs are cached by file identity and model checksum. Disable the option to use
 the ordinary social signals alone. A model failure leaves those signals available with a warning.
 See [model provenance](../backend/app/infrastructure/models/laion_aesthetic/README.md).

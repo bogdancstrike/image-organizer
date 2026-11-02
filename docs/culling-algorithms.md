@@ -52,8 +52,7 @@ preservation and alternative-strength explanations. Defaults remain Picks ≥4.5
 Quick settings. The overlay combines thumbnail detail, semantic clarity/story, crop-retained area/important faces,
 contrast, restrained colorfulness and image resolution. Optional **Learned visual appeal** adds the bundled
 MIT-licensed LAION V1 aesthetic head. Its 0–10 prediction maps to a separate component bar and contributes
-30% of the Social Media overlay. CLIP jobs reuse viable-photo vectors; SigLIP jobs evaluate up to 256
-viable candidates using the separate CLIP tower, reporting any limit. See [model provenance and limits](../backend/app/infrastructure/models/laion_aesthetic/README.md).
+30% of the Social Media overlay. CLIP jobs reuse viable-photo vectors; SigLIP jobs evaluate every nonduplicate photo using the separate CLIP tower. See [model provenance and limits](../backend/app/infrastructure/models/laion_aesthetic/README.md).
 The feature works offline, has a Quick settings toggle, and never predicts likes, edits or posts.
 
 [What Makes an Image Popular?](https://people.csail.mit.edu/khosla/papers/www2014_khosla.pdf) studies both image

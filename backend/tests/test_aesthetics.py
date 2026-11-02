@@ -76,17 +76,17 @@ def test_clip_reuses_existing_embeddings_and_cached_model_results(settings):
     manager.cache.close()
 
 
-def test_siglip_jobs_use_verified_clip_tower_with_bounded_shortlist_and_warm_cache(settings,monkeypatch):
+def test_siglip_jobs_score_every_photo_including_quality_warnings_and_reuse_warm_cache(settings):
     clip,manager,ordered,quality=fixture(settings)
-    monkeypatch.setattr('app.organization.aesthetic_analysis.LIMIT',2)
+    quality['2'].sharpness=.1  # Still assess aesthetic evidence when the technical checker flags an issue.
     job=Job('a',{})
     analyze(manager,job,ordered,quality,QualityRules(),SimpleNamespace(embedding_space='siglip2'))
-    assert clip.calls==2 and job.stats['aesthetic_scored']==2 and job.warnings
-    assert sum('aesthetic'in q.features for q in quality.values())==2
+    assert clip.calls==3 and job.stats['aesthetic_scored']==3 and not job.warnings
+    assert sum('aesthetic'in q.features for q in quality.values())==3
     # Removing the head result can still reuse cached CLIP vectors without image inference.
     manager.cache.put_json('aesthetics',str(ordered[0][0].path),ordered[0][0].size,ordered[0][0].mtime,{'v':'old','raw':0})
     analyze(manager,Job('b',{}),ordered,quality,QualityRules(),SimpleNamespace())
-    assert clip.calls==2
+    assert clip.calls==3
     job.cancel_requested=True
     analyze(manager,job,ordered,quality,QualityRules(),clip)
     analyze(manager,Job('c',{}),[],{},QualityRules(),clip)

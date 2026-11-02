@@ -110,7 +110,7 @@ it('configures social-media readiness, format, relevance and alternative selecti
  fireEvent.click(screen.getByText('Social Media recommendations').closest('label')!.querySelector('[role=switch]')!);
  expect(saved().quality.social_media).toBe(true);
  expect(saved().quality.social_aesthetic).toBe(true);
- fireEvent.click(screen.getByRole('switch',{name:'Learned visual appeal'}));expect(saved().quality.social_aesthetic).toBe(false);
+ fireEvent.click(screen.getByRole('switch',{name:'Learned visual appeal · LAION'}));expect(saved().quality.social_aesthetic).toBe(false);
  fireEvent.mouseDown(screen.getByRole('combobox',{name:'Post format'}));fireEvent.click(await screen.findByText('Square · 1:1'));
  expect(saved().quality.social_format).toBe('square');
  fireEvent.change(screen.getByLabelText('Culling subject priority'),{target:{value:'a candid laugh'}});expect(saved().quality.subject_prompt).toBe('a candid laugh');

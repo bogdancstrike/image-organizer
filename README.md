@@ -118,8 +118,7 @@ beauty score. Read the [research and scoring policy](docs/culling-research.md) a
 **LAION visual appeal:** Social Media includes an optional, bundled [LAION aesthetic predictor](https://github.com/LAION-AI/aesthetic-predictor)
 (MIT license). Enable **Learned visual appeal · LAION** under **Settings → Social Media** or Quick settings.
 The small model runs offline with NumPy on CPU, using the bundled CLIP encoder, and exposes a separate
-score component. CLIP jobs reuse existing vectors; SigLIP jobs evaluate up to 256 technically viable,
-nonduplicate candidates. It estimates subjective visual appeal and contributes to the adjustable social
+score component. CLIP jobs reuse existing vectors; SigLIP jobs evaluate every nonduplicate photo using separately cached CLIP vectors. It estimates subjective visual appeal and contributes to the adjustable social
 blend; it does not predict likes. See [model provenance and limitations](backend/app/infrastructure/models/laion_aesthetic/README.md).
 
 **Review faster:** compare 2–4 photos side by side at Fit, 100% or 200%, synchronize pan, inspect face crops, and

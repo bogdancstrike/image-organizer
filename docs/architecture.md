@@ -97,6 +97,6 @@ frameworks. The stable Docker entry point remains `app.main:create_app`.
 `organization/explanations.py` creates user-visible reasons from recorded facts, scoring settings
 and observed duplicate measurements. Job restore backfills older preview destinations from Apply
 journals; manual changes preserve the original suggestion. This is decision provenance, not LLM
-chain-of-thought. `organization/aesthetic_analysis.py` coordinates bounded, cached local inference
+chain-of-thought. `organization/aesthetic_analysis.py` coordinates batched, cached local inference
 through `infrastructure/aesthetics.py`; culling consumes the resulting numeric feature. The bundled
 MIT LAION head verifies its checksum and exact encoder space and requires no runtime PyTorch.

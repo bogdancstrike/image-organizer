@@ -100,3 +100,10 @@
 
 - Final local checks: 210 backend tests / 91.61%; 89 frontend tests / 93.34% lines and 90.74% statements; production build and desktop/mobile browser checks pass. Large-folder rerun scores exactly 256 nonduplicates, produces one Winner and includes evidence on every plan item.
 - New follow-up: improve kitchen/background-scene search recall on the real folder while preserving absent-concept precision.
+
+## Complete learned assessment checkpoint
+
+- Removed the 256-photo cap at user request. Every nonduplicate photo with available analysis receives LAION assessment, including photos carrying technical warnings. CLIP reuses vectors; other encoders compute/cache their own CLIP vectors in batches.
+- Real 1,029-photo SigLIP run: 974/974 nonduplicates scored; 55 duplicates; zero warnings or file errors. Backend 213 tests / 91.67%; frontend 89 tests / 93.34% lines and 90.74% statements. Production build passes.
+- Fixed the accessibility-test label following the explicit LAION naming update; the previous CI failure was this stale test label.
+- Pending user regressions: trace preferred photos and improve Winner/Picks/Keepers and false blur; recover missed face in DSCF1773; remove duplicate-to-trash policy/UI, preserve legacy Undo; wardrobe classification for DSC05803 sportswear.

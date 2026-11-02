@@ -1,24 +1,20 @@
-"""Optional, bounded aesthetic evaluation using the bundled CLIP tower and local caches."""
+"""Optional, complete aesthetic evaluation using the bundled CLIP tower and local caches."""
 from __future__ import annotations
 
 import numpy as np
 
-from app.culling.quality import score, verdict
+from app.culling.quality import score
 from app.infrastructure.aesthetics import SPACE, VERSION, get_predictor
 from app.media.decoding import load_for_quality
 
-LIMIT = 256
-
-
 def analyze(manager, job, ordered, quality, rules, current_embedder) -> None:
-    candidates = sorted((row for row in ordered if row[0].kind == "image" and row[0].id in quality
-                         and verdict(quality[row[0].id], rules)[0] is None),
+    candidates = sorted((row for row in ordered if row[0].kind == "image" and row[0].id in quality),
                         key=lambda row: (-score(quality[row[0].id], rules), row[0].rel_path))
     if not candidates:
         return
-    # CLIP jobs already have every required embedding. Other encoders use a bounded shortlist.
+    # Every nonduplicate photo is evaluated; alternate encoders obtain their own cached CLIP vectors.
     reuse = getattr(current_embedder, "embedding_space", None) == SPACE
-    selected = candidates if reuse else candidates[:LIMIT]
+    selected = candidates
     embedder = current_embedder if reuse else manager.embedder_for("clip")
     if getattr(embedder, "embedding_space", None) != SPACE:
         raise ValueError("CLIP embedding-space compatibility could not be verified")
@@ -55,5 +51,3 @@ def analyze(manager, job, ordered, quality, rules, current_embedder) -> None:
                 done += 1
         job.emit("progress", analyzed=done, total=len(selected), stage="aesthetics")
     job.stats["aesthetic_scored"] = done
-    if len(selected) < len(candidates):
-        job.warnings.append(f"Learned aesthetic scores cover the {len(selected)} strongest technically viable photos; other photos use the standard recommendation signals.")
