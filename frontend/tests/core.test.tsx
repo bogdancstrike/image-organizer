@@ -98,3 +98,7 @@ it('explains status and model tags consistently',async()=>{
  }
  expect(badgeText(<span>Local <b>tags</b></span>)).toBe('Local tags');
 });
+
+it('migrates the removed duplicate-trash choice to a Duplicates folder',()=>{
+ expect(migrateSettings({duplicatesAction:'delete'} as any).duplicatesAction).toBe('folder');
+});

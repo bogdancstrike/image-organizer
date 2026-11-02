@@ -4,7 +4,7 @@ from __future__ import annotations
 import re
 
 UNSORTED = {"id": "_unsorted", "name": "Unsorted", "emoji": "🗂️"}
-DUPLICATES = {"id": "_duplicates", "name": "Duplicates", "emoji": "🗑️"}
+DUPLICATES = {"id": "_duplicates", "name": "Duplicates", "emoji": "🗂️"}
 
 _BAD = re.compile(r'[\\:*?"<>|\x00-\x1f]')
 

@@ -26,8 +26,9 @@ it('filters category sets and dispatches use, edit, copy and create actions',()=
 });
 
 it('renders folder cards, placeholders and rich file details',()=>{
- const click=vi.fn();renderUI(<><CategoryCard name="Nature" emoji="🌲" count={1} total={2} slotRef={()=>{}} onClick={click} cover="/avatar" tall/><CategoryCard name="Duplicates" count={0} total={0} slotRef={()=>{}} variant="trash"/><GhostCard/><GhostCard name="Pending"/><FileDetails p={plan[0]}/></>);
+ const click=vi.fn();renderUI(<><CategoryCard name="Nature" emoji="🌲" count={1} total={2} slotRef={()=>{}} onClick={click} cover="/avatar" tall/><CategoryCard name="Duplicates" count={0} total={0} slotRef={()=>{}}/><GhostCard/><GhostCard name="Pending"/><FileDetails p={plan[0]}/></>);
  fireEvent.click(screen.getByText('Nature',{exact:true}));expect(click).toHaveBeenCalledOnce();
+ expect(screen.getByText('Duplicates',{exact:true})).toBeInTheDocument();expect(screen.queryByText(/Duplicates → trash/)).not.toBeInTheDocument();
  expect(screen.getByText(/sharp eyes/)).toBeInTheDocument();expect(screen.getByText('Technical 90%')).toBeInTheDocument();expect(screen.getByText(/mountain.xmp/)).toBeInTheDocument();
 });
 

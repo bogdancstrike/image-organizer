@@ -302,17 +302,14 @@ def test_duplicate_actions(client, settings, action):
     job = wait(client, client.post("/api/jobs", json=body).json()["id"])
     dup = next(p for p in job["plan"] if p["name"] == "r0 (1).jpg")
     keeper = next(p for p in job["plan"] if p["name"] == "r0.jpg")
-    expected = {"folder": "Organized/_Duplicates", "with_original": keeper["destination"], "keep": "", "delete": ".aio-trash"}[action]
+    expected = {"folder": "Organized/_Duplicates", "with_original": keeper["destination"], "keep": "", "delete": "Organized/_Duplicates"}[action]
     assert dup["destination"] == expected
     r = client.post(f"/api/jobs/{job['id']}/apply", json={"mode": "move"}).json()
     if action == "keep":
         assert (lib / "r0 (1).jpg").exists()
     if action == "delete":
-        assert (lib / ".aio-trash" / "r0 (1).jpg").exists()
-        run = next(x for x in client.get("/api/runs").json() if x["run_id"] == r["run_id"])
-        assert run["in_trash"] == 1
-        assert client.post(f"/api/runs/{r['run_id']}/empty-trash").json()["deleted"] == 1
-        assert not (lib / ".aio-trash" / "r0 (1).jpg").exists()
+        assert not (lib / ".aio-trash").exists()
+        assert (lib / "Organized/_Duplicates/r0 (1).jpg").exists()
 
 
 def test_duplicate_keep_newest(client, settings):

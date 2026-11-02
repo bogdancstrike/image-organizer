@@ -1,5 +1,5 @@
 import { InfoBadge } from "./PhotoBadge";
-import { FolderClosed, Trash2 } from "lucide-react";
+import { FolderClosed } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { CountUp } from "./CountUp";
 import { cn } from "@/lib/utils";
@@ -11,14 +11,13 @@ interface Props {
   total: number;
   slotRef: (el: HTMLDivElement | null) => void;
   onClick?: () => void;
-  variant?: "default" | "trash" | "ghost";
+  variant?: "default" | "ghost";
   tall?: boolean;
   index?: number;
   cover?: string | null;
 }
 
 export function CategoryCard({ name, emoji, count, total, slotRef, onClick, variant = "default", tall, index = 0, cover }: Props) {
-  const Icon = variant === "trash" ? Trash2 : FolderClosed;
   return (
     <Card
       onClick={onClick}
@@ -35,10 +34,10 @@ export function CategoryCard({ name, emoji, count, total, slotRef, onClick, vari
           {cover ? (
             <img src={cover} alt="" className="h-6 w-6 shrink-0 rounded-full border border-line object-cover" />
           ) : (
-            <Icon className="h-3.5 w-3.5 shrink-0 text-plum/60" strokeWidth={1.8} />
+            <FolderClosed className="h-3.5 w-3.5 shrink-0 text-plum/60" strokeWidth={1.8} />
           )}
-          <span className="truncate">{variant === "trash" ? `${name} → trash` : name}</span>
-          {emoji && variant !== "trash" && <InfoBadge message={`${name} folder`} className="text-xs opacity-80">{emoji}</InfoBadge>}
+          <span className="truncate">{name}</span>
+          {emoji && <InfoBadge message={`${name} folder`} className="text-xs opacity-80">{emoji}</InfoBadge>}
         </CardTitle>
         <CountUp value={count} className="text-[15px] font-semibold tabular-nums text-plum/80" />
       </CardHeader>

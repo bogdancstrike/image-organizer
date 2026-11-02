@@ -263,7 +263,7 @@ export interface JobRequest {
     min_confidence: number;
     near_duplicates: boolean;
     split_media: boolean;
-    duplicates_action: "folder" | "with_original" | "keep" | "delete";
+    duplicates_action: "folder" | "with_original" | "keep";
     duplicate_keep: "best" | "oldest" | "newest";
     near_dup_distance: number;
     ai_assist: boolean;

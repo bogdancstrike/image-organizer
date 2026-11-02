@@ -11,7 +11,7 @@ The page SHALL show:
   a status line, and a primary **Sort** button with the flower mark;
 - a stats row: Total files · Videos · Photos · Folders created · Duplicates found;
 - a stage with **Photos** category cards on the left, the **pile** in the center, and **Videos** cards plus the
-  **Duplicates → trash** card on the right;
+  **Duplicates** folder card on the right;
 - at the end, a pink flower drawing with the caption *"a total mess"*, which turns into *"…not anymore"* once applied.
 
 At widths under 900 px the columns SHALL stack (pile on top, then Photos, then Videos).

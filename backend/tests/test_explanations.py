@@ -45,17 +45,21 @@ def test_trashed_preview_keeps_explanation_and_recovers_destination_after_restar
     lib=settings.library_root
     make_image(lib/'original.jpg',COLORS['red'],fmt='JPEG')
     shutil.copy2(lib/'original.jpg',lib/'copy.jpg')
-    request={'strategy':'date','options':{'duplicates_action':'delete'}}
+    request={'strategy':'date','options':{'duplicates_action':'folder'}}
     job=wait(client,client.post('/api/jobs',json=request).json()['id'])
     duplicate=next(p for p in job['plan']if p['duplicate_of'])
-    decision=duplicate['decision']
-    assert decision['action']=='recoverable-trash'
-    assert 'recoverable trash' in decision['explanation'] and decision['kept_path']
-    assert any('content fingerprint' in e for e in decision['evidence'])
-    run=client.post(f"/api/jobs/{job['id']}/apply",json={'mode':'move'}).json()
+    # Historical fixtures may contain trash journals, even though new plans cannot send duplicates there.
     manager=client.app.state.manager
     applied=manager.get(job['id'])
+    for item in applied.plan:
+        if item['duplicate_of']:item['destination']='.aio-trash'
+    from app.organization.operations import apply_plan
+    run=apply_plan(lib,applied.plan,'move',settings.journals_dir,job['id'],'')
+    applied.status='applied';applied.run_id=run['run_id'];applied.request['options']['duplicates_action']='delete'
+    manager._persist(applied);manager.jobs.clear()
+    applied=manager.get(job['id'])
     moved=next(p for p in applied.plan if p['duplicate_of'])
+    assert moved['decision']['action']=='recoverable-trash'
     assert client.get('/api/preview',params={'path':moved['preview_path']}).status_code==200
     assert client.get('/api/preview',params={'path':moved['decision']['kept_preview_path']}).status_code==200
     # Simulate an old saved job missing post-Apply preview fields.
@@ -69,6 +73,23 @@ def test_trashed_preview_keeps_explanation_and_recovers_destination_after_restar
     undone=client.get(f"/api/jobs/{job['id']}").json()
     assert all('preview_path' not in p for p in undone['plan'])
     assert all((lib/p['rel_path']).exists()for p in undone['plan'])
+
+
+def test_legacy_unapplied_duplicate_trash_plan_is_migrated_before_apply(client,settings):
+    make_image(settings.library_root/'original.jpg',COLORS['red'],fmt='JPEG')
+    shutil.copy2(settings.library_root/'original.jpg',settings.library_root/'copy.jpg')
+    job=wait(client,client.post('/api/jobs',json={'strategy':'date'}).json()['id'])
+    manager=client.app.state.manager
+    old=manager.get(job['id']);old.request.setdefault('options',{})['duplicates_action']='delete'
+    for item in old.plan:
+        if item.get('duplicate_of'):item['destination']='.aio-trash';item['category']='Duplicates → trash'
+    manager._persist(old);manager.jobs.clear()
+    restored=client.get(f"/api/jobs/{job['id']}").json()
+    assert restored['request']['options']['duplicates_action']=='folder'
+    assert all('.aio-trash'not in p['destination']for p in restored['plan'])
+    assert any('replaced'in warning for warning in restored['warnings'])
+    assert client.post(f"/api/jobs/{job['id']}/apply",json={'mode':'move'}).status_code==200
+    assert not (settings.library_root/'.aio-trash').exists()
 
 
 def test_manual_override_retains_original_suggestion(client,settings):

@@ -18,7 +18,7 @@ export interface UiSettings {
   recursive: boolean;
   pairSidecars: boolean;
   quality: QualityOptions;
-  duplicatesAction: "folder" | "with_original" | "keep" | "delete";
+  duplicatesAction: "folder" | "with_original" | "keep";
   duplicateKeep: "best" | "oldest" | "newest";
   nearDupDistance: number;
   focus: "auto" | "scene" | "framing" | "outfit" | "lighting" | "subject";
@@ -124,6 +124,7 @@ export function migrateSettings(saved: Partial<UiSettings> & { qualityVersion?: 
   return {
     ...DEFAULT_SETTINGS,
     ...saved,
+    duplicatesAction: (saved.duplicatesAction as string) === "delete" ? "folder" : saved.duplicatesAction ?? "folder",
     qualityVersion: QUALITY_VERSION,
     quality,
     ai: { ...DEFAULT_SETTINGS.ai, ...(saved.ai ?? {}) },

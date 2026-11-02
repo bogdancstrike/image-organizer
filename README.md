@@ -137,7 +137,7 @@ Use **Cull** on its own, or switch on *quality checks* with any other mode to se
 - **Plan → Review → Apply → Undo.** Review the plan in a sortable, filterable table, open any photo full-size, and **reassign** files (or a whole selection) before applying.
 - Move **or** copy. Collisions become `name (1).jpg`, and a journal makes undo work even after a restart.
 - Duplicates (byte-identical **and** resized or re-saved copies): **set aside** in `_Duplicates`, put **next to the original**,
-  **left in place**, or **deleted** into a recoverable `.aio-trash/` (Undo restores; *Empty trash* in History deletes for good).
+  or **left in place**. New duplicate plans never send files to trash; legacy runs retain previews and Undo.
   Choose which copy counts as the original: best quality, oldest or newest.
 
 ### Fast & frugal

@@ -66,7 +66,12 @@ class JobOptions(BaseModel):
     near_duplicates: bool = True
     near_dup_distance: int = Field(4, ge=0, le=16)
     split_media: bool = True
-    duplicates_action: Literal["folder", "with_original", "keep", "delete"] = "folder"
+    duplicates_action: Literal["folder", "with_original", "keep"] = "folder"
+    @field_validator("duplicates_action", mode="before")
+    @classmethod
+    def _legacy_duplicate_action(cls, value):
+        return "folder" if value == "delete" else value
+
     duplicate_keep: Literal["best", "oldest", "newest"] = "best"
     ai_assist: bool = False
     ai_max_files: int = Field(200, ge=1, le=5000)

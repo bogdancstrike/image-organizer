@@ -969,7 +969,6 @@ export default function App() {
             {dupCat && (
               <div className="col-span-full">
                 <CategoryCard
-                  variant="trash"
                   name="Duplicates"
                   count={landed["dup"] ?? 0}
                   total={dupCat.photos + dupCat.videos}

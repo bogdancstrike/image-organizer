@@ -107,3 +107,8 @@
 - Real 1,029-photo SigLIP run: 974/974 nonduplicates scored; 55 duplicates; zero warnings or file errors. Backend 213 tests / 91.67%; frontend 89 tests / 93.34% lines and 90.74% statements. Production build passes.
 - Fixed the accessibility-test label following the explicit LAION naming update; the previous CI failure was this stale test label.
 - Pending user regressions: trace preferred photos and improve Winner/Picks/Keepers and false blur; recover missed face in DSCF1773; remove duplicate-to-trash policy/UI, preserve legacy Undo; wardrobe classification for DSC05803 sportswear.
+
+## Duplicate trash removal checkpoint
+
+- Removed the duplicate-trash UI option, API policy and always-on misleading card suffix/icon. Old saved UI choices and incoming legacy requests normalize to a Duplicates folder. Unapplied legacy plans migrate before Apply; applied legacy runs keep their journals, previews and Undo.
+- Backend tests cover both legacy plan migration and historical trash-preview restoration. Current implementation never sends new duplicate plans to trash.

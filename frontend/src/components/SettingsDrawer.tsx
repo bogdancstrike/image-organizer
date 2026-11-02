@@ -720,14 +720,9 @@ export function SettingsPanel({
               { value: "folder", label: "🗂️ Set aside in _Duplicates/" },
               { value: "with_original", label: "📎 Next to the original" },
               { value: "keep", label: "📍 Leave them where they are" },
-              { value: "delete", label: "🗑️ Delete (recoverable trash)" },
             ]}
           />
-          {settings.duplicatesAction === "delete" && (
-            <p className="mt-2 text-[11px] text-plum/55">
-              Copies move to a hidden <code>.aio-trash/</code> folder. Undo brings them back; <b>History → Empty trash</b> deletes them for good.
-            </p>
-          )}
+
         </Row>
         <Row label="Which copy is the original">
           <Segmented

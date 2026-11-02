@@ -176,6 +176,19 @@ class JobManager:
                     self.jobs.setdefault(job_id, job)
                     job = self.jobs[job_id]
         if job and job.plan:
+            options = job.request.get("options") or {}
+            if job.status == "done" and options.get("duplicates_action") == "delete":
+                options["duplicates_action"] = "folder"
+                out_dir = options.get("output_dir")
+                out_dir = self.s.output_dir_name if out_dir is None else out_dir.strip()
+                for item in job.plan:
+                    if item.get("source") == "duplicate" and TRASH_DIR in item.get("destination", "").split("/"):
+                        item["destination"] = destination(job.request.get("source") or "", out_dir, item["kind"], DUPLICATES, options.get("split_media", True))
+                        item["category"] = "Duplicates"
+                for category in job.categories:
+                    if category["id"] == DUPLICATES["id"]:
+                        category.update(name="Duplicates", emoji=DUPLICATES["emoji"])
+                job.warnings.append("This older plan's duplicate-trash action was replaced with a Duplicates folder.")
             # Older applied jobs did not persist their collision-safe destination preview paths.
             if job.status == "applied" and job.run_id and any("preview_path" not in p for p in job.plan):
                 journal_path = self.s.journals_dir / f"{job.run_id}.json"
@@ -579,11 +592,12 @@ class JobManager:
         if any(cid is None for cid, _, _ in assignment.values()):
             cats_by_id[UNSORTED["id"]] = dict(UNSORTED)
         dup_action = opts.get("duplicates_action", "folder")
+        if dup_action == "delete":
+            dup_action = "folder"
         if dup_map:
-            label = {"keep": "Duplicates (left in place)", "delete": "Duplicates → trash"}.get(dup_action, "Duplicates")
+            label = "Duplicates (left in place)" if dup_action == "keep" else "Duplicates"
             cats_by_id[DUPLICATES["id"]] = {**DUPLICATES, "name": label}
         split = opts.get("split_media", True)
-        trash_dir = "/".join(p for p in (source_rel, TRASH_DIR) if p)
         # keepers first, so duplicates can follow their original
         dest_of: dict[str, tuple[str, str]] = {}
         for f, a, e in ordered:
@@ -600,8 +614,6 @@ class JobManager:
                 parent = Path(f.rel_path).parent.as_posix()
                 if dup_action == "keep":
                     dest = "" if parent == "." else parent  # same folder: apply skips it
-                elif dup_action == "delete":
-                    dest = trash_dir
                 else:
                     dest = destination(source_rel, out_dir, f.kind, cats_by_id[cid], split)
             else:

@@ -94,3 +94,5 @@ Status: `[x]` done · `[ ]` open. Each task lists the specs it covers and its "d
 - [x] T58 Shoot-local appearance classifier, multi-view consensus and sequence support for partial/faceless views; ambiguous views remain reviewable.
 - [x] T59 Decision provenance for categories, scores, duplicate keepers, recoverable trash and manual overrides; previews survive Apply/restart/Undo.
 - [x] T60 Optional offline LAION aesthetic model for Social Media, exact encoder compatibility, CPU inference, versioned cache and complete batched evaluation for SigLIP jobs.
+
+- [x] T61 Remove duplicate-to-trash options and misleading card labels; migrate saved settings and unapplied legacy plans to Duplicates folders, preserving historical previews/Undo.

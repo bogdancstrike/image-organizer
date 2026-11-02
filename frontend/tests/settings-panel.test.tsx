@@ -48,7 +48,8 @@ it('persists quality, duplicate, output, and AI settings through user interactio
  fireEvent.click(screen.getByText('Only tag them'));expect(saved().quality.action).toBe('tag');
  fireEvent.click(within(row('Also group similar shots taken at any time')).getByRole('switch'));expect(saved().quality.similar_any_time).toBe(true);
  fireEvent.click(screen.getByText(/Write ratings to XMP on Apply/).closest('label')!.querySelector('[role=switch]')!);expect(saved().quality.write_xmp).toBe(true);
- fireEvent.click(screen.getByText(/Delete \(recoverable trash\)/));expect(saved().duplicatesAction).toBe('delete');
+ expect(screen.queryByText(/Delete \(recoverable trash\)/)).not.toBeInTheDocument();
+ fireEvent.click(screen.getByText(/Leave them where they are/));expect(saved().duplicatesAction).toBe('keep');
  fireEvent.click(screen.getByText('Copy files'));expect(saved().applyMode).toBe('copy');
  fireEvent.click(within(row('AI assist')).getByRole('switch'));expect(saved().aiAssist).toBe(true);
  fireEvent.click(screen.getByText('High',{exact:true}));expect(saved().ai.reasoning_effort).toBe('high');
