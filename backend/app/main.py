@@ -14,7 +14,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, ImageOps
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from . import __version__
 from .categories import CategorySetIn, CategoryStore, all_presets
@@ -75,6 +75,7 @@ class AIOptions(BaseModel):
 
 
 class JobOptions(BaseModel):
+    rules_prompt: str = Field("", max_length=4000)
     min_confidence: float = Field(0.30, ge=0.0, le=1.0)
     near_duplicates: bool = True
     near_dup_distance: int = Field(4, ge=0, le=16)
@@ -118,9 +119,16 @@ class JobOptions(BaseModel):
 
 class JobRequest(BaseModel):
     source: str = ""
-    strategy: Literal["preset", "custom", "auto", "date", "cull", "people", "trips", "places"] = "preset"
+    strategy: Literal["preset", "custom", "auto", "date", "cull", "people", "trips", "places", "rules"] = "preset"
     set_id: str | None = "lifestyle"
     options: JobOptions = Field(default_factory=JobOptions)
+
+
+    @model_validator(mode="after")
+    def _rules_prompt(self):
+        if self.strategy == "rules" and not self.options.rules_prompt.strip():
+            raise ValueError("Describe how to sort photos in options.rules_prompt")
+        return self
 
 
 class ReassignRequest(BaseModel):
@@ -335,6 +343,8 @@ def create_app(settings: Settings | None = None, embedder_factory=None, llm_fact
     def start_job(body: JobRequest):
         try:
             req = body.model_dump()
+            if body.strategy == "rules" and manager.llm_factory() is None:
+                raise HTTPException(400, "Prompt rules require AI; configure OPENAI_API_KEY in .env")
             ref_id = req["options"].get("people_reference")
             if ref_id and req["strategy"] == "people":
                 ref = db.get_face_ref(ref_id)

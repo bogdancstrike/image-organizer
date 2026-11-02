@@ -16,6 +16,7 @@ from typing import Any, Callable
 import numpy as np
 
 from . import classify
+from .rules import validate_rules
 from .cache import AnalysisCache
 from .categories import CategoryStore, slugify
 from .config import Settings
@@ -367,6 +368,21 @@ class JobManager:
         root = self.s.library_root
         source = resolve_in_library(root, req.get("source"))
         source_rel = "" if source == root else source.relative_to(root).as_posix()
+
+        # Compile before scanning: invalid AI destinations never produce a plan.
+        if req["strategy"] == "rules":
+            self._phase(job, "rules")
+            llm = self._llm(job)
+            if llm is None:
+                raise ValueError("Prompt rules require AI; configure OPENAI_API_KEY")
+            before = dict(llm.usage)
+            try:
+                opts["_rules"] = [r.to_dict() for r in llm.compile_rules(opts.get("rules_prompt", ""))]
+            finally:
+                job.usage = {k: llm.usage[k] - before[k] for k in before}
+                job.usage["model"] = llm.model
+            if job.cancel_requested:
+                return
 
         # 1. scan
         self._phase(job, "scanning")
@@ -890,6 +906,9 @@ class JobManager:
             return assignment, []
         embs = np.vstack([e for _, _, e in keep]) if keep else np.zeros((0, 512), np.float32)
 
+        if strategy == "rules":
+            return self._route_rules(job, keep)
+
         if strategy == "people":
             return self._people(job, keep, faces or {}, opts, embedder)
 
@@ -1036,6 +1055,34 @@ class JobManager:
         if opts.get("ai_assist"):
             scope = ((opts.get("ai") or {}).get("assist_scope")) or "unsure"
             self._assist(job, keep, assignment, cats, int(opts.get("ai_max_files", 200)), scope)
+        return assignment, cats
+
+    def _route_rules(self, job: Job, keep) -> tuple[dict, list[dict]]:
+        rules = validate_rules(job.request["options"]["_rules"])
+        cats = [{"id": f"rule-{i}", "name": r.folder, "path": r.folder, "emoji": "📁"} for i, r in enumerate(rules)]
+        llm = self._llm(job)
+        if llm is None:
+            raise ValueError("AI became unavailable while matching prompt rules")
+        self._phase(job, "ai")
+        assignment = {}
+        # Bounded batches allow cancellation between calls and avoid retaining the whole library as PIL images.
+        size = max(1, min(24, int(llm.assist_batch))) * 6
+        before = dict(llm.usage)
+        try:
+            for start in range(0, len(keep), size):
+                if job.cancel_requested:
+                    return {}, cats
+                chunk = keep[start:start + size]
+                thumbs = [load_thumb(self.thumb_path(a.sha256)) for _, a, _ in chunk]
+                if any(t is None for t in thumbs):
+                    raise ValueError("A thumbnail is unavailable; run the sort again")
+                labels = llm.classify_rules(thumbs, rules)
+                for (f, _, _), index in zip(chunk, labels):
+                    assignment[f.id] = (None if index is None else cats[index]["id"], 1.0, "ai")
+        finally:
+            previous = job.usage or {}
+            job.usage = {key: previous.get(key, 0) + llm.usage[key] - before[key] for key in before}
+            job.usage["model"] = llm.model
         return assignment, cats
 
     def _llm(self, job: Job) -> LLMClient | None:
