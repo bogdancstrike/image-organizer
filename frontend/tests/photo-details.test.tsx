@@ -47,3 +47,11 @@ it('does not open full-screen review when a new winner arrives in the plan',asyn
  await waitFor(()=>expect(screen.queryByRole('complementary',{name:'Photo recommendations'})).not.toBeInTheDocument());
  fireEvent.click(screen.getByRole('button',{name:'View winner'}));expect(await screen.findByRole('complementary',{name:'Photo recommendations'})).toBeInTheDocument();
 });
+
+it('omits the generic quality-assignment sentence while retaining concrete evidence',()=>{
+ renderUI(<PhotoInfoPanel p={{...plan[0],source:'quality',decision:{action:'recommend',explanation:'Assigned by photo quality checks and recommendation ratings.',evidence:['Recommendation 4.60/5; Picks ≥4.5/5.']}}}/>);
+ expect(screen.queryByText('Assigned by photo quality checks and recommendation ratings.')).not.toBeInTheDocument();
+ expect(screen.getByText('Recommendation 4.60/5; Picks ≥4.5/5.')).toBeInTheDocument();
+ expect(screen.getByRole('progressbar',{name:'Technical quality'})).toBeInTheDocument();
+ expect(screen.getByText('sharp eyes')).toBeInTheDocument();
+});

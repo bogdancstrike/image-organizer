@@ -51,6 +51,9 @@ def assess(ids, quality, E, embedder, format="portrait") -> dict[str, dict[str, 
                  "impact": float(semantic[i, 1]), "contrast": f.get("contrast", .5), "color": f.get("color", .5)}
         # Color is a weak cue: monochrome, restrained grading and skin tones need not be highly saturated.
         score = .30*parts["clarity"]+.25*parts["crop"]+.25*parts["impact"]+.15*parts["contrast"]+.05*parts["color"]
+        if "aesthetic" in f:
+            parts["aesthetic"] = f["aesthetic"]
+            score = .7 * score + .3 * parts["aesthetic"]
         score *= .85+.15*f.get("resolution", 1.)
         out[fid] = {**{k: round(v, 3) for k, v in parts.items()}, "social": round(float(score), 3)}
     return out

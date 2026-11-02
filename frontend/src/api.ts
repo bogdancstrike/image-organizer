@@ -112,6 +112,7 @@ export interface QualitySummary {
 export interface QualityOptions {
   subject_prompt: string;
   social_media: boolean;
+  social_aesthetic: boolean;
   social_format: "portrait" | "square" | "vertical" | "landscape" | "original";
   social_weight: number;
   preserve_unique: boolean;

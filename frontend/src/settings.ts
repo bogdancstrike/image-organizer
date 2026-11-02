@@ -58,6 +58,7 @@ export const DEFAULT_SETTINGS: UiSettings = {
   quality: {
     subject_prompt: "",
     social_media: false,
+    social_aesthetic: true,
     social_format: "portrait",
     social_weight: .25,
     preserve_unique: true,

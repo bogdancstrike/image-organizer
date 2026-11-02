@@ -91,3 +91,12 @@ through public cache repository methods rather than private database connections
 that separate application factories keep settings and libraries isolated. Numerical libraries are permitted in core
 algorithms. Application workflows coordinate IO adapters; this does not introduce microservices or generic repository
 frameworks. The stable Docker entry point remains `app.main:create_app`.
+
+## Decision evidence and optional aesthetic inference
+
+`organization/explanations.py` creates user-visible reasons from recorded facts, scoring settings
+and observed duplicate measurements. Job restore backfills older preview destinations from Apply
+journals; manual changes preserve the original suggestion. This is decision provenance, not LLM
+chain-of-thought. `organization/aesthetic_analysis.py` coordinates bounded, cached local inference
+through `infrastructure/aesthetics.py`; culling consumes the resulting numeric feature. The bundled
+MIT LAION head verifies its checksum and exact encoder space and requires no runtime PyTorch.

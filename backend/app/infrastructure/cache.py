@@ -75,7 +75,7 @@ class AnalysisCache:
             return self._db.execute("SELECT path, meta, emb FROM files WHERE emb IS NOT NULL").fetchall()
 
     def auxiliary_rows(self, table: str, current: bool = False) -> list[tuple]:
-        if table not in {"tags", "ocr", "quality", "faceid", "geo"}:
+        if table not in {"tags", "ocr", "quality", "faceid", "geo", "aesthetics"}:
             raise ValueError("unknown auxiliary cache")
         with self._lock:
             exists = self._db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)).fetchone()
@@ -96,7 +96,7 @@ class AnalysisCache:
                     continue
                 self._db.execute("INSERT OR REPLACE INTO files SELECT ?,size,mtime,meta,emb FROM files WHERE path=? AND size=? AND ABS(mtime-?)<0.000001",
                                  (dst, src, stat.st_size, stat.st_mtime))
-                for table in ("tags", "quality", "ocr", "faceid", "geo"):
+                for table in ("tags", "quality", "ocr", "faceid", "geo", "aesthetics"):
                     if table in tables:
                         self._db.execute(f"INSERT OR REPLACE INTO {table} SELECT ?,size,mtime,data FROM {table} WHERE path=? AND size=? AND ABS(mtime-?)<0.000001",
                                          (dst, src, stat.st_size, stat.st_mtime))

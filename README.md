@@ -78,7 +78,7 @@ Open **http://localhost:8080**, click the folder name in *"Sorting my **…** fo
 | **By person** | One folder per recognized person + Groups, Other people, No people. Clear faces anchor identities; pose fragments are consolidated using cluster evidence. Partial faces and faceless views use a shoot-local appearance classifier, multiple face-confirmed references and agreeing nearby frames; conflicting evidence stays in Other people. Group photos: main face only, or a copy for every person. Or **upload a face** and move only that person's photos | Families, events, model shoots |
 | **By trip** | Trips from GPS + dates, named like *Rome · May 2025*, plus *Everyday* | Phone camera rolls, travel |
 | **By place** | One folder per country or city (offline reverse geocoding) | Travel archives |
-| **Social Media** | Cull with posting-readiness, thumbnail clarity, crop suitability and visual variety; adjustable formats and influence | Creators |
+| **Social Media** | Cull with local learned visual appeal, thumbnail clarity, crop suitability and visual variety; adjustable formats and influence | Creators |
 | **Cull** | Picks ★ · Keepers · Smiling · Maybe · Blurry · Eyes closed · Too dark/bright · Noisy · Burst extras | Photographers |
 
 **Presets:** Lifestyle · People & Style · Boudoir & glamour · Boudoir session (poses & light) · Photoshoot themes (wedding, halloween, moto, pool, studio …) · Wedding day ·
@@ -105,13 +105,22 @@ groups like *Full-body · Golden hour* or *Close-up · Low-key*, not "Wedding" f
 | **Lightroom / Capture One** | On Apply, write `.xmp` sidecars with ★ ratings and color labels (picks Green, rejects Red); removed on Undo |
 | **RAW workflow** | `.ARW .CR2 .CR3 .NEF .DNG .RAF …` read through the embedded preview; **RAW + JPEG pairs and `.xmp` sidecars move together** |
 
-**Why these picks?** Review sorts by recommendation score and has a **Top picks** filter. Open a photo to see its
-profile, decimal rating, technical/expression/composition/light/presentation components and short reasons.
+**Why these picks?** Open a photo for an attached score panel: recommendations, component scores,
+quality flags, tags and decision evidence. A **Winner photo** badge identifies one best recommendation
+per Cull; the file keeps its ordinary folder assignment. Duplicate/trash reasons identify the kept
+file, and manual overrides retain the original suggestion. Review sorts by recommendation score and has a **Top picks** filter.
 Multiscale detail, edge balance and subject/background separation add pixel-level evidence. Folder grids sort by
 score descending by default; switch to ascending from the folder’s score control. Group photos consider
 important faces together, or your selected main subject. Fashion poses need not smile or look straight at the camera.
 Low-key images are not penalized simply for being dark. Picks are recommendations for your review, not an objective
-beauty score. Read the [research and scoring policy](docs/culling-research.md) and [30-method implementation checklist](docs/culling-algorithms.md).
+beauty score. Read the [research and scoring policy](docs/culling-research.md) and [31-method implementation checklist](docs/culling-algorithms.md).
+
+**LAION visual appeal:** Social Media includes an optional, bundled [LAION aesthetic predictor](https://github.com/LAION-AI/aesthetic-predictor)
+(MIT license). Enable **Learned visual appeal · LAION** under **Settings → Social Media** or Quick settings.
+The small model runs offline with NumPy on CPU, using the bundled CLIP encoder, and exposes a separate
+score component. CLIP jobs reuse existing vectors; SigLIP jobs evaluate up to 256 technically viable,
+nonduplicate candidates. It estimates subjective visual appeal and contributes to the adjustable social
+blend; it does not predict likes. See [model provenance and limitations](backend/app/infrastructure/models/laion_aesthetic/README.md).
 
 **Review faster:** compare 2–4 photos side by side at Fit, 100% or 200%, synchronize pan, inspect face crops, and
 override destinations. Close-burst, Unique views and Alternative strengths filters surface decisions worth checking.

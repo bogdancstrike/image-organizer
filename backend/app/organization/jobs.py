@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 import random
 import shutil
@@ -29,6 +30,7 @@ from app.culling.quality import QUALITY_VERSION, REASONS, Quality, QualityRules,
 from app.infrastructure.faces import get_face_analyzer
 from app.infrastructure.ocr import get_text_reader
 from app.recognition.ocr import text_category
+from app.organization.explanations import explain_plan, duplicate_evidence
 from app.organization.operations import apply_plan
 from PIL import Image, ImageOps
 
@@ -173,6 +175,18 @@ class JobManager:
                 with self._lock:
                     self.jobs.setdefault(job_id, job)
                     job = self.jobs[job_id]
+        if job and job.plan:
+            # Older applied jobs did not persist their collision-safe destination preview paths.
+            if job.status == "applied" and job.run_id and any("preview_path" not in p for p in job.plan):
+                journal_path = self.s.journals_dir / f"{job.run_id}.json"
+                try:
+                    journal = json.loads(journal_path.read_text("utf-8"))
+                    moved = {op["src"]: op["dst"] for op in journal.get("ops", []) if "src" in op and "dst" in op}
+                    for item in job.plan:
+                        item.setdefault("preview_path", moved.get(item["rel_path"], item["rel_path"]))
+                except (OSError, ValueError):
+                    log.warning("preview journal unavailable for %s", job.id)
+            explain_plan(job.plan, job.request)
         return job
 
     def _persist(self, job: Job) -> None:
@@ -204,6 +218,7 @@ class JobManager:
             job.status, job.run_id = "done", None
             for item in job.plan:
                 item.pop("preview_path", None)
+            explain_plan(job.plan, job.request)
             self._persist(job)
 
     def cancel(self, job_id: str) -> bool:
@@ -249,6 +264,7 @@ class JobManager:
             item["preview_path"] = moved.get(item["rel_path"], item["rel_path"])
         job.status = "applied"
         job.run_id = journal["run_id"]
+        explain_plan(job.plan, job.request)
         self._persist(job)
         return journal
 
@@ -289,6 +305,9 @@ class JobManager:
         changed = []
         for p in job.plan:
             if p["file_id"] in wanted:
+                previous = p.get("decision") or {}
+                p["decision"] = {"previous": previous.get("previous") or {
+                    "category": p["category"], "explanation": previous.get("explanation", "Previous automated suggestion.")}}
                 p.update(category_id=cat["id"], category=cat["name"], source="manual", confidence=1.0,
                          destination=destination(source_rel, out_dir, p["kind"], cat, opts.get("split_media", True)))
                 if p.get("pick"):
@@ -307,6 +326,7 @@ class JobManager:
             job.categories.append(dict(cat))
         job.categories = [{**c, **counts.get(c["id"], {"photos": 0, "videos": 0})} for c in job.categories]
         job.stats["folders"] = len({p["destination"] for p in job.plan if p["category_id"] != DUPLICATES["id"]})
+        explain_plan(job.plan, job.request)
         self._persist(job)
         return {"changed": changed, "categories": job.categories, "stats": job.stats}
 
@@ -517,9 +537,19 @@ class JobManager:
         job.stats["duplicates"] = len(dup_map)
         job.emit("stats", **job.stats)
 
+        keep = [(f, a, e) for f, a, e in ordered if f.id not in dup_map]
+        if quality and qopts.get("social_media") and qopts.get("social_aesthetic", True):
+            try:
+                from app.organization.aesthetic_analysis import analyze as analyze_aesthetics
+                analyze_aesthetics(self, job, keep, quality, rules, embedder)
+            except (RuntimeError, ValueError, OSError) as exc:
+                log.warning("learned aesthetics unavailable: %s", exc)
+                job.warnings.append("Learned visual appeal could not be evaluated; standard recommendation signals are still available.")
+        if job.cancel_requested:
+            return
+
         # 4. categorize
         self._phase(job, "categorizing")
-        keep = [(f, a, e) for f, a, e in ordered if f.id not in dup_map]
         assignment, categories = self._categorize(job, keep, embedder, quality, rules, bursts, faces)
         if texts and req["strategy"] in ("preset", "custom"):
             self._text_override(job, keep, assignment, categories, texts, embedder, opts)
@@ -588,6 +618,7 @@ class JobManager:
                 "confidence": round(float(conf), 4), "source": src,
                 "destination": dest,
                 "duplicate_of": dup_map.get(f.id),
+                "duplicate_evidence": duplicate_evidence(a, results[dup_map[f.id]][1], e, results[dup_map[f.id]][2]) if f.id in dup_map else None,
                 "sidecars": list(f.sidecars),
                 "quality": summary(quality[f.id], rules) if f.id in quality else None,
                 "burst": bursts.get(f.id),
@@ -612,6 +643,7 @@ class JobManager:
         job.categories = [
             {**cats_by_id[cid], **counts[cid]} for cid in order if cid in counts and cid in cats_by_id
         ]
+        explain_plan(plan, req)
         job.plan = plan
         job.stats["folders"] = len({p["destination"] for p in plan if p["category_id"] != DUPLICATES["id"]})
         job.emit("categories", categories=job.categories)

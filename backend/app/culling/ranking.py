@@ -272,6 +272,8 @@ def rank(ids: list[str], quality: dict[str, Quality], E: np.ndarray, embedder, r
         parts["pareto"] = float(frontier[i]) if options.get("pareto_review", True) else 0.
         parts["relative"] = round(float(global_rank[i]), 3)
         reasons = []
+        if social and social[fid].get("aesthetic", 0) >= .65:
+            reasons.append("strong learned visual appeal (LAION)")
         if social and social[fid]["crop"] < .65:
             reasons.append("proposed social crop may cut important content")
         if social and social[fid]["clarity"] >= .75:

@@ -495,6 +495,7 @@ export default function App() {
         if (job.phase === "scanning" || job.phase === "starting") return t("status.scanning");
         if (job.phase === "analyzing") return t("status.analyzing", { n: fmt(job.analyzed), total: fmt(job.total) });
         if (job.phase === "deduplicating") return t("status.dedupe");
+        if (job.phase === "aesthetics") return t("status.aesthetics");
         if (job.phase === "checking") return t("status.checking");
         if (job.phase === "reading") return t("status.reading");
         if (job.phase === "faces") return t("status.faces");

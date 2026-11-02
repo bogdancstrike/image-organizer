@@ -66,6 +66,7 @@ const SCORE_LABELS: Record<string, [string, string]> = {
   expr: ["Expression", "Readable eye, gaze and expression signals, adapted to the photography profile."],
   comp: ["Composition", "Framing, balance, subject separation and local semantic composition signals."],
   light: ["Lighting", "Local image/text assessment of lighting and highlight detail."],
+  aesthetic: ["Learned visual appeal", "LAION aesthetic model on CLIP ViT-B/32: predicted 0–10 appeal mapped to this bar. Subjective and not a probability or a prediction of likes."],
   aes: ["Presentation", "Genre-specific visual presentation; an assisted review signal."],
   detail: ["Detail consistency", "Edge persistence across resolutions helps distinguish detail from noise."],
   balance: ["Visual balance", "A weak spatial balance signal from image gradients."],
@@ -88,7 +89,7 @@ const SCORE_LABELS: Record<string, [string, string]> = {
 export function PhotoInfoPanel({ p, className = "" }: { p: PlanItem; className?: string }) {
   const rating=p.pick?.rating ?? p.quality?.rating ?? (p.pick ? 1+4*p.pick.score : p.quality ? 1+4*p.quality.score : null);
   const trashed=p.decision?.action === "recoverable-trash" || p.destination.split("/").includes(".aio-trash");
-  const explanation=p.decision?.explanation ?? (p.duplicate_of ? "A duplicate matcher selected another file to keep." : SOURCE_HELP[p.source] ?? "Review the proposed category before applying.");
+  const explanation=p.source === "quality" && !trashed ? null : p.decision?.explanation ?? (p.duplicate_of ? "A duplicate matcher selected another file to keep." : SOURCE_HELP[p.source] ?? "Review the proposed category before applying.");
   return <aside aria-label="Photo recommendations" className={`min-h-0 overflow-y-auto overscroll-contain rounded-b-2xl border border-t-0 border-line bg-surface p-5 text-left text-plum shadow-xl md:rounded-l-none md:rounded-r-2xl md:border-t md:border-l-0 ${className}`}
     onMouseDown={event=>event.stopPropagation()} onPointerDown={event=>event.stopPropagation()} onWheel={event=>event.stopPropagation()}>
     <div className="break-words text-base font-semibold">{p.name}</div>
@@ -100,7 +101,7 @@ export function PhotoInfoPanel({ p, className = "" }: { p: PlanItem; className?:
       {p.pick?.profile && <div className="mt-1 text-xs text-plum/55">Profile · {p.pick.profile}</div>}
     </div>
     <section className="mt-5"><h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-plum/55">Why this happened</h3>
-      <p className="text-[13px] leading-relaxed">{explanation}</p>
+      {explanation && <p className="text-[13px] leading-relaxed">{explanation}</p>}
       {!!p.decision?.evidence.length && <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-plum/70">{p.decision.evidence.map((reason,i)=><li key={i}>{reason}</li>)}</ul>}
       {p.decision?.kept_path && <p className="mt-2 break-all text-xs">Kept original · {p.decision.kept_path}</p>}
       {p.decision?.previous && <p className="mt-2 text-xs text-plum/60">Previous suggestion · {p.decision.previous.category}: {p.decision.previous.explanation}</p>}

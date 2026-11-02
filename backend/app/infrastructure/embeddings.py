@@ -41,6 +41,7 @@ class ClipEmbedder:
 
         vision, text = MODELS.get(model, MODELS["clip"])
         self.model = model
+        self.embedding_space = "openai/clip-vit-base-patch32" if model == "clip" else "google/siglip2-base-patch16-224"
         self.device = device
         self.dimensions = 768 if model == "siglip2" else 512
         providers = execution_providers(device)

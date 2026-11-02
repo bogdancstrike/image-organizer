@@ -30,6 +30,7 @@ class QualityOptions(BaseModel):
     face_crop: bool = False
     subject_prompt: str = Field("", max_length=300)
     social_media: bool = False
+    social_aesthetic: bool = True
     social_format: Literal["portrait", "square", "vertical", "landscape", "original"] = "portrait"
     social_weight: float = Field(.25, ge=0, le=.5)
     preserve_unique: bool = True

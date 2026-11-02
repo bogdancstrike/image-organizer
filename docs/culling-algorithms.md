@@ -1,7 +1,7 @@
 # Culling methods and verification
 
 The supplied 50-idea article is an implementation checklist, not evidence that an app using these methods matches
-professional selections. This implementation covers the following 30 core ideas, plus the scoped extensions below.
+professional selections. This implementation covers the following 31 core ideas, plus the scoped extensions below.
 “Existing” identifies a method already present before this expansion; “added” and “strengthened” identify this work.
 
 | Article idea | Implementation and scope | Status | Verification |
@@ -28,6 +28,7 @@ professional selections. This implementation covers the following 30 core ideas,
 | 22 Horizon geometry | Consistent line orientation; optional experimental reject check | Existing | `test_horizon_tilt_needs_consistent_lines` |
 | 23 Crop integrity | Face/frame intersection plus social crop-retention assessment; no limb/pose detector | Strengthened | `test_crop_suitability_preserves_important_faces_and_originals` |
 | 24 Visual balance | Gradient centroid/border energy combined with semantic composition | Strengthened | `test_multiscale_detail_distinguishes_noise_from_real_edges` |
+| 30 Aesthetic embedding ranker | Bundled LAION V1 linear head on verified OpenAI CLIP B/32 vectors; optional Social Media component, CPU NumPy | Added | `test_aesthetics.py`: original-model parity, wrong-space rejection, caching and shortlist limits |
 | 32 Scene classification | Local semantic tags and genre inference, rather than event-specific trained classification | Strengthened | `test_semantic_genre_auto_detection_and_fallbacks` and tagging tests |
 | 33 Prompt relevance | Optional local photographer subject-priority prompt influences ranking | Added | `test_social_overlay_subject_relevance_pareto_and_novelty_are_explainable` |
 | 35 Novelty | Nearest-view distance within scenes gives a small contribution; separate Unique views filter | Added | Social overlay/novelty test and comparison filter test |
@@ -49,7 +50,11 @@ The **Social Media** preset invokes Cull with a social overlay. The same control
 (portrait 4:5, square, vertical 9:16, landscape, original), influence up to 50%, subject priority, unique-view
 preservation and alternative-strength explanations. Defaults remain Picks ≥4.5 and Keepers ≥4.0, adjustable in
 Quick settings. The overlay combines thumbnail detail, semantic clarity/story, crop-retained area/important faces,
-contrast, restrained colorfulness and image resolution. It assesses a proposed central crop and never edits or posts.
+contrast, restrained colorfulness and image resolution. Optional **Learned visual appeal** adds the bundled
+MIT-licensed LAION V1 aesthetic head. Its 0–10 prediction maps to a separate component bar and contributes
+30% of the Social Media overlay. CLIP jobs reuse viable-photo vectors; SigLIP jobs evaluate up to 256
+viable candidates using the separate CLIP tower, reporting any limit. See [model provenance and limits](../backend/app/infrastructure/models/laion_aesthetic/README.md).
+The feature works offline, has a Quick settings toggle, and never predicts likes, edits or posts.
 
 [What Makes an Image Popular?](https://people.csail.mit.edu/khosla/papers/www2014_khosla.pdf) studies both image
 content and social context on Flickr. It motivates combining visual dimensions, not a claim that these weights predict
@@ -79,3 +84,13 @@ unmeasured until a licensed, independently annotated benchmark of complete shoot
 rejection rate, burst top-1/top-3, scene coverage and NDCG@10 should be evaluated on that benchmark; proposed targets
 in the article are not measured results here. Trained BRISQUE/NIQE/NIMA/MUSIQ, body-pose/segmentation models,
 photographer preference learning and calibration remain future work.
+
+## Full-screen decision review
+
+The image and persistent score panel share a straight edge on desktop, with rounded outer corners;
+mobile stacks them. The panel exposes the score components, selection notes, quality flags, tags,
+destination and observable decision evidence. Exactly one Winner badge identifies the strongest
+non-flagged recommendation, or the best available with warnings when every image has issues.
+Duplicate decisions show fingerprint/visual-group evidence, keeper preference and keeper path.
+Recoverable trash remains previewable after Apply/restart; manual overrides retain the original
+suggestion. Tests cover collision-safe previews, restart recovery, Undo and source-specific explanations.

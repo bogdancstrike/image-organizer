@@ -81,4 +81,14 @@ from the same camera filename series can support difficult cases. Reliable unmat
 are not reassigned by appearance. Conflicting/outlier views remain in Other people. Appearance
 scores are heuristics, not proof of identity or calibrated probabilities. The face cache refreshes once after upgrade.
 
-See [implemented culling methods](culling-algorithms.md) for the 30-idea checklist, tests, research and model limits.
+See [implemented culling methods](culling-algorithms.md) for the 31-idea checklist, tests, research and model limits.
+
+## Learned visual appeal
+
+Enable Social Media recommendations and leave **Learned visual appeal · LAION** on (`quality.social_aesthetic`,
+default true within Social Media). The bundled MIT LAION head runs with NumPy on CPU and uses
+normalized OpenAI CLIP B/32 vectors. CLIP jobs reuse existing embeddings; other recognition models
+evaluate up to 256 technically viable photos through the separate CLIP tower, showing a warning
+when limited. Outputs are cached by file identity and model checksum. Disable the option to use
+the ordinary social signals alone. A model failure leaves those signals available with a warning.
+See [model provenance](../backend/app/infrastructure/models/laion_aesthetic/README.md).

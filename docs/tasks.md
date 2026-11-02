@@ -87,3 +87,10 @@ Status: `[x]` done · `[ ]` open. Each task lists the specs it covers and its "d
 - [x] T52 Expanded culling methods: Tenengrad, dHash guard, native analysis face focus, novelty, Pareto alternatives and burst margins; 30 article ideas mapped to code/tests.
 - [x] T53 Compare 2–4 originals with synchronized pan/zoom, face crops and destination overrides.
 - [x] T54 Compact folder score toolbar and collapsible Quick settings/full settings categories.
+
+- [x] T55 Cohesive backend packages, inward domain dependencies, route factories and architecture guards.
+- [x] T56 Persistent full-screen image/score panel, desktop joined edges, mobile stacking and one Winner recommendation.
+- [x] T57 Compound library-query evidence gates and removal of forced minimum results.
+- [x] T58 Shoot-local appearance classifier, multi-view consensus and sequence support for partial/faceless views; ambiguous views remain reviewable.
+- [x] T59 Decision provenance for categories, scores, duplicate keepers, recoverable trash and manual overrides; previews survive Apply/restart/Undo.
+- [x] T60 Optional offline LAION aesthetic model for Social Media, exact encoder compatibility, CPU inference, versioned cache and bounded SigLIP shortlist.

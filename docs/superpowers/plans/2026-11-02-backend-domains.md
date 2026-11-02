@@ -43,8 +43,8 @@
 
 ## Phase 4: Verification and delivery
 
-- [ ] Update architecture/development documentation, import-path references and culling method links.
-- [ ] Verify real CPU/GPU container startup and read-only sample workflows; preserve cached data and HTTP behavior.
+- [x] Update architecture/development documentation, import-path references and culling method links.
+- [x] Verify real CPU/GPU container startup and read-only sample workflows; preserve cached data and HTTP behavior.
 - [ ] Commit/push main, redeploy the app, check health and final CI. Stop temporary QA containers.
 
 ## Existing checkpoint
@@ -55,9 +55,9 @@
 
 ## Additional requirements received during implementation
 
-- [ ] Improve the remaining person assignments in `/home/bogdan/Downloads/Boudoir-10-selected-items`: latest user reports four correct identities plus 162 images in Other people, all belonging to those identities. Combine reliable face anchors with multiple appearance/body/detail prototypes and sequence context; retain ambiguity when evidence conflicts. Validate read-only against the actual folder, comparing missed and incorrect assignments rather than forcing everything into known people.
-- [ ] Add decision provenance to full-screen review, including trashed photos: category/score/threshold reason, technical flags, duplicate basis and keeper path, recoverable-trash action, rule/model match, and manual override history. Applied/trashed preview paths must remain usable and Undo must restore them.
-- [ ] Preserve periodic tested commits/pushes on main and redeployments while these requirements are implemented.
+- [x] Improve the remaining person assignments in `/home/bogdan/Downloads/Boudoir-10-selected-items`: latest user reports four correct identities plus 162 images in Other people, all belonging to those identities. Combine reliable face anchors with multiple appearance/body/detail prototypes and sequence context; retain ambiguity when evidence conflicts. Validate read-only against the actual folder, comparing missed and incorrect assignments rather than forcing everything into known people.
+- [x] Add decision provenance to full-screen review, including trashed photos: category/score/threshold reason, technical flags, duplicate basis and keeper path, recoverable-trash action, rule/model match, and manual override history. Applied/trashed preview paths must remain usable and Undo must restore them.
+- [x] Preserve periodic tested commits/pushes on main and redeployments while these requirements are implemented.
 
 ## Refactor checkpoint
 
@@ -70,8 +70,8 @@
 
 - [x] Library relevance bug: remove forced minimum-12 results and gate compound concepts. Initial local fix passes 177 BE tests / 91.24%; actual read-only SigLIP query `dog in a snow` returns 0 from the 1,029-photo folder, while portrait returns 15. Add deployment/browser verification.
 - [x] Winner photo: exactly one highlighted recommendation per Cull, retaining its ordinary folder assignment; best-available warning if all candidates have issues.
-- [ ] Research and integrate a licensed CPU-friendly trained aesthetic-preference signal for Social Media; verify exact embedding-space compatibility, model provenance and inference rather than treating semantic prompts as a trained popularity model.
-- [ ] Full-screen two-column viewer is implemented and builds, with a persistent score/reason panel; fix synthetic arrow-key test (Ant Design reads keyCode), finish provenance integration and deploy.
+- [x] Research and integrate a licensed CPU-friendly trained aesthetic-preference signal for Social Media; verify exact embedding-space compatibility, model provenance and inference rather than treating semantic prompts as a trained popularity model.
+- [x] Full-screen two-column viewer is implemented and builds, with a persistent score/reason panel; fix synthetic arrow-key test (Ant Design reads keyCode), finish provenance integration and deploy.
 
 ## Viewer, search and Winner checkpoint
 
@@ -88,3 +88,15 @@
 - Same 1,029-photo folder, same options, read-only: Other people 162 → 41; 136/162 previously unknown views recovered; 15 previously appearance-assigned views now abstain. All face-based assignments preserved.
 - Five-fold validation of 476 face-confirmed full-image references: 445 accepted, 438 agreeing with withheld face labels (98.43%); 31 abstained. This measures appearance agreement on face-confirmed views, not accuracy on unseen body/detail shots or a professional benchmark.
 - Backend 183 tests / 91.34%; frontend 88 tests / 93.34% lines / 90.78% statements.
+
+## LAION and decision provenance verification
+
+- Original MIT-licensed LAION B/32 head converted to safe JSON with weights-only PyTorch loading; production inference uses NumPy and verifies the packaged checksum. Exact encoder-space guards reject SigLIP and wrong-dimensional vectors. Golden result matches the original linear head.
+- Social Media exposes a named LAION setting, a separate learned score and a 30% contribution inside the user-controlled social blend. All viable nonduplicates are scored when CLIP vectors already exist; other encoders use a bounded 256-photo shortlist with a visible limit notice. Model failures retain ordinary scores with a warning.
+- Seven real sample images: CPU CLIP, CPU SigLIP+CLIP and GPU CLIP all complete without warnings; displayed learned scores match CPU/GPU. Network-disabled CPU inference succeeds without PyTorch installed.
+- Real 1,029-photo read-only culling run completes with no file errors, 55 duplicates, one Winner and the expected shortlist notice.
+- Backend 210 tests / 91.61%; desktop/mobile browser checks pass with learned components and observable decision evidence. Frontend verification refreshed after removing the generic quality-assignment sentence at user request.
+- Specific decision evidence covers duplicate measurements/policy/keeper, thresholds, flags, identity-match evidence and manual override history. Applied/trashed previews recover from journals on restart and Undo restores the original paths.
+
+- Final local checks: 210 backend tests / 91.61%; 89 frontend tests / 93.34% lines and 90.74% statements; production build and desktop/mobile browser checks pass. Large-folder rerun scores exactly 256 nonduplicates, produces one Winner and includes evidence on every plan item.
+- New follow-up: improve kitchen/background-scene search recall on the real folder while preserving absent-concept precision.

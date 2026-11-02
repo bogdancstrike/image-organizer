@@ -605,6 +605,7 @@ export function SettingsPanel({
                 <Select aria-label="Post format" className="w-full" value={Q.social_format} onChange={(v) => setQ({ social_format: v })}
                   options={[{value:"portrait",label:"Portrait · 4:5"},{value:"square",label:"Square · 1:1"},{value:"vertical",label:"Vertical · 9:16"},{value:"landscape",label:"Landscape · 16:9"},{value:"original",label:"Original proportions"}]} />
               </Row>
+              <Row label="Learned visual appeal · LAION" hint="Local LAION model; subjective aesthetics, not predicted likes. SigLIP jobs evaluate up to 256 technically viable photos." inline><Switch aria-label="Learned visual appeal · LAION" checked={Q.social_aesthetic} onChange={(v)=>setQ({social_aesthetic:v})} /></Row>
               <Row label="Social influence" hint={`${Math.round(Q.social_weight*100)}% of the quality blend`}>
                 <Slider min={0} max={50} step={5} value={Math.round(Q.social_weight*100)} onChange={(v) => setQ({ social_weight: v/100 })} />
               </Row>
