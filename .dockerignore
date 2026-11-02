@@ -7,3 +7,8 @@ sample-library
 **/__pycache__
 **/.pytest_cache
 *.webm
+**/coverage
+**/coverage.json
+**/htmlcov
+**/.coverage
+**/.coverage.*

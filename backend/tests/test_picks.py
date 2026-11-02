@@ -121,3 +121,13 @@ def test_scene_assignment_scales_and_keeps_a_small_shoot_together():
     assert scenes(np.eye(4)).tolist()==[0,0,0,0]
     rng=np.random.default_rng(12);E=rng.normal(size=(2501,8));E/=np.linalg.norm(E,axis=1,keepdims=True)
     assert len(scenes(E))==2501
+
+
+def test_auto_landscapes_keep_landscape_criteria_when_people_are_incidental(fake_embedder,monkeypatch):
+    import app.picks as picks
+    from app.quality import QualityRules
+    monkeypatch.setattr(picks,'_semantic',lambda E,e:(np.array([[.01,.01,.97,.01]]),np.full((1,7),.7)))
+    a,b=face(),face();a.area=b.area=.002
+    result=picks.rank(['hike'],{'hike':q([a,b])},np.array([[1,0,0,.05]],np.float32),fake_embedder,QualityRules())
+    assert result.info['hike'].profile=='landscape'
+    assert 'expr' not in result.info['hike'].parts

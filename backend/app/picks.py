@@ -190,7 +190,7 @@ def rank(ids: list[str], quality: dict[str, Quality], E: np.ndarray, embedder, r
         if chosen == "auto":
             winner = int(probabilities[i].argmax())
             chosen = list(GENRES)[winner] if probabilities[i, winner] >= .45 else ("portrait" if q.faces else "general")
-            if q.faces:
+            if q.faces and chosen in ("portrait", "general"):
                 largest = max(f.area for f in q.faces)
                 if sum(f.area >= largest * .25 for f in q.faces) > 1 and rules.faces_rule != "main":
                     chosen = "group"
@@ -226,11 +226,13 @@ def rank(ids: list[str], quality: dict[str, Quality], E: np.ndarray, embedder, r
         if rejected:
             value = min(.24, value * .3)
         parts = {k: round(float(v[i]), 3) for k, v in raw.items()}
+        if not q.faces or WEIGHTS[kind]["expr"] == 0:
+            parts.pop("expr")
         parts["relative"] = round(float(global_rank[i]), 3)
         reasons = []
         if parts["tech"] >= .80:
             reasons.append("sharp eyes" if q.faces else "clear detail")
-        if q.faces and kind != "fashion" and parts["expr"] >= .8:
+        if kind in ("portrait", "group") and parts.get("expr", 0) >= .8:
             reasons.append("strong group expressions" if kind == "group" else "natural expression")
         if parts["light"] >= .65:
             reasons.append("intentional light")

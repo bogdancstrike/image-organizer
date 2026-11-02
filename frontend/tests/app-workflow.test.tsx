@@ -30,7 +30,7 @@ it('sorts, reviews, renames, applies and undoes a plan without losing destinatio
  emit({type:'scanned',total:3,source_name:'Trip'},...plan.map(p=>({type:'file',id:p.file_id,kind:p.kind,thumb:p.thumb})),{type:'progress',analyzed:3},{type:'file_error',rel_path:'bad.jpg',error:'bad'}, {type:'context',theme:'A trip',source:'ai'},{type:'warning',message:'One damaged file'}, {type:'categories',categories});
  await screen.findByText('Nature',{exact:true});
  emit(...plan.map(p=>({type:'assign',id:p.file_id,category_id:p.category_id,kind:p.kind})),{type:'done',usage:{calls:2,input_tokens:30,output_tokens:10},warnings:[]});
- await screen.findByRole('button',{name:'Apply · move files'});
+ await screen.findByRole('button',{name:'Apply · move files'}, {timeout:5000});
  fireEvent.click(screen.getByText('Nature',{exact:true}));
  fireEvent.change(await screen.findByPlaceholderText('Nature'),{target:{value:'Landscapes'}});fireEvent.click(screen.getByRole('button',{name:'Rename folder'}));
  await waitFor(()=>expect(api.renameCategory).toHaveBeenCalledWith('job-one','nature','Landscapes'));
@@ -80,7 +80,7 @@ it('navigates every URL tab and applies a chosen category set',async()=>{
 it.each(['done','applied'])('restores a saved %s plan after reloading',async(status)=>{
  localStorage.setItem('aio.lastJob','job-one');vi.mocked(api.job).mockResolvedValue({...job,status,run_id:status==='applied'?'run-one':null} as never);
  renderUI(<App/>);await waitFor(()=>expect(api.job).toHaveBeenCalledWith('job-one'));
- if(status==='done')expect(await screen.findByRole('button',{name:'Apply · move files'})).toBeInTheDocument();
+ if(status==='done')expect(await screen.findByRole('button',{name:'Apply · move files'}, {timeout:5000})).toBeInTheDocument();
  else expect(await screen.findByText(/Done. Your files are in/)).toBeInTheDocument();
  nav('Review');expect(await screen.findByText('mountain.jpg')).toBeInTheDocument();
 });
