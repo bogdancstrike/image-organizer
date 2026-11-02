@@ -33,17 +33,40 @@ Too dark · Too bright · Burst extras. Tune sharpness, blink and smile threshol
 subject), burst window and similarity, and the minimum stars for a keeper. With other modes, rejects go to `_Rejects/<reason>` (or are
 only tagged).
 
+### Keeper and top-pick recommendations
+
+Cull ranks every analyzed photo even when the Picks folder is off. Choose Auto, Portrait, Fashion/modeling,
+Landscape or General as the recommendation profile. Scores combine technical quality, relevant face expressions,
+composition, lighting and semantic presentation; group shots consider sizable faces together or your main subject.
+Face focus uses each detected face's eye region. Low-key lighting is not penalized only for its average brightness.
+
+The absolute score and within-shoot/scene ranking drive the keeper star threshold. Top picks favor scene variety,
+exclude technically rejected frames, and skip near-duplicates; the requested percentage is an upper bound.
+Review can sort by Recommendation and filter Top picks. The viewer explains the score and its components.
+XMP uses the same stars (Green pick label, Red reject label), and manual reassignment updates the marker/label.
+See [research and limitations](culling-research.md).
+
 ## Auto-discover
 0. **Context:** the folder's theme is detected (e.g. *Trash the dress*, *Studio fashion*, *Boudoir*, *Halloween*).
 1. **Group by** (focus): *auto* clusters raw CLIP embeddings; *scene*, *framing & pose*, *outfit*, *lighting* or *subject* cluster on
    z-scored similarity to a bank of prompts for that aspect, so a studio shoot splits by pose or light instead of "all studio".
    KMeans picks k (2…`max_clusters`) by silhouette; **granularity** coarse / normal / fine shifts it.
 2. Naming:
-   - **With an OpenAI key**: one request to `gpt-5.6-luna` (`reasoning: low`) with a small contact sheet per group. You get names like
+   - **With an OpenAI key**: one request to `gpt-6-luna` (`reasoning: low`) with a small contact sheet per group. You get names like
      *Coastal Shores*, *Workspaces*, *Golden Gate*.
    - **Without a key**: each group is named by what makes it stand out within the folder, e.g. *Full-body · Golden hour*.
    - With a key, the AI also sees an overview sheet, the detected theme, the focus and the local names, plus your own *naming instructions*.
 3. Groups that end up with the same name are merged.
+
+## AI prompt rules
+
+Choose **AI rules** in Quick settings or Settings → Organizing. Requires `OPENAI_API_KEY`.
+For example: `landscapes into landscapes/{date}; food into food/{year}/{month}; everything else into others/{date}`.
+AI compiles the instructions into at most 12 validated relative destinations, then matches thumbnails in batches.
+Earlier matching conditions win. Unmatched files use your explicit catch-all or Unsorted. Paths are inside the selected
+output folder and preserve nesting; split Photos/Videos prefixes do not apply. `{date}`/`{today}`, `{iso}`, `{year}`,
+and `{month}` resolve once using the server date at the start of the job. Review all destinations before Apply.
+Unsafe/ambiguous destinations or AI failures stop the job with an error, without moving files.
 
 ## By date
 `YYYY/MM - Month` (or `YYYY`, or `YYYY/MM/YYYY-MM-DD`) from EXIF `DateTimeOriginal`, the video `creation_time`, or the file date as a fallback.

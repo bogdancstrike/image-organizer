@@ -41,8 +41,15 @@ export function FileDetails({ p }: { p: PlanItem }) {
           {q.flags.length ? ` · ${q.flags.map((f) => FLAG[f]?.label ?? f).join(", ")}` : ""}
         </div>
       )}
-      {p.pick?.picked && (
-        <div className="opacity-90">★ Pick{p.pick.reasons.length ? `: ${p.pick.reasons.join(" · ")}` : ""}</div>
+      {p.pick && (
+        <div className="space-y-0.5 opacity-90">
+          <div>{p.pick.picked ? "★ Top pick" : "Recommendation"} · {Math.round(p.pick.score * 100)}/100 · {p.pick.profile ?? "general"}</div>
+          {p.pick.reasons.length > 0 && <div>{p.pick.reasons.join(" · ")}</div>}
+          {p.pick.parts && <div className="flex flex-wrap gap-x-2 opacity-75">
+            {Object.entries({ tech: "Technical", expr: "Expression", comp: "Composition", light: "Lighting", aes: "Presentation" }).map(([key, label]) =>
+              p.pick?.parts?.[key] !== undefined && <span key={key}>{label} {Math.round(p.pick.parts[key] * 100)}%</span>)}
+          </div>}
+        </div>
       )}
       {p.sidecars?.length ? <div className="opacity-75">+ {p.sidecars.map((s) => s.split("/").pop()).join(", ")}</div> : null}
     </div>

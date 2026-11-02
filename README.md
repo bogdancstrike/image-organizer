@@ -73,6 +73,7 @@ Open **http://localhost:8080**, click the folder name in *"Sorting my **…** fo
 | **Preset** | 15 ready-made, **editable** folder sets | Instant results |
 | **My categories** | Your own folders, each described in a few words (and *Photos-only / Videos-only*) | Your Instagram system, client workflows |
 | **Auto-discover** | Groups found automatically, named by **what makes them different** inside your folder | Unknown dumps, a studio shoot, a wedding |
+| **AI prompt rules** | Describe subjects and destinations, e.g. “landscapes → landscapes/{date}; everything else → others/{date}”; AI proposes a validated plan | Personal filing rules (requires OpenAI key) |
 | **By date** | `2025/07 - July` from EXIF / video metadata | Archives |
 | **By person** | One folder per recognized person + Groups, Other people, No people. People whose face isn't visible (back, far away, hands, veil) are matched by look and gender. Group photos: main face only, or a copy for every person. Or **upload a face** and move only that person's photos | Families, events, model shoots |
 | **By trip** | Trips from GPS + dates, named like *Rome · May 2025*, plus *Everyday* | Phone camera rolls, travel |
@@ -96,12 +97,18 @@ groups like *Full-body · Golden hour* or *Close-up · Low-key*, not "Wedding" f
 | **Smiles** | Smile score per face; *Smiling* gets its own folder |
 | **Exposure** | Too dark / too bright, with adjustable thresholds |
 | **Best of burst** | Near-identical frames shot seconds apart: keep the best, set the rest aside |
-| **Score & stars** | 0–100 keeper score and 1–5 ★ for every photo; *Maybe* for keepers under your star bar |
+| **Score & stars** | Genre-aware recommendations combine technical quality, expression, composition, light and presentation; the same score drives stars, *Maybe* thresholds and XMP ratings |
 | **Noise · tilted horizon · face cut off** | Opt-in checks: Immerkær noise estimate, consistent horizon lines (beta), faces touching the frame |
-| **Picks ★** | The top X % of keepers by score get their own folder |
+| **Picks ★** | Up to X % of eligible keepers, spread across scenes and without near-duplicates. Portrait, fashion/modeling, landscape and general profiles; Auto detects the likely genre locally |
 | **Best of similar** | Like best-of-burst, but for near-identical shots taken at any time |
 | **Lightroom / Capture One** | On Apply, write `.xmp` sidecars with ★ ratings and color labels (picks Green, rejects Red); removed on Undo |
 | **RAW workflow** | `.ARW .CR2 .CR3 .NEF .DNG .RAF …` read through the embedded preview; **RAW + JPEG pairs and `.xmp` sidecars move together** |
+
+**Why these picks?** Review sorts by recommendation score and has a **Top picks** filter. Open a photo to see its
+profile, technical/expression/composition/light/presentation components and short reasons. Group photos consider
+important faces together, or your selected main subject. Fashion poses need not smile or look straight at the camera.
+Low-key images are not penalized simply for being dark. Picks are recommendations for your review, not an objective
+beauty score. Read the [research and scoring policy](docs/culling-research.md).
 
 Use **Cull** on its own, or switch on *quality checks* with any other mode to set rejects aside in `_Rejects/<reason>`.
 
@@ -122,13 +129,30 @@ Use **Cull** on its own, or switch on *quality checks* with any other mode to se
 - **OCR** (RapidOCR): reads text in photos; text-heavy ones go to documents / captions folders, and the text is **searchable** in Review.
 
 ### 🤖 AI is optional
-Without a key, everything works offline. With `OPENAI_API_KEY`, the app uses **`gpt-6-luna`** (`reasoning: low`):
+The local sorting modes work offline without a key. **AI prompt rules require a key** and send instructions plus thumbnails for all non-duplicate files; other AI features remain optional. With `OPENAI_API_KEY`, the app uses **`gpt-6-luna`** (`reasoning: low`):
 - **Auto naming:** *one* request per sort (small contact sheets at `detail: low`), measured at **about 1k tokens and 4–6 s**.
   On a mountain wedding shoot it answered *"Mountain Wedding"* with groups like *Mountain Vistas*, *Monochrome Veils*, *Portraits & Details*.
 - **AI assist** (opt-in): only *uncertain* files (cheap) **or every photo** (most accurate), 12 low-detail thumbnails per request.
 - **Editable prompts:** the naming and assist prompts are shown pre-filled; tweak them or reset. Each folder can carry its own
   **AI hint** ("only if a motorcycle is clearly visible"); folders without one are described by their CLIP descriptions.
 - Model (any vision model on your key) and reasoning effort are switchable per run in **Settings → AI**.
+
+### Sort with instructions
+
+Choose **AI rules** in Quick settings and describe the destinations, for example:
+
+```text
+Put landscape photos into landscapes/{date}.
+Put food photos into food/{year}/{month}.
+Everything else goes into others/{date}.
+```
+
+AI reads the instructions once, then matches thumbnails in batches using the selected OpenAI model.
+Dates use the server's date when the sort starts: `{date}`/`{today}` = `DD.MM.YYYY`, `{iso}` = `YYYY-MM-DD`.
+Paths are relative to your output folder, and no Photos/Videos prefix is inserted. Earlier matching rules win;
+an explicit “everything else” rule handles unmatched files, otherwise they go to Unsorted. Duplicate and enabled
+quality-check policies still apply. Unsafe paths, unavailable AI and malformed responses fail visibly without
+applying a partial plan. Review destinations before Apply; Undo works as with other modes.
 
 ## 🖼 Screenshots
 
@@ -265,12 +289,13 @@ React 19 · TypeScript · Vite · antd 6 · Tailwind 4 · shadcn/ui-style compon
 
 ## 🗺 Roadmap
 
-**Shipped:** XMP star ratings · by person (incl. faceless matching, upload a face) · SigLIP 2 · OCR · 5 languages ·
-natural-language search & find similar · trips, places & map · statistics · SQLite persistence.
+**Shipped:** AI prompt rules · optional NVIDIA GPU · genre-aware Picks and Keepers · expression/group-shot and eye-focus scoring ·
+XMP ratings/labels · by person (incl. faceless matching, uploaded references) · SigLIP 2 · OCR · five languages on main surfaces ·
+natural-language search & find similar · trips, places & map · statistics · SQLite persistence · separate 90% backend/frontend line-coverage gates.
 
-**Next:** stronger Picks (aesthetics, expression, story) · prompt rules (“boudoir → boudoir/01.11.2026, the rest → others/…”) ·
-cleanup assistant & storage report · expression scoring & group-shot check · portfolio picker · local vision LLM (vLLM, zero tokens) ·
-watch-folder mode · GPU image · desktop app (Tauri). See [docs/tasks.md](docs/tasks.md), and ideas are welcome!
+**Next:** cleanup assistant & storage report · dedicated portfolio picker · local vision LLM (vLLM) ·
+watch-folder mode · desktop app (Tauri) · speech-activity detection for videos · complete UI/category translations ·
+expert-rated culling benchmark. See [docs/tasks.md](docs/tasks.md).
 
 ## 🤝 Contributing
 

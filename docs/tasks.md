@@ -56,13 +56,24 @@ Status: `[x]` done · `[ ]` open. Each task lists the specs it covers and its "d
 - [x] T39 i18n: en, ro, es, de, fr (main surfaces; English fallback).
 - [x] T40 Boudoir session preset (poses & light); benchmarks on a 1,029-photo shoot.
 
+## M8 Rules, GPU, recommendations and validation
+- [x] T41 AI prompt rules: compile free-text instructions, validate nested/date paths, classify thumbnails, then Review / Apply / Undo.
+- [x] T42 Optional NVIDIA GPU image and Compose runtime, selected through `DEVICE=cpu|gpu`; verified CLIP and SigLIP 2 on RTX 3080.
+- [x] T43 Stronger Picks and Keepers: portrait/fashion/landscape profiles; technical, expression, composition, lighting and presentation signals; absolute + shoot/scene ranking; scene coverage and near-duplicate suppression.
+- [x] T44 Expression and group-shot scoring, per-face eye focus, main-subject preference, explained recommendations; keeper thresholds and XMP use the same score.
+- [x] T45 Quick settings and Sort recipe selection agree, including manual strategy changes.
+- [x] T46 Backend and frontend coverage gates: at least 90% line coverage separately, all application source measured, HTML/JSON reports and CI.
+
 ## Backlog (good first issues)
-- [ ] OCR signal (RapidOCR) to strengthen "Text & captions" and "Documents".
+- [x] OCR signal (RapidOCR) to strengthen "Text & captions" and "Documents".
 - [ ] Speech-activity signal for "Talking to camera" videos.
-- [ ] Write star ratings / labels to XMP for Lightroom & Capture One.
+- [x] Write star ratings / labels to XMP for Lightroom & Capture One.
 - [ ] Local vision-LLM engine (vLLM, OpenAI-compatible) for zero-token AI.
-- [ ] GPU image variant (onnxruntime-gpu).
-- [ ] Larger CLIP models (SigLIP 2) as an option.
+- [x] GPU image variant (FastEmbed GPU + ONNX Runtime CUDA; `DEVICE=gpu` in `.env`, CPU default).
+- [x] Larger CLIP models (SigLIP 2) as an option.
 - [ ] Watch-folder mode (sort new downloads automatically).
 - [ ] Desktop packaging (Tauri).
-- [ ] i18n for UI and category names.
+- [ ] Complete i18n for all UI and category names (five languages already cover main surfaces).
+- [ ] Cleanup assistant and storage report.
+- [ ] Dedicated portfolio picker.
+- [ ] Licensed expert-rated culling benchmark: compare recommendations with multiple photographers per genre.

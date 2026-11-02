@@ -76,6 +76,7 @@ export const DEFAULT_SETTINGS: UiSettings = {
     tilt_check: false,
     tilt_tolerance: 1.5,
     face_crop: false,
+    pick_profile: "auto",
     picks_percent: 0,
     similar_any_time: false,
     write_xmp: false,

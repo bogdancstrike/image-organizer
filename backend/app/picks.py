@@ -21,15 +21,6 @@ import numpy as np
 
 from .quality import Face, Quality, QualityRules, verdict
 
-AES_POS = [
-    "a stunning professional photograph", "an award-winning portrait with beautiful light",
-    "a magazine-quality editorial photo", "a beautifully composed photo with depth and mood",
-    "a flattering photo of a person looking their best", "an emotional, story-telling moment",
-]
-AES_NEG = [
-    "a blurry amateur snapshot", "a badly composed, cluttered photo", "an unflattering photo with an awkward expression",
-    "a dull, flat, poorly lit photo", "an accidental photo of nothing", "a photo with the subject cut off",
-]
 NEAR_DUPLICATE = 0.93  # cosine above which a candidate is "the same frame" as an existing pick
 
 
@@ -38,6 +29,7 @@ class PickInfo:
     score: float
     parts: dict[str, float] = field(default_factory=dict)  # 0..1 percentiles within the shoot
     reasons: list[str] = field(default_factory=list)
+    profile: str = "general"
 
 
 @dataclass
@@ -47,14 +39,28 @@ class Ranking:
 
 
 # ------------------------------------------------------------------ signals (raw, 0..1)
-def technical(q: Quality) -> float:
-    sharp = min(1.0, max(0.0, (q.sharpness - 0.3) / 0.5))
-    exposure = (1 - min(1.0, abs(q.brightness - 0.45) / 0.45)) * (1 - min(0.5, q.dark_clip + q.bright_clip))
-    noise = 1 - min(1.0, q.noise / 0.08)
+def relevant_faces(q: Quality, rules: QualityRules | None = None) -> list[Face]:
+    if not q.faces:
+        return []
+    largest = max(f.area for f in q.faces)
+    faces = [f for f in q.faces if f.area >= largest * .25]
+    return [max(faces, key=lambda f: f.area)] if rules and rules.faces_rule == "main" else faces
+
+
+def subject_focus(q: Quality, rules: QualityRules | None = None) -> float:
+    scores = [f.sharpness for f in relevant_faces(q, rules) if f.sharpness is not None]
+    return .6 * min(scores) + .4 * sum(scores) / len(scores) if scores else q.sharpness
+
+
+def technical(q: Quality, rules: QualityRules | None = None) -> float:
+    sharp = min(1.0, max(0.0, (subject_focus(q, rules) - 0.3) / 0.5))
+    # Mean brightness alone cannot distinguish bad exposure from intentional low/high-key lighting.
+    exposure = 1 - min(0.9, 0.55 * q.dark_clip + 0.9 * q.bright_clip)
+    noise = 1 - min(1.0, q.noise / 0.09)
     return 0.65 * sharp + 0.25 * exposure + 0.10 * noise
 
 
-def face_expression(f: Face) -> float:
+def face_expression(f: Face, profile: str = "portrait") -> float:
     e = f.expr or {}
     eyes = 1 - f.blink
     gaze = 1 - min(1.0, e.get("gaze", 0.0) * 1.4)
@@ -63,15 +69,17 @@ def face_expression(f: Face) -> float:
     frown = 1 - min(1.0, e.get("frown", 0.0) * 2.0)
     squint = 1.0 if smiling else 1 - min(1.0, max(0.0, e.get("squint", 0.0) - 0.4) * 1.5)
     yaw = 1 - min(1.0, max(0.0, e.get("yaw", 0.0) - 0.35) * 1.5)
+    if profile == "fashion":
+        # Editorial poses need not face the camera or smile.
+        return 0.50 * eyes + 0.30 * mouth + 0.20 * frown
     return 0.32 * eyes + 0.18 * gaze + 0.14 * mouth + 0.10 * frown + 0.06 * squint + 0.10 * yaw + 0.10 * (0.5 + 0.5 * f.smile)
 
 
-def expression(q: Quality) -> float | None:
+def expression(q: Quality, rules: QualityRules | None = None, profile: str = "portrait") -> float | None:
     if not q.faces:
         return None
-    biggest = max(f.area for f in q.faces)
-    sizable = [f for f in q.faces if f.area >= biggest * 0.25] or q.faces
-    scores = [face_expression(f) for f in sizable]
+    sizable = relevant_faces(q, rules)
+    scores = [face_expression(f, profile) for f in sizable]
     return 0.6 * min(scores) + 0.4 * (sum(scores) / len(scores))  # one blink spoils a group shot
 
 
@@ -90,14 +98,6 @@ def composition(q: Quality) -> float:
     if q.tilt is not None and 1.5 <= abs(q.tilt) <= 8:
         s -= min(0.3, abs(q.tilt) / 20)
     return max(0.0, min(1.0, s))
-
-
-def aesthetic(E: np.ndarray, embedder) -> np.ndarray:
-    def enc(prompts):
-        v = np.asarray(embedder.embed_texts(prompts), dtype=np.float32)
-        return v / (np.linalg.norm(v, axis=1, keepdims=True) + 1e-9)
-
-    return (E @ enc(AES_POS).T).mean(axis=1) - (E @ enc(AES_NEG).T).mean(axis=1)
 
 
 # ------------------------------------------------------------------ ranking
@@ -130,58 +130,121 @@ def scenes(E: np.ndarray) -> np.ndarray:
     return KMeans(n_clusters=min(80, n // 25), n_init=2, random_state=0).fit_predict(E)
 
 
-def rank(ids: list[str], quality: dict[str, Quality], E: np.ndarray, embedder, rules: QualityRules) -> Ranking:
-    """Score every frame 0..1 relative to the shoot and to its scene."""
+GENRES = {
+    "portrait": "a close-up portrait photograph of a person",
+    "fashion": "a fashion editorial photograph showing a model, clothes and a deliberate pose",
+    "landscape": "a landscape photograph of mountains, forests, coast or a wide natural scene",
+    "general": "a photograph of everyday objects, food, architecture or an event",
+}
+# Positive and negative prompts describe observable presentation, not bodies or personal worth.
+PRESENTATION = {
+    "portrait": ("a compelling expressive portrait with flattering light and subject separation", "an awkward portrait with distracting background and unflattering light"),
+    "group": ("a well-timed group portrait with natural expressions", "an awkwardly timed group photo"),
+    "fashion": ("an editorial fashion photograph with deliberate pose, readable garments and coherent styling", "a fashion snapshot with awkward framing, obscured clothing and distracting styling"),
+    "landscape": ("a landscape photograph with depth, an interesting foreground and a clear focal point", "a flat landscape snapshot with no focal point or sense of depth"),
+    "general": ("a compelling photograph with clear subject and storytelling", "a cluttered accidental snapshot with no clear subject"),
+}
+WEIGHTS = {
+    "portrait": {"tech": .28, "expr": .26, "comp": .14, "light": .14, "aes": .18},
+    "group": {"tech": .30, "expr": .34, "comp": .10, "light": .12, "aes": .14},
+    "fashion": {"tech": .25, "expr": .10, "comp": .20, "light": .20, "aes": .25},
+    "landscape": {"tech": .34, "expr": 0, "comp": .24, "light": .18, "aes": .24},
+    "general": {"tech": .40, "expr": 0, "comp": .18, "light": .18, "aes": .24},
+}
+
+
+def _semantic(E: np.ndarray, embedder):
+    pairs = list(PRESENTATION.values()) + [
+        ("a photograph with intentional beautiful lighting and retained highlight detail", "a photograph with harsh flat light and blown highlights"),
+        ("a photograph with balanced composition, depth and a clear focal point", "a cluttered badly framed photograph with distracting composition"),
+    ]
+    prompts = list(GENRES.values()) + [t for pair in pairs for t in pair]
+    T = np.asarray(embedder.embed_texts(prompts), dtype=np.float32)
+    T /= np.linalg.norm(T, axis=1, keepdims=True) + 1e-9
+    genre_logits = 20 * E @ T[:len(GENRES)].T
+    genre_logits -= genre_logits.max(axis=1, keepdims=True)
+    probs = np.exp(genre_logits); probs /= probs.sum(axis=1, keepdims=True)
+    paired = (E @ T[len(GENRES):].T).reshape(len(E), len(pairs), 2)
+    signals = 1 / (1 + np.exp(-np.clip(20 * (paired[:, :, 0] - paired[:, :, 1]), -30, 30)))
+    return probs, signals
+
+
+def rank(ids: list[str], quality: dict[str, Quality], E: np.ndarray, embedder, rules: QualityRules,
+         profile: str = "auto") -> Ranking:
+    """Explainable recommendations: absolute quality + shoot/scene comparisons, adapted to genre."""
+    if profile not in ("auto", *GENRES):
+        raise ValueError("Unknown culling profile")
     n = len(ids)
     if n == 0:
         return Ranking({}, np.zeros(0, dtype=int))
     E = E / (np.linalg.norm(E, axis=1, keepdims=True) + 1e-9)
-    tech = np.array([technical(quality[i]) for i in ids])
-    expr_raw = [expression(quality[i]) for i in ids]
-    has_face = np.array([x is not None for x in expr_raw])
-    expr = np.array([x if x is not None else 0.0 for x in expr_raw])
-    comp = np.array([composition(quality[i]) for i in ids])
     try:
-        aes = aesthetic(E, embedder)
-    except Exception:  # noqa: BLE001 - no text tower: aesthetics stay neutral
-        aes = np.zeros(n)
-    P = {"tech": _pct(tech), "comp": _pct(comp), "aes": _pct(aes), "expr": np.full(n, 0.5)}
-    if has_face.any():
-        P["expr"][has_face] = _pct(expr[has_face])
+        probabilities, semantic = _semantic(E, embedder)
+    except Exception:  # a missing text tower leaves semantic scores neutral
+        probabilities = np.full((n, len(GENRES)), 1 / len(GENRES))
+        semantic = np.full((n, len(PRESENTATION) + 2), .5)
+    profiles = []
+    for i, fid in enumerate(ids):
+        q = quality[fid]
+        chosen = profile
+        if chosen == "auto":
+            winner = int(probabilities[i].argmax())
+            chosen = list(GENRES)[winner] if probabilities[i, winner] >= .45 else ("portrait" if q.faces else "general")
+            if q.faces:
+                largest = max(f.area for f in q.faces)
+                if sum(f.area >= largest * .25 for f in q.faces) > 1 and rules.faces_rule != "main":
+                    chosen = "group"
+        profiles.append(chosen)
+    raw = {k: np.zeros(n) for k in ("tech", "expr", "comp", "light", "aes")}
+    absolute = np.zeros(n)
+    for i, fid in enumerate(ids):
+        q, kind = quality[fid], profiles[i]
+        expr = expression(q, rules, kind)
+        raw["tech"][i] = technical(q, rules)
+        raw["expr"][i] = .5 if expr is None else expr
+        raw["comp"][i] = .5 * composition(q) + .5 * semantic[i, -1]
+        raw["light"][i] = semantic[i, -2]
+        raw["aes"][i] = semantic[i, list(PRESENTATION).index(kind)]
+        weights = dict(WEIGHTS[kind])
+        if expr is None:
+            weights["expr"] = 0
+        absolute[i] = sum(weights[k] * raw[k][i] for k in weights) / sum(weights.values())
     labels = scenes(E)
-
-    def blend(i: int) -> float:
-        if has_face[i]:
-            return 0.28 * P["tech"][i] + 0.30 * P["expr"][i] + 0.14 * P["comp"][i] + 0.28 * P["aes"][i]
-        return 0.40 * P["tech"][i] + 0.18 * P["comp"][i] + 0.42 * P["aes"][i]
-
-    glob = np.array([blend(i) for i in range(n)])
-    local = glob.copy()
+    global_rank = _pct(absolute)
+    local_rank = global_rank.copy()
     for lab in np.unique(labels):
         idx = np.where(labels == lab)[0]
         if len(idx) >= 3:
-            local[idx] = _pct(glob[idx])
-    out: dict[str, PickInfo] = {}
+            local_rank[idx] = _pct(absolute[idx])
+    out = {}
     for i, fid in enumerate(ids):
-        q = quality[fid]
-        s = 0.6 * glob[i] + 0.4 * local[i]
-        if verdict(q, rules)[0]:  # blurry, eyes closed, … can't be a pick
-            s *= 0.3
-        if has_face[i] and max(f.blink for f in q.faces) > 0.5:
-            s *= 0.5
-        parts = {k: round(float(v[i]), 3) for k, v in P.items()}
+        q, kind = quality[fid], profiles[i]
+        value = .80 * absolute[i] + .10 * global_rank[i] + .10 * local_rank[i]
+        # Relative winners in a technically poor shoot must not become top picks.
+        value *= min(1.0, max(.05, (subject_focus(q, rules) - .10) / .40))
+        rejected = verdict(q, rules)[0]
+        if rejected:
+            value = min(.24, value * .3)
+        parts = {k: round(float(v[i]), 3) for k, v in raw.items()}
+        parts["relative"] = round(float(global_rank[i]), 3)
         reasons = []
-        if parts["tech"] >= 0.8:
-            reasons.append("sharp eyes" if has_face[i] else "tack-sharp")
-        if has_face[i] and parts["expr"] >= 0.8:
-            reasons.append("great expression")
-        if parts["aes"] >= 0.8:
-            reasons.append("beautiful light & mood")
-        if parts["comp"] >= 0.85:
-            reasons.append("strong composition")
-        if (labels == labels[i]).sum() >= 3 and local[i] >= 0.99:
+        if parts["tech"] >= .80:
+            reasons.append("sharp eyes" if q.faces else "clear detail")
+        if q.faces and kind != "fashion" and parts["expr"] >= .8:
+            reasons.append("strong group expressions" if kind == "group" else "natural expression")
+        if parts["light"] >= .65:
+            reasons.append("intentional light")
+        if parts["comp"] >= .70:
+            reasons.append("balanced composition")
+        if parts["aes"] >= .65:
+            reasons.append({"fashion": "pose & styling", "landscape": "depth & focal point"}.get(kind, "strong presentation"))
+        if (labels == labels[i]).sum() >= 3 and local_rank[i] >= .99 and not rejected:
             reasons.insert(0, "best of its scene")
-        out[fid] = PickInfo(round(float(s), 4), parts, reasons[:3])
+        if rejected:
+            reasons.insert(0, "check: " + rejected)
+        if not reasons:
+            reasons.append("balanced quality" if value >= .5 else "review technical quality")
+        out[fid] = PickInfo(round(float(np.clip(value, 0, 1)), 4), parts, reasons[:4], kind)
     return Ranking(out, labels)
 
 
@@ -202,6 +265,8 @@ def select(ids: list[str], ranking: Ranking, E: np.ndarray, n_picks: int) -> lis
     chosen: list[str] = []
 
     def ok(fid: str, respect_quota: bool) -> bool:
+        if info[fid].score < .5:
+            return False
         lab = int(labels[pos[fid]])
         if respect_quota and taken.get(lab, 0) >= quota[lab]:
             return False

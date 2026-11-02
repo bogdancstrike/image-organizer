@@ -63,3 +63,14 @@ def test_group_face_tiles_deduplicate_and_preserve_expression(tmp_path,monkeypat
     assert len(faces)==1 and faces[0].expr=={'gaze':.1} and len(calls)==14
     gray=np.random.default_rng(1).integers(0,255,(200,200),dtype=np.uint8)
     assert sharpness(gray,[Face(.1,.5,.1,(.1,.1,.9,.9))])>0
+
+
+def test_detected_face_eye_focus_is_cached_with_the_new_analysis_version():
+    from app.quality import analyze_image, QUALITY_VERSION
+    face=Face(.1,.8,.25,(.2,.2,.8,.8))
+    analyzer=SimpleNamespace(available=True,detect=lambda rgb:[face])
+    noise=np.random.default_rng(1).integers(0,255,(240,320,3),dtype=np.uint8)
+    result=analyze_image(Image.fromarray(noise),analyzer)
+    assert result.v==QUALITY_VERSION==3 and result.faces[0].sharpness is not None
+    assert result.faces_checked and result.sharpness>0
+    restored=type(result).from_dict(result.to_dict());assert restored.faces[0].sharpness==face.sharpness

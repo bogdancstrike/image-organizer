@@ -19,6 +19,7 @@ export interface Suggestion {
 
 export interface Health {
   status: string;
+  device?: "cpu" | "gpu";
   version: string;
   ai_available: boolean;
   model: string | null;
@@ -56,7 +57,7 @@ export interface JobCategory extends Category {
 }
 
 export interface PlanItem {
-  pick?: { score: number; reasons: string[]; picked: boolean } | null;
+  pick?: { score: number; reasons: string[]; picked: boolean; profile?: string; parts?: Record<string, number> } | null;
   file_id: string;
   rel_path: string;
   name: string;
@@ -109,6 +110,7 @@ export interface QualityOptions {
   tilt_check: boolean;
   tilt_tolerance: number;
   face_crop: boolean;
+  pick_profile: "auto" | "portrait" | "fashion" | "landscape" | "general";
   picks_percent: number;
   similar_any_time: boolean;
   write_xmp: boolean;

@@ -4,13 +4,13 @@ Base URL: `http://localhost:8080`. Interactive docs: **`/docs`** (Swagger UI) an
 
 | Method | Path | Body / query | Returns |
 |---|---|---|---|
-| GET | `/api/health` | | `{status, version, ai_available, model, library_ok, library_name, library_host_path, output_dir}` |
+| GET | `/api/health` | | `{status, version, device, ai_available, model, library_ok, library_name, library_host_path, output_dir, …}` |
 | GET | `/api/folders` | `?path=rel/path` | `{path, name, media_count, folders:[{name, path, media_count, has_children}]}` |
 | GET | `/api/presets` | | `[CategorySet]` |
 | GET | `/api/category-sets` | | custom `[CategorySet]` |
 | POST | `/api/category-sets` | `{name, description?, categories:[{name, emoji?, prompts?}]}` | `201 CategorySet` (`422` on duplicate names) |
 | PUT / DELETE | `/api/category-sets/{id}` | same / – | `CategorySet` / `204` |
-| POST | `/api/jobs` | `JobRequest` | `201 {id}` · `409` if a sort is running · `400` bad folder · `404` unknown set |
+| POST | `/api/jobs` | `JobRequest` | `201 {id}` · `409` if a sort is running · `400` bad folder or AI unavailable for rules · `404` unknown set |
 | GET | `/api/jobs/{id}` | `?plan=false` to omit the plan | `JobSnapshot` |
 | GET | `/api/jobs/{id}/events` | | `text/event-stream`: each `data:` is a JSON **array** of events; ends with `event: end` |
 | POST | `/api/jobs/{id}/cancel` | | `{cancelled}` |
@@ -23,7 +23,7 @@ Base URL: `http://localhost:8080`. Interactive docs: **`/docs`** (Swagger UI) an
 // JobRequest
 {
   "source": "Downloads",          // folder relative to the library root ("" = root)
-  "strategy": "preset",           // preset | custom | auto | date
+  "strategy": "preset",           // preset | custom | auto | date | cull | people | trips | places | rules
   "set_id": "people-style",       // preset or custom set id (preset/custom only)
   "options": {
     "output_dir": "Organized",    // "" = directly in the folder; omit = server default
@@ -37,7 +37,7 @@ Base URL: `http://localhost:8080`. Interactive docs: **`/docs`** (Swagger UI) an
 ### Events
 | type | payload |
 |---|---|
-| `phase` | `phase`: scanning · analyzing · deduplicating · categorizing |
+| `phase` | `phase`: rules (AI instructions) · scanning · analyzing · checking · reading · faces · deduplicating · categorizing · ai |
 | `scanned` | `total, photos, videos, source, source_name` |
 | `file` | `id, kind, rel_path, name, thumb` |
 | `file_error` | `id, rel_path, error` |
@@ -56,3 +56,33 @@ curl -N localhost:8080/api/jobs/$JOB/events          # watch it live
 curl -s localhost:8080/api/jobs/$JOB | jq '.categories'
 curl -s -XPOST localhost:8080/api/jobs/$JOB/apply -H 'Content-Type: application/json' -d '{"mode":"move"}'
 ```
+
+## AI prompt rules
+
+```json
+{
+  "source": "Pictures/Trip",
+  "strategy": "rules",
+  "options": {
+    "rules_prompt": "Landscapes go into landscapes/{date}; everything else into others/{date}",
+    "output_dir": "Organized",
+    "ai": {"model": null, "reasoning_effort": "low", "assist_batch": 12}
+  }
+}
+```
+
+A nonempty `rules_prompt` (max 4,000 characters) is required. Without configured AI the start request returns 400.
+The backend compiles up to 12 rules before scanning. Nested relative destinations are validated strictly; path
+traversal, absolute paths, duplicate destinations and multiple catch-alls fail the job. Dates resolve once at start.
+The compiled rules are persisted in the snapshot request's internal `options._rules` for inspection; clients supply
+only `rules_prompt`. All eligible thumbnails are matched; `ai_max_files` limits optional preset assist, not rule mode.
+AI calls/tokens are included in usage. Matching failures produce `status: error`; Apply returns 409 for failed jobs.
+
+## Culling recommendations
+
+`options.quality.pick_profile`: `auto` (default), `portrait`, `fashion`, `landscape`, or `general`.
+`picks_percent` requests up to 0–50% of eligible keepers. Every ranked photo gets `pick` metadata:
+`{score, profile, reasons, parts, picked}`. Parts include `tech`, `expr`, `comp`, `light`, `aes`, and `relative` (0–1).
+`quality.score` and `quality.stars` use the recommendation score; `keeper_min_stars` applies the same scale.
+With `write_xmp`, ratings match displayed stars, picks receive Green labels and rejects receive rating -1/Red.
+Enabled reject checks remain authoritative. `/api/jobs/{id}/plan` manual changes update pick markers and XMP labels.

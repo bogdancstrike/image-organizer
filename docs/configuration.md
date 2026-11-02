@@ -9,10 +9,11 @@ Every variable is optional.
 | `LIBRARY_NAME` | `Library` | Fallback name for the headline when no folder name is known |
 | `PORT` | `8080` | Host port of the web UI and API |
 | `PUID` / `PGID` | `1000` | User and group the app runs as, so moved files keep your ownership (`id -u`, `id -g`) |
-| `OPENAI_API_KEY` | *(empty)* | Turns on AI cluster naming (Auto mode) and AI assist. Without it everything runs locally. |
+| `OPENAI_API_KEY` | *(empty)* | Required for AI prompt rules; enables optional Auto naming and assist. Local modes work without a key. |
 | `OPENAI_MODEL` | `gpt-6-luna` | Any vision-capable model on the Responses API |
 | `OPENAI_REASONING_EFFORT` | `low` | `low` keeps calls fast and cheap |
 | `OUTPUT_DIR_NAME` | `Organized` | Default name of the subfolder that holds sorted folders (the UI can override it per run) |
+| `DEVICE` | `cpu` | `cpu` or `gpu`; selects the CPU or NVIDIA image and embedding providers |
 | `WORKERS` | `min(8, CPUs)` | Threads for decoding, thumbnails and quality checks |
 
 ## Volumes
@@ -22,11 +23,13 @@ Every variable is optional.
 | `/data` | `cache.db` (analysis cache), `thumbs/`, `journals/` (undo), `category_sets.json`. Safe to delete; it only costs a re-analysis. |
 
 ## Privacy and cost of AI
-- With no key set, **nothing leaves your machine**. CLIP runs locally on the CPU (ONNX).
+- With no key set, **nothing leaves your machine**. CLIP/SigLIP run locally on the selected CPU or GPU (ONNX).
 - **Auto mode** sends one request per sort: a 384×256 contact sheet per discovered group, at `detail: low`.
   A typical run costs about 1–2k tokens in total.
 - **AI assist** (opt-in) sends only the *uncertain* files, as 160 px thumbnails, 12 per request, at most 200 per sort.
 - The key is used only by the backend. The browser only learns `ai_available: true|false`.
+
+- **AI rules** sends one text request to compile the prompt, followed by batches of thumbnails for all non-duplicate files. This strategy requires a key; failures stop the job without applying a partial plan.
 
 ## Per-run options (UI → API)
 | Option | Default | Notes |
@@ -36,6 +39,10 @@ Every variable is optional.
 | `split_media` | `true` | Separate `Photos/` and `Videos/` |
 | `min_confidence` | `0.30` | Below it, a file goes to `Unsorted` |
 | `near_duplicates` | `true` | pHash ≤ 4 **and** CLIP cosine ≥ 0.90 |
+| `rules_prompt` | `""` | Required non-empty instructions for `strategy: "rules"`, up to 4,000 characters |
+| `quality.pick_profile` | `auto` | Auto, portrait, fashion, landscape or general; adapts keeper and top-pick ranking locally |
+| `quality.picks_percent` | `0` | Upper bound on top picks, 0–50%; weak/near-duplicate frames do not fill the quota |
+| `quality.write_xmp` | `false` | Export the same recommendation stars plus Green for picks/Red for rejects on Apply |
 | `ai_assist` | `false` | Needs a key |
 | `max_clusters` | `12` | Auto mode upper bound; the best k is picked by silhouette score |
 | `date_granularity` | `month` | `year`, `month` or `day` |

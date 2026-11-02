@@ -233,8 +233,7 @@ class JobManager:
         self._persist(job)
         return journal
 
-    @staticmethod
-    def _xmp_for(fid, cid, quality, rules, bursts) -> dict | None:
+    def _xmp_for(self, fid, cid, quality, rules, bursts) -> dict | None:
         """Lightroom/Capture One rating & label: rejects -1/Red, picks 5/Green, else stars from the keeper score."""
         q = quality.get(fid)
         if q is None:
@@ -242,9 +241,9 @@ class JobManager:
         rejected = cid in REASONS or cid.startswith("_reject-") or (bursts.get(fid) and not bursts[fid]["best"])
         if rejected:
             return {"rating": -1, "label": "Red"}
-        if cid == "picks":
-            return {"rating": 5, "label": "Green"}
-        return {"rating": stars(score(q, rules)), "label": None}
+        recommended = getattr(self, "_pick_info", {}).get(fid)
+        rating = stars(recommended["score"] if recommended else score(q, rules))
+        return {"rating": rating, "label": "Green" if cid == "picks" else None}
 
     def reassign(self, job_id: str, file_ids: list[str], category_id: str) -> dict:
         """Manual override before Apply: move files to another category of the same job."""
@@ -273,6 +272,12 @@ class JobManager:
             if p["file_id"] in wanted:
                 p.update(category_id=cat["id"], category=cat["name"], source="manual", confidence=1.0,
                          destination=destination(source_rel, out_dir, p["kind"], cat, opts.get("split_media", True)))
+                if p.get("pick"):
+                    p["pick"]["picked"] = cat["id"] == "picks"
+                if p.get("xmp"):
+                    rejected = cat["id"] in REASONS or cat["id"].startswith("_reject-")
+                    p["xmp"] = {"rating": -1 if rejected else (p.get("quality") or {}).get("stars", 1),
+                                "label": "Red" if rejected else "Green" if cat["id"] == "picks" else None}
                 changed.append(p)
         # recount
         counts: dict[str, dict[str, int]] = {}
@@ -559,6 +564,10 @@ class JobManager:
                          if c in cats_by_id] or None,
                 "xmp": self._xmp_for(f.id, cid, quality, rules, bursts) if qopts.get("write_xmp") and f.kind == "image" else None,
             })
+        for item in plan:
+            if item.get("quality") and item.get("pick"):
+                item["quality"]["score"] = item["pick"]["score"]
+                item["quality"]["stars"] = stars(item["pick"]["score"])
         counts: dict[str, dict[str, int]] = {}
         for p in plan:
             c = counts.setdefault(p["category_id"], {"photos": 0, "videos": 0})
@@ -926,6 +935,19 @@ class JobManager:
             picks_pct = float(qopts.get("picks_percent", 0))
             if picks_pct > 0:
                 cats.insert(0, {"id": "picks", "name": "Picks ★", "emoji": "🏆"})
+            photos = [(f.id, e) for f, _, e in keep if f.kind == "image" and f.id in (quality or {})]
+            ids = [fid for fid, _ in photos]
+            E = np.vstack([e for _, e in photos]).astype(np.float32) if photos else np.empty((0, embs.shape[1]))
+            ranking = picks_mod.rank(ids, quality or {}, E, embedder, rules, qopts.get("pick_profile", "auto"))
+            self._pick_info = {fid: {"score": pi.score, "reasons": pi.reasons, "picked": False,
+                                   "parts": pi.parts, "profile": pi.profile} for fid, pi in ranking.info.items()}
+            # Choose the strongest expression/presentation within each burst, not merely its sharpest frame.
+            for group in {b["group"] for b in (bursts or {}).values()}:
+                members = [fid for fid in ids if (bursts or {}).get(fid, {}).get("group") == group]
+                if members:
+                    best = max(members, key=lambda fid: ranking.info[fid].score)
+                    for fid in members:
+                        bursts[fid]["best"] = fid == best
             used: set[str] = set()
             for f, _, _ in keep:
                 if f.kind == "video":
@@ -938,7 +960,7 @@ class JobManager:
                         reason = "burst"
                     if reason:
                         cid = reason
-                    elif min_stars and q and stars(score(q, rules)) < min_stars:
+                    elif min_stars and q and stars(ranking.info[f.id].score if f.id in ranking.info else score(q, rules)) < min_stars:
                         cid = "maybe"
                     else:
                         cid = "smiling" if smiles and smiling else "keepers"
@@ -949,11 +971,12 @@ class JobManager:
                 if kept:
                     ids = [k[0] for k in kept]
                     E = np.vstack([k[1] for k in kept]).astype(np.float32)
-                    ranking = picks_mod.rank(ids, quality, E, embedder, rules)
+                    positions = {fid: i for i, fid in enumerate(ranking.info)}
+                    subset = picks_mod.Ranking(ranking.info, np.array([ranking.labels[positions[fid]] for fid in ids]))
                     n_picks = max(1, round(len(ids) * picks_pct / 100))
-                    chosen = set(picks_mod.select(ids, ranking, E, n_picks))
-                    for fid, pi in ranking.info.items():
-                        self._pick_info[fid] = {"score": pi.score, "reasons": pi.reasons, "picked": fid in chosen, "parts": pi.parts}
+                    chosen = set(picks_mod.select(ids, subset, E, n_picks))
+                    for fid in chosen:
+                        self._pick_info[fid]["picked"] = True
                     for fid in chosen:
                         assignment[fid] = ("picks", ranking.info[fid].score, "quality")
                         used.add("picks")

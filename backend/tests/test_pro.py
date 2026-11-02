@@ -134,7 +134,7 @@ def test_cull_best_of_burst_and_maybe(settings, fake_embedder):
 
         # a soft (but not rejected) frame scores below 5 stars -> "Maybe" when keepers need 5 stars
         Image.open(lib / "solo.jpg").filter(ImageFilter.GaussianBlur(3)).save(lib / "soft.jpg")
-        opts = {"near_duplicates": False, "quality": {"bursts": False, "blur": False, "keeper_min_stars": 5}}
+        opts = {"near_duplicates": False, "quality": {"bursts": False, "blur": False, "keeper_min_stars": 4}}
         job = wait(c, c.post("/api/jobs", json={"strategy": "cull", "options": opts}).json()["id"])
         cat = {p["name"]: p["category"] for p in job["plan"]}
         assert cat["soft.jpg"] == "Maybe" and cat["solo.jpg"] == "Keepers"
@@ -195,10 +195,40 @@ def test_picks_and_xmp_ratings_with_undo(settings, fake_embedder):
         by = {p["name"]: p for p in job["plan"]}
         assert by["soft.jpg"]["xmp"] == {"rating": -1, "label": "Red"}
         pick = next(p for p in job["plan"] if p["category"] == "Picks ★")
-        assert pick["xmp"] == {"rating": 5, "label": "Green"}
+        assert pick["xmp"] == {"rating": pick["quality"]["stars"], "label": "Green"}
+        assert pick["quality"]["score"] == pick["pick"]["score"]
         r = c.post(f"/api/jobs/{job['id']}/apply", json={"mode": "move"}).json()
         assert r["moved"] == 5
         xmp = next(lib.rglob("soft.xmp"))
         assert 'xmp:Rating="-1"' in xmp.read_text() and 'xmp:Label="Red"' in xmp.read_text()
         c.post(f"/api/runs/{r['run_id']}/undo")
         assert not list(lib.rglob("*.xmp")) and (lib / "soft.jpg").exists()
+
+
+def test_cull_recommendations_drive_keeper_thresholds_even_without_picks(settings, fake_embedder):
+    from app.main import create_app
+    from app.quality import stars
+    lib=settings.library_root
+    for i in range(4):
+        _noise(lib/f'landscape{i}.jpg',50+i)
+    with TestClient(create_app(settings,embedder_factory=lambda:fake_embedder,llm_factory=lambda:None)) as c:
+        options={'near_duplicates':False,'quality':{'pick_profile':'landscape','keeper_min_stars':4,'write_xmp':True}}
+        job=wait(c,c.post('/api/jobs',json={'strategy':'cull','options':options}).json()['id'])
+        assert job['status']=='done',job
+        for p in job['plan']:
+            assert p['pick']['profile']=='landscape' and not p['pick']['picked']
+            assert p['quality']['stars']==stars(p['pick']['score'])==p['xmp']['rating']
+            assert (p['category']=='Maybe')==(p['quality']['stars']<4)
+
+
+def test_manual_pick_changes_update_the_recommendation_marker_and_xmp_label(settings,fake_embedder):
+    from app.main import create_app
+    for i in range(4):_noise(settings.library_root/f'keep{i}.jpg',22+i)
+    with TestClient(create_app(settings,embedder_factory=lambda:fake_embedder,llm_factory=lambda:None)) as c:
+        j=wait(c,c.post('/api/jobs',json={'strategy':'cull','options':{'near_duplicates':False,'quality':{'picks_percent':25,'write_xmp':True}}}).json()['id'])
+        picked=next(p for p in j['plan'] if p['category_id']=='picks')
+        r=c.patch(f"/api/jobs/{j['id']}/plan",json={'file_ids':[picked['file_id']],'category_id':'keepers'})
+        assert r.status_code==200,r.text
+        item=r.json()['changed'][0]
+        assert not item['pick']['picked'] and item['xmp']['label'] is None
+        assert item['xmp']['rating']==item['quality']['stars']

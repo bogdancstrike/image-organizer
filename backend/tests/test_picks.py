@@ -50,3 +50,74 @@ def test_select_tells_the_story_and_skips_near_duplicates():
     pos = {f: i for i, f in enumerate(ids)}
     sims = [float(En[pos[a]] @ En[pos[b]]) for i, a in enumerate(picks) for b in picks[i + 1:]]
     assert max(sims) < 0.93  # no two picks are the same frame
+
+
+def test_dark_intentional_photo_is_not_punished_for_mean_brightness():
+    from app.picks import technical
+    lit=q([],sharp=.8);dark=q([],sharp=.8);dark.brightness=.12
+    assert abs(technical(lit)-technical(dark))<.1
+    blown=q([],sharp=.8);blown.bright_clip=.8
+    assert technical(blown)<technical(lit)-.1
+
+
+def test_main_face_preference_and_small_background_faces():
+    from app.quality import QualityRules
+    main=face();background=face(blink=.99);background.area=.001
+    mixed=q([main,background])
+    assert expression(mixed,QualityRules(faces_rule='any'))==expression(q([main]),QualityRules())
+    other=face(blink=.99)
+    assert expression(q([main,other]),QualityRules(faces_rule='main'))>expression(q([main,other]),QualityRules(faces_rule='any'))
+
+
+def test_fashion_profile_does_not_require_eye_contact_or_a_smile():
+    from app.picks import face_expression
+    turned=face(gaze=.9,yaw=.7,smile=0)
+    assert face_expression(turned,'fashion')>face_expression(turned,'portrait')
+
+
+def test_rejected_or_low_scoring_frames_never_fill_the_picks_quota():
+    ids=['bad','good'];E=np.eye(2,dtype=np.float32)
+    info={'bad':PickInfo(.1), 'good':PickInfo(.85)}
+    chosen=select(ids,Ranking(info,np.array([0,1])),E,2)
+    assert chosen==['good']
+
+
+def test_rank_includes_profile_and_absolute_quality_even_for_a_single_photo(fake_embedder):
+    from app.picks import rank
+    from app.quality import QualityRules
+    poor=q([],sharp=.15)
+    rules=QualityRules(blur=False,eyes_closed=False,exposure=False)
+    ranking=rank(['poor'],{'poor':poor},np.array([[1,0,0,.05]],np.float32),fake_embedder,rules,profile='landscape')
+    assert ranking.info['poor'].profile=='landscape'
+    assert ranking.info['poor'].score<.5
+    assert set(ranking.info['poor'].parts)>={'tech','comp','aes','light'}
+
+
+def test_group_focus_uses_the_weakest_important_face_but_honors_main_subject():
+    from app.picks import technical
+    from app.quality import QualityRules
+    main,other=face(),face();main.sharpness=.9;other.sharpness=.2
+    assert technical(q([main,other]),QualityRules(faces_rule='any')) < technical(q([main,other]),QualityRules(faces_rule='main'))-.2
+
+
+def test_semantic_genre_auto_detection_and_fallbacks(fake_embedder,monkeypatch):
+    import app.picks as picks
+    from app.quality import QualityRules
+    E=np.array([[1,0,0,.05],[0,1,0,.05]],np.float32)
+    monkeypatch.setattr(picks,'_semantic',lambda E,e:(np.array([[.01,.97,.01,.01],[.01,.01,.97,.01]]),np.full((2,7),.9)))
+    ranked=picks.rank(['fashion','landscape'],{'fashion':q([face()]),'landscape':q()},E,fake_embedder,QualityRules())
+    assert ranked.info['fashion'].profile=='fashion' and ranked.info['landscape'].profile=='landscape'
+    assert ranked.info['landscape'].score>.65
+    monkeypatch.setattr(picks,'_semantic',lambda *args:(_ for _ in ()).throw(RuntimeError('text tower failed')))
+    fallback=picks.rank(['group'],{'group':q([face(),face()])},E[:1],fake_embedder,QualityRules())
+    assert fallback.info['group'].profile=='group' and np.isfinite(fallback.info['group'].score)
+    assert picks.rank([],{},np.empty((0,4)),fake_embedder,QualityRules()).info=={}
+    import pytest
+    with pytest.raises(ValueError):picks.rank([],{},E,fake_embedder,QualityRules(),profile='bad')
+
+
+def test_scene_assignment_scales_and_keeps_a_small_shoot_together():
+    from app.picks import scenes
+    assert scenes(np.eye(4)).tolist()==[0,0,0,0]
+    rng=np.random.default_rng(12);E=rng.normal(size=(2501,8));E/=np.linalg.norm(E,axis=1,keepdims=True)
+    assert len(scenes(E))==2501

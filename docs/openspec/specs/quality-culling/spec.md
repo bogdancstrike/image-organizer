@@ -21,8 +21,7 @@ largest face when `faces_rule = main`), `too-dark` / `too-bright` (brightness be
 clipped pixels). Each check SHALL be switchable. `smiling` means every considered face smiles ≥ `smile_threshold`.
 
 ### Requirement: REQ-QC-3 Score & stars
-Each photo SHALL get a 0..1 keeper score (sharpness 45%, exposure 15%, eyes open 25%, smile 15% when faces exist; else sharpness 70%,
-exposure 30%; halved when rejected) and 1–5 stars = 1 + round(score × 4).
+Each analyzed photo SHALL get a 0..1 keeper score and 1–5 stars = 1 + round(score × 4). Cull mode SHALL use the genre-aware recommendation score (REQ-QC-8); quality overlays in other strategies retain the technical score.
 
 ### Requirement: REQ-QC-4 Best of burst
 Photos in the same folder taken ≤ `burst_seconds` apart (consecutive by capture time) with CLIP cosine ≥ `burst_similarity` SHALL form a
@@ -44,3 +43,25 @@ With any other strategy and `quality.enabled`, `action = reject` SHALL move reje
 RAW files SHALL be decoded via the embedded preview. A RAW and a same-named JPEG/HEIC in the same folder SHALL be planned as one item
 (the JPEG is analyzed, the RAW travels with it), and sidecars (`.xmp .aae .thm .pp3 .dop`) SHALL move with their photo under the same
 collision-free stem; all moves are journaled and undoable.
+
+
+### Requirement: REQ-QC-8 Explainable genre-aware recommendations
+Cull SHALL rank analyzed photos even when the Picks folder is disabled. Profiles SHALL include auto, portrait,
+fashion, landscape and general. The score SHALL combine technical focus/clipping/noise, expression when relevant,
+composition, light and semantic presentation, with absolute and relative shoot/scene quality. Group and main-subject
+preferences SHALL apply to both expressions and per-face eye-region focus. Fashion SHALL not require eye contact
+or a smile. Mean brightness alone SHALL not penalize low-key work.
+
+Top picks SHALL exclude enabled technical rejects, candidates below minimum recommendation quality and near-duplicates.
+The requested percentage SHALL be an upper bound. Scene coverage SHALL favor useful variety. Review SHALL support
+recommendation sorting and Top picks filtering; the viewer SHALL expose profile, components and reasons.
+
+#### Scenario: Group photo with an out-of-focus important face
+- WHEN two sizable faces have different eye focus
+- THEN group ranking accounts for the weak face
+- AND main-subject mode can use the largest face independently
+
+### Requirement: REQ-QC-9 Consistent stars and labels
+Keeper thresholds, displayed stars and exported XMP SHALL use the same recommendation score in Cull mode.
+Picks SHALL receive Green labels, rejects SHALL receive rating -1/Red, and manual reassignment SHALL update the
+pick marker and exported label. Undo SHALL restore originals and remove generated sidecars.

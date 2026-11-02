@@ -648,6 +648,21 @@ export function SettingsPanel({
         </Check>
         {settings.strategy === "cull" && (
           <>
+            <Row label="Recommendation profile" hint="adapts keeper ratings and top picks to the kind of photography">
+              <Select aria-label="Recommendation profile" className="w-full" value={Q.pick_profile ?? "auto"}
+                onChange={(v) => setQ({ pick_profile: v })}
+                options={[
+                  { value: "auto", label: "Auto · detect per photo" },
+                  { value: "portrait", label: "Portrait · eyes, expression, light" },
+                  { value: "fashion", label: "Fashion / modeling · pose, styling, light" },
+                  { value: "landscape", label: "Landscape · detail, depth, light" },
+                  { value: "general", label: "General · detail, composition, story" },
+                ]} />
+              <p className="mt-2 text-[11px] leading-relaxed text-plum/55">
+                Scores combine technical quality, expression, composition and local AI presentation signals.
+                Picks favor variety and skip near-duplicates. Review the reasons in the photo viewer.
+              </p>
+            </Row>
             <Check label="★ Picks folder" hint="the very best keepers" on={Q.picks_percent > 0} set={(v) => setQ({ picks_percent: v ? 20 : 0 })}>
               <Row label="Share of keepers" hint={`top ${Q.picks_percent}%`}>
                 <Slider min={5} max={50} step={5} value={Q.picks_percent || 20} onChange={(v) => setQ({ picks_percent: v })} />
@@ -843,6 +858,9 @@ export function SettingsPanel({
         </Row>
         <Row label="Mounted library" inline>
           <span className="max-w-72 truncate font-mono text-xs text-plum/70">{health?.library_host_path ?? "/library"}</span>
+        </Row>
+        <Row label="Recognition device" inline>
+          <Tag>{health?.device === "gpu" ? "NVIDIA GPU · CUDA" : "CPU (default)"}</Tag>
         </Row>
         <Row label="Engines" inline>
           <span className="flex flex-wrap justify-end gap-1">

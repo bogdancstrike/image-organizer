@@ -58,6 +58,7 @@ class QualityOptions(BaseModel):
     tilt_check: bool = False  # experimental: consistent horizon lines leaning 1.5–8°
     tilt_tolerance: float = Field(1.5, ge=0.5, le=8.0)
     face_crop: bool = False
+    pick_profile: Literal["auto", "portrait", "fashion", "landscape", "general"] = "auto"
     picks_percent: float = Field(0, ge=0, le=50)  # cull: top X% of keepers go to "Picks ★"
     similar_any_time: bool = False  # best-of-similar regardless of time, not just bursts
     write_xmp: bool = False  # on apply, write .xmp sidecars with star rating and color label

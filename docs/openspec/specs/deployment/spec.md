@@ -18,7 +18,7 @@ The compose file SHALL mount:
 
 ### Requirement: REQ-DEP-4 Configuration
 The service SHALL read `.env` if it exists (`required: false`). Variables:
-`OPENAI_API_KEY` (optional), `OPENAI_MODEL` (default `gpt-5.6-luna`), `OPENAI_REASONING_EFFORT` (default `low`),
+`OPENAI_API_KEY` (optional), `OPENAI_MODEL` (default `gpt-6-luna`), `OPENAI_REASONING_EFFORT` (default `low`),
 `LIBRARY_PATH`, `PORT`, `PUID`, `PGID`, `WORKERS` (analysis threads), `OUTPUT_DIR_NAME` (default `Organized`).
 The key SHALL never reach the browser; the UI only learns whether AI is available.
 
@@ -27,3 +27,15 @@ The key SHALL never reach the browser; the UI only learns whether AI is availabl
 
 ### Requirement: REQ-DEP-6 Tests in container
 `docker compose run --rm organizer pytest -q` SHALL run the backend test suite inside the image.
+
+
+### Requirement: REQ-DEP-7 Optional GPU
+`DEVICE` SHALL default to `cpu`; `gpu` SHALL select a CUDA image and reserve one NVIDIA GPU through the same
+Compose command. Both CLIP and SigLIP 2 text/image towers SHALL use explicit providers. CPU mode SHALL not
+select GPUs automatically. Missing/failed CUDA SHALL produce a clear error rather than silent CPU fallback.
+Health SHALL report the configured device; analysis cache SHALL remain reusable across devices.
+
+### Requirement: REQ-DEP-8 Coverage gates
+CI SHALL enforce at least 90% line coverage separately for backend and frontend application source and publish
+separate coverage reports. Frontend statement coverage SHALL also reach 90%. Paid API and GPU calls SHALL be
+mocked at their boundaries in deterministic tests; optional real smoke checks supplement those tests.

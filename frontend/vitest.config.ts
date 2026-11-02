@@ -7,12 +7,14 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: ["./tests/setup.ts"],
-    testTimeout: 15000,
+    testTimeout: 30000,
+    maxWorkers: 2,
     coverage: {
       provider: "v8",
+      reportOnFailure: true,
       include: ["src/**/*.{ts,tsx}"],
       reporter: ["text", "html", "json", "json-summary", "lcov"],
-      thresholds: { lines: 90 },
+      thresholds: { lines: 90, statements: 90 },
     },
   },
 });

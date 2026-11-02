@@ -99,7 +99,24 @@ Answers that do not match a category name SHALL be treated as `Unsorted`.
 - THEN the file is assigned to "Food & cafés" with `source: "ai"`
 
 ### Requirement: REQ-CAT-9 LLM efficiency and resilience
-Every OpenAI request SHALL use the Responses API with the configured model (default `gpt-5.6-luna`),
+Every OpenAI request SHALL use the Responses API with the configured model (default `gpt-6-luna`),
 `reasoning.effort=low`, `detail=low` images, a JSON output format, and a ≤ 60 s timeout.
-On any OpenAI error the system SHALL fall back to the local behavior and record a warning on the job. It SHALL NOT fail the run.
+Optional naming/assist failures SHALL fall back to local behavior with a warning. The explicitly AI-powered rules strategy SHALL fail visibly if compilation or matching fails; no partial plan may be applied.
 Token usage SHALL be summed and reported on the job.
+
+
+### Requirement: REQ-CAT-10 AI prompt rules
+The `rules` strategy SHALL require a nonempty `options.rules_prompt` and configured AI. The model SHALL compile
+up to 12 conditions and relative destinations before scanning, then match all eligible thumbnails in batches.
+Destinations SHALL reject traversal/absolute paths, ambiguous duplicate paths and multiple catch-alls. Date placeholders
+SHALL resolve at job start. An explicit catch-all handles unmatched files; otherwise Unsorted does. Rule destinations
+SHALL bypass media prefixes and remain inside the selected output root. Usage and the resulting plan SHALL persist.
+
+#### Scenario: Nested dated routing
+- WHEN instructions request landscapes into landscapes/{date} and everything else into others/{date}
+- THEN a landscape and another photo receive those dated destinations, with no files moved before Apply
+- AND Apply followed by Undo restores the original library
+
+#### Scenario: Unsafe or incomplete model output
+- WHEN AI emits an absolute/traversal destination or incomplete/invalid matches
+- THEN the job fails, retains no applicable partial plan, and Apply returns 409

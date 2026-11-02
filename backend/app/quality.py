@@ -37,6 +37,7 @@ class Face:
     box: tuple[float, float, float, float]  # x0, y0, x1, y1 normalized
     # expression (MediaPipe blendshapes + head pose), 0..1: gaze away from camera, mouth open (mid-word), frown, squint, head turn
     expr: dict | None = None
+    sharpness: float | None = None  # focus in this face's eye region; None for unreadably small detections
 
 
 @dataclass
@@ -61,7 +62,7 @@ class Quality:
                    d.get("noise", 0.0), d.get("tilt"), d.get("v", 1))
 
 
-QUALITY_VERSION = 2  # 2: per-face expression (gaze, mouth, frown, squint, head turn)
+QUALITY_VERSION = 3  # 3: per-face eye-region sharpness for group and main-subject ranking
 
 
 def _expression(sc: dict, lms) -> dict:
@@ -279,6 +280,12 @@ def analyze_image(img: Image.Image, faces: FaceAnalyzer | None) -> Quality:
     gray.thumbnail((512, 512))
     g = np.asarray(gray)
     lum = g.astype(np.float32) / 255.0
+    for face in found:
+        x0, y0, x1, y1 = face.box
+        crop = g[int(y0 * g.shape[0]):int((y0 + (y1 - y0) * .6) * g.shape[0]) + 1,
+                 int(x0 * g.shape[1]):int(x1 * g.shape[1]) + 1]
+        if crop.size >= 400:
+            face.sharpness = round(_norm_sharp(_lap_var(crop)), 4)
     return Quality(
         noise=round(noise_sigma(g), 4),
         tilt=horizon_tilt(g),

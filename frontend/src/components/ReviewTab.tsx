@@ -16,7 +16,7 @@ interface Props {
   onChanged: (changed: PlanItem[], categories: JobCategory[]) => void;
 }
 
-type Filter = "all" | "rejects" | "smiling" | "unsure" | "ai" | "manual" | "bursts";
+type Filter = "all" | "rejects" | "smiling" | "unsure" | "ai" | "manual" | "bursts" | "picks";
 
 /** The whole plan as a table: filter, inspect, and reassign files before Apply. */
 export function ReviewTab({ jobId, editable, plan, categories, onChanged }: Props) {
@@ -41,6 +41,7 @@ export function ReviewTab({ jobId, editable, plan, categories, onChanged }: Prop
       if (filter === "unsure" && !(p.category_id === "_unsorted" || (p.source === "clip" && p.confidence < 0.45))) return false;
       if (filter === "ai" && p.source !== "ai") return false;
       if (filter === "manual" && p.source !== "manual") return false;
+      if (filter === "picks" && !p.pick?.picked) return false;
       if (filter === "bursts" && !p.burst) return false;
       return true;
     });
@@ -134,6 +135,14 @@ export function ReviewTab({ jobId, editable, plan, categories, onChanged }: Prop
         ),
     },
     {
+      title: "Recommendation", key: "recommendation", width: 140,
+      defaultSortOrder: plan.some((p) => p.pick) ? "descend" : undefined,
+      sorter: (a, b) => (a.pick?.score ?? -1) - (b.pick?.score ?? -1),
+      render: (_, p) => p.pick ? <Tooltip title={`${p.pick.profile ?? "general"}: ${p.pick.reasons.join(" · ")}`}>
+        <span className="text-xs tabular-nums">{p.pick.picked ? "★ " : ""}{Math.round(p.pick.score * 100)}/100</span>
+      </Tooltip> : <span className="text-plum/30">–</span>,
+    },
+    {
       title: "Rating",
       key: "stars",
       width: 120,
@@ -197,6 +206,7 @@ export function ReviewTab({ jobId, editable, plan, categories, onChanged }: Prop
           onChange={(v) => setFilter(v as Filter)}
           options={[
             { value: "all", label: t("rv.everything") },
+            { value: "picks", label: "Top picks" },
             { value: "unsure", label: t("rv.unsure") },
             { value: "rejects", label: t("rv.rejects") },
             { value: "smiling", label: t("rv.smiling") },
