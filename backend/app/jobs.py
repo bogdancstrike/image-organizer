@@ -32,7 +32,7 @@ from PIL import Image, ImageOps
 from .library import add_places, locate_files, trips_for
 from . import picks as picks_mod
 
-from .people import (FaceID, assign_by_appearance, cluster_people, face_crop_webp, get_face_identifier, man_probability,
+from .people import (IDENTITY_VERSION, FaceID, match_identity, assign_by_appearance, cluster_people, face_crop_webp, get_face_identifier, man_probability,
                      person_presence, text_bank)
 from .planner import DUPLICATES, UNSORTED, destination
 from .presets import FOCUS_FACETS, FOCUS_HINT, VOCABULARY
@@ -567,6 +567,7 @@ class JobManager:
         for item in plan:
             if item.get("quality") and item.get("pick"):
                 item["quality"]["score"] = item["pick"]["score"]
+                item["quality"]["rating"] = round(1 + item["pick"]["score"] * 4, 2)
                 item["quality"]["stars"] = stars(item["pick"]["score"])
         counts: dict[str, dict[str, int]] = {}
         for p in plan:
@@ -678,14 +679,14 @@ class JobManager:
 
         def one(f: MediaFile):
             cached = self.cache.get_json("faceid", str(f.path), f.size, f.mtime)
-            if cached is not None:
-                return f, [FaceID.from_dict(d) for d in cached]
+            if isinstance(cached, dict) and cached.get("v", 0) >= IDENTITY_VERSION:
+                return f, [FaceID.from_dict(d) for d in cached["faces"]]
             try:
                 found = ident.identify(load_for_quality(f.path, 1600))
             except Exception as exc:  # noqa: BLE001
                 log.warning("face id failed for %s: %s", f.rel_path, exc)
                 return f, []
-            self.cache.put_json("faceid", str(f.path), f.size, f.mtime, [x.to_dict() for x in found])
+            self.cache.put_json("faceid", str(f.path), f.size, f.mtime, {"v": IDENTITY_VERSION, "faces": [x.to_dict() for x in found]})
             return f, found
 
         out = {}
@@ -720,7 +721,10 @@ class JobManager:
         log.info("appearance: people gender=%s, candidates=%d, present=%d, matched=%d", [round(x, 2) for x in proto_man],
                  len(cand), int((present >= 0.45).sum()), sum(1 for r in res if r[0] >= 0))
         for f, p, (best, sc, close) in zip(cand, present, res):
-            if p < 0.45 or best < 0:
+            if p < 0.45:
+                continue
+            if best < 0:
+                assignment[f.id] = ("other-people", round(float(p), 4), "appearance")
                 continue
             assignment[f.id] = (f"person-{best + 1}", round(float(min(1.0, max(0.0, 0.5 + sc))), 4), "appearance")
             if multi == "copy":
@@ -814,8 +818,19 @@ class JobManager:
                 group_ids.add(f.id)
             else:
                 main[f.id] = biggest
-        ids = list(main)
-        labels = cluster_people(np.vstack([main[i].emb for i in ids]) if ids else np.zeros((0, 128)), threshold)
+        ids = [fid for fid, face in main.items() if face.reliable]
+        vectors = np.vstack([main[i].emb for i in ids]) if ids else np.zeros((0, 128))
+        constraints = []
+        # Distinct reliable people in the same image must not collapse into a single identity.
+        for index, fid in enumerate(ids):
+            for face in faces.get(fid) or []:
+                if face is main[fid] or not face.reliable or float(face.emb @ main[fid].emb) >= threshold:
+                    continue
+                scores = vectors @ face.emb
+                best = int(scores.argmax())
+                if best != index and scores[best] >= .50:
+                    constraints.append((index, best))
+        labels = cluster_people(vectors, threshold, constraints)
         members: dict[int, list[str]] = {}
         for fid, lab in zip(ids, labels):
             members.setdefault(int(lab), []).append(fid)
@@ -841,21 +856,27 @@ class JobManager:
             cats.append({"id": cid, "name": f"Person {n}", "emoji": "🙂", "cover": cover})
             for fid in m:
                 assignment[fid] = (cid, 1.0, "faces")
+        galleries = [np.vstack([main[fid].emb for fid in members]) for members in people]
+        for fid, face in main.items():
+            if fid in assignment:
+                continue
+            best, confidence = match_identity(face.emb, galleries, threshold)
+            if best >= 0:
+                assignment[fid] = (f"person-{best + 1}", round(confidence, 4), "faces")
         if multi == "copy":
             # every other sizable face that matches a person → extra copy of the photo into that person's folder
-            protos = {f"person-{n}": np.vstack([main[i].emb for i in m]).mean(axis=0) for n, m in enumerate(people, 1)}
             for f, _, _ in keep:
                 fs = faces.get(f.id) or []
                 if len(fs) < 2:
                     continue
                 biggest = max(fs, key=lambda x: x.area)
-                for x in fs:
-                    if x is biggest or x.area < biggest.area * 0.25:
+                for face in fs:
+                    if face is biggest or face.area < biggest.area * .25:
                         continue
-                    best = max(protos.items(), key=lambda kv: float(x.emb @ (kv[1] / (np.linalg.norm(kv[1]) or 1))), default=None)
-                    if best and float(x.emb @ (best[1] / (np.linalg.norm(best[1]) or 1))) >= threshold:
-                        if assignment.get(f.id, (None,))[0] != best[0]:
-                            self._extra.setdefault(f.id, set()).add(best[0])
+                    best, _ = match_identity(face.emb, galleries, threshold)
+                    cid = f"person-{best + 1}"
+                    if best >= 0 and assignment.get(f.id, (None,))[0] != cid:
+                        self._extra.setdefault(f.id, set()).add(cid)
         # people whose face can't be seen (back, far away, hands, veil…): match by appearance + man/woman cue
         if people and embedder is not None and opts.get("people_appearance", True):
             try:
@@ -932,15 +953,18 @@ class JobManager:
             for reason, (name, emoji) in REASONS.items():
                 cats.append({"id": reason, "name": name, "emoji": emoji})
             cats.append({"id": "videos", "name": "Videos", "emoji": "🎬", "media": "video"})
-            picks_pct = float(qopts.get("picks_percent", 0))
-            if picks_pct > 0:
-                cats.insert(0, {"id": "picks", "name": "Picks ★", "emoji": "🏆"})
+            pick_rating = float(qopts.get("pick_min_rating", 4.5))
+            keeper_rating = float(qopts.get("keeper_min_rating", 4.0))
+            if min_stars:
+                keeper_rating = min(pick_rating, float(min_stars))
+            cats.insert(0, {"id": "picks", "name": "Picks ★", "emoji": "🏆"})
+            cats.append({"id": "alternates", "name": "Similar alternatives", "emoji": "🎞️"})
             photos = [(f.id, e) for f, _, e in keep if f.kind == "image" and f.id in (quality or {})]
             ids = [fid for fid, _ in photos]
             E = np.vstack([e for _, e in photos]).astype(np.float32) if photos else np.empty((0, embs.shape[1]))
             ranking = picks_mod.rank(ids, quality or {}, E, embedder, rules, qopts.get("pick_profile", "auto"))
             self._pick_info = {fid: {"score": pi.score, "reasons": pi.reasons, "picked": False,
-                                   "parts": pi.parts, "profile": pi.profile} for fid, pi in ranking.info.items()}
+                                   "parts": pi.parts, "profile": pi.profile, "rating": round(1 + pi.score * 4, 2)} for fid, pi in ranking.info.items()}
             # Choose the strongest expression/presentation within each burst, not merely its sharpest frame.
             for group in {b["group"] for b in (bursts or {}).values()}:
                 members = [fid for fid in ids if (bursts or {}).get(fid, {}).get("group") == group]
@@ -960,26 +984,27 @@ class JobManager:
                         reason = "burst"
                     if reason:
                         cid = reason
-                    elif min_stars and q and stars(ranking.info[f.id].score if f.id in ranking.info else score(q, rules)) < min_stars:
+                    elif q and self._pick_info.get(f.id, {"rating": round(1 + score(q, rules) * 4, 2)})["rating"] < keeper_rating:
                         cid = "maybe"
                     else:
                         cid = "smiling" if smiles and smiling else "keepers"
                 assignment[f.id] = (cid, 1.0, "quality")
                 used.add(cid)
-            if picks_pct > 0:
-                kept = [(f.id, e) for f, _, e in keep if assignment[f.id][0] in ("keepers", "smiling") and f.id in (quality or {})]
-                if kept:
-                    ids = [k[0] for k in kept]
-                    E = np.vstack([k[1] for k in kept]).astype(np.float32)
-                    positions = {fid: i for i, fid in enumerate(ranking.info)}
-                    subset = picks_mod.Ranking(ranking.info, np.array([ranking.labels[positions[fid]] for fid in ids]))
-                    n_picks = max(1, round(len(ids) * picks_pct / 100))
-                    chosen = set(picks_mod.select(ids, subset, E, n_picks))
-                    for fid in chosen:
-                        self._pick_info[fid]["picked"] = True
-                    for fid in chosen:
-                        assignment[fid] = ("picks", ranking.info[fid].score, "quality")
-                        used.add("picks")
+            eligible = [(fid, e) for fid, e in photos if assignment[fid][0] in ("keepers", "smiling")
+                        and self._pick_info[fid]["rating"] >= pick_rating]
+            if eligible:
+                selected_ids = [fid for fid, _ in eligible]
+                selected_E = np.vstack([e for _, e in eligible])
+                positions = {fid: i for i, fid in enumerate(ranking.info)}
+                subset = picks_mod.Ranking(ranking.info, np.array([ranking.labels[positions[fid]] for fid in selected_ids]))
+                chosen = set(picks_mod.select(selected_ids, subset, selected_E, len(selected_ids), min_score=0.0))
+                for fid in selected_ids:
+                    cid = "picks" if fid in chosen else "alternates"
+                    assignment[fid] = (cid, ranking.info[fid].score, "quality")
+                    self._pick_info[fid]["picked"] = fid in chosen
+                    if fid not in chosen:
+                        self._pick_info[fid]["reasons"] = ["similar to a stronger pick", *self._pick_info[fid]["reasons"]][:4]
+                    used.add(cid)
             return assignment, [c for c in cats if c["id"] in used]
 
         if strategy in ("trips", "places"):

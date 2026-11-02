@@ -51,6 +51,7 @@ class Quality:
     noise: float = 0.0  # Immerkær noise sigma (0..1), edges excluded
     tilt: float | None = None  # degrees of a consistent near-horizontal line structure, None if there is none
     v: int = 1  # analysis version: cached entries older than QUALITY_VERSION are recomputed
+    features: dict[str, float] = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -59,10 +60,10 @@ class Quality:
     def from_dict(cls, d: dict) -> "Quality":
         faces = [Face(**{**f, "box": tuple(f["box"])}) for f in d.get("faces", [])]
         return cls(d["sharpness"], d["brightness"], d["dark_clip"], d["bright_clip"], faces, d.get("faces_checked", False),
-                   d.get("noise", 0.0), d.get("tilt"), d.get("v", 1))
+                   d.get("noise", 0.0), d.get("tilt"), d.get("v", 1), d.get("features", {}))
 
 
-QUALITY_VERSION = 3  # 3: per-face eye-region sharpness for group and main-subject ranking
+QUALITY_VERSION = 4  # 4: multiscale detail, saliency balance and subject separation
 
 
 def _expression(sc: dict, lms) -> dict:
@@ -262,6 +263,43 @@ def get_face_analyzer() -> FaceAnalyzer:
         return _face_analyzer
 
 
+def perceptual_signals(gray: np.ndarray, faces: list[Face]) -> dict[str, float]:
+    """Lightweight image-quality heuristics, not a calibrated aesthetic predictor."""
+    import cv2
+
+    g = gray.astype(np.float32)
+    if min(g.shape) < 8:
+        return {"detail": .5, "balance": .5, "separation": .5}
+    fine = _lap_var(g)
+    coarse = _lap_var(cv2.resize(g, None, fx=.5, fy=.5, interpolation=cv2.INTER_AREA))
+    detail = min(1.0, coarse / (fine * .5 + 1e-6)) if fine > 1 else 0.0
+    gx = cv2.Sobel(g, cv2.CV_32F, 1, 0)
+    gy = cv2.Sobel(g, cv2.CV_32F, 0, 1)
+    energy = np.hypot(gx, gy)
+    total = float(energy.sum())
+    h, w = g.shape
+    if total < 1e-6:
+        return {"detail": round(detail, 3), "balance": .5, "separation": .5}
+    yy, xx = np.mgrid[:h, :w]
+    cx, cy = float((xx * energy).sum() / total / w), float((yy * energy).sum() / total / h)
+    distance = min(math.hypot(cx - x, cy - y) for x, y in ((.5,.5),(1/3,1/3),(2/3,1/3),(1/3,2/3),(2/3,2/3)))
+    border = np.ones((h,w),bool); border[h//10:-h//10, w//10:-w//10] = False
+    edge_ratio = float(energy[border].mean()) / (float(energy[~border].mean()) + 1e-6)
+    balance = np.clip(1 - distance * 1.5 - max(0, edge_ratio - 1.5) * .15, 0, 1)
+    mask = np.zeros((h,w),bool)
+    for face in faces:
+        x0,y0,x1,y1=face.box
+        mask[max(0,int(y0*h)):min(h,int(y1*h)+1), max(0,int(x0*w)):min(w,int(x1*w)+1)] = True
+    if mask.any() and (~mask).any():
+        ratio = float(energy[mask].mean()) / (float(energy[~mask].mean()) + 1e-6)
+    else:
+        cutoff = np.percentile(energy, 75)
+        salient = energy >= cutoff
+        ratio = float(energy[salient].mean()) / (float(energy[~salient].mean()) + 1e-6) if (~salient).any() else 1.0
+    separation = np.clip(ratio / (ratio + 2), 0, 1)
+    return {"detail": round(float(detail),3), "balance": round(float(balance),3), "separation": round(float(separation),3)}
+
+
 def analyze_image(img: Image.Image, faces: FaceAnalyzer | None) -> Quality:
     """img: RGB, any size (it is reduced here)."""
     big = img.convert("RGB")
@@ -287,6 +325,7 @@ def analyze_image(img: Image.Image, faces: FaceAnalyzer | None) -> Quality:
         if crop.size >= 400:
             face.sharpness = round(_norm_sharp(_lap_var(crop)), 4)
     return Quality(
+        features=perceptual_signals(g, found),
         noise=round(noise_sigma(g), 4),
         tilt=horizon_tilt(g),
         sharpness=round(sharpness(g, found), 4),
@@ -411,6 +450,7 @@ def summary(q: Quality, r: QualityRules) -> dict:
     sc = score(q, r)
     return {
         "score": sc,
+        "rating": round(1 + sc * 4, 2),
         "stars": stars(sc),
         "sharpness": q.sharpness,
         "brightness": q.brightness,

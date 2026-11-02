@@ -75,7 +75,7 @@ Open **http://localhost:8080**, click the folder name in *"Sorting my **…** fo
 | **Auto-discover** | Groups found automatically, named by **what makes them different** inside your folder | Unknown dumps, a studio shoot, a wedding |
 | **AI prompt rules** | Describe subjects and destinations, e.g. “landscapes → landscapes/{date}; everything else → others/{date}”; AI proposes a validated plan | Personal filing rules (requires OpenAI key) |
 | **By date** | `2025/07 - July` from EXIF / video metadata | Archives |
-| **By person** | One folder per recognized person + Groups, Other people, No people. People whose face isn't visible (back, far away, hands, veil) are matched by look and gender. Group photos: main face only, or a copy for every person. Or **upload a face** and move only that person's photos | Families, events, model shoots |
+| **By person** | One folder per recognized person + Groups, Other people, No people. Clear faces anchor identities; pose fragments are consolidated using cluster evidence. Uncertain face matches stay in Other people; faceless photos can be matched by appearance. Group photos: main face only, or a copy for every person. Or **upload a face** and move only that person's photos | Families, events, model shoots |
 | **By trip** | Trips from GPS + dates, named like *Rome · May 2025*, plus *Everyday* | Phone camera rolls, travel |
 | **By place** | One folder per country or city (offline reverse geocoding) | Travel archives |
 | **Cull** | Picks ★ · Keepers · Smiling · Maybe · Blurry · Eyes closed · Too dark/bright · Noisy · Burst extras | Photographers |
@@ -99,13 +99,15 @@ groups like *Full-body · Golden hour* or *Close-up · Low-key*, not "Wedding" f
 | **Best of burst** | Near-identical frames shot seconds apart: keep the best, set the rest aside |
 | **Score & stars** | Genre-aware recommendations combine technical quality, expression, composition, light and presentation; the same score drives stars, *Maybe* thresholds and XMP ratings |
 | **Noise · tilted horizon · face cut off** | Opt-in checks: Immerkær noise estimate, consistent horizon lines (beta), faces touching the frame |
-| **Picks ★** | Up to X % of eligible keepers, spread across scenes and without near-duplicates. Portrait, fashion/modeling, landscape and general profiles; Auto detects the likely genre locally |
+| **Picks ★** | At least 4.5/5 by default; Keepers are 4.0–under 4.5/5. Both thresholds are adjustable in Quick settings. High-rated near-duplicates go to Similar alternatives. Portrait, fashion/modeling, landscape and general profiles; Auto detects the likely genre locally |
 | **Best of similar** | Like best-of-burst, but for near-identical shots taken at any time |
 | **Lightroom / Capture One** | On Apply, write `.xmp` sidecars with ★ ratings and color labels (picks Green, rejects Red); removed on Undo |
 | **RAW workflow** | `.ARW .CR2 .CR3 .NEF .DNG .RAF …` read through the embedded preview; **RAW + JPEG pairs and `.xmp` sidecars move together** |
 
 **Why these picks?** Review sorts by recommendation score and has a **Top picks** filter. Open a photo to see its
-profile, technical/expression/composition/light/presentation components and short reasons. Group photos consider
+profile, decimal rating, technical/expression/composition/light/presentation components and short reasons.
+Multiscale detail, edge balance and subject/background separation add pixel-level evidence. Folder grids sort by
+score descending by default; switch to ascending from the folder’s score control. Group photos consider
 important faces together, or your selected main subject. Fashion poses need not smile or look straight at the camera.
 Low-key images are not penalized simply for being dark. Picks are recommendations for your review, not an objective
 beauty score. Read the [research and scoring policy](docs/culling-research.md).

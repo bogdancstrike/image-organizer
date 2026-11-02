@@ -57,7 +57,7 @@ export interface JobCategory extends Category {
 }
 
 export interface PlanItem {
-  pick?: { score: number; reasons: string[]; picked: boolean; profile?: string; parts?: Record<string, number> } | null;
+  pick?: { rating?: number; score: number; reasons: string[]; picked: boolean; profile?: string; parts?: Record<string, number> } | null;
   file_id: string;
   rel_path: string;
   name: string;
@@ -76,6 +76,7 @@ export interface PlanItem {
 }
 
 export interface QualitySummary {
+  rating?: number;
   score: number;
   stars: number;
   sharpness: number;
@@ -105,6 +106,8 @@ export interface QualityOptions {
   burst_seconds: number;
   burst_similarity: number;
   keeper_min_stars: number;
+  pick_min_rating: number;
+  keeper_min_rating: number;
   noise_check: boolean;
   noise_threshold: number;
   tilt_check: boolean;

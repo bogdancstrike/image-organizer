@@ -90,3 +90,17 @@ it('adjusts numeric thresholds, recommendation profile and generation settings',
  await screen.findByDisplayValue('Sort {count}');fireEvent.change(screen.getByDisplayValue('Sort {count}'),{target:{value:'Sort carefully'}});expect(saved().ai.assist_prompt).toBe('Sort carefully');
  fireEvent.click(screen.getByText('System',{exact:true,selector:'button'}));expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled();
 });
+
+it('keeps adjustable Picks and Keepers rating bands ordered',()=>{
+ renderUI(<Panel initial={{...DEFAULT_SETTINGS,strategy:'cull'}}/>);
+ const picks=screen.getByRole('spinbutton',{name:'Picks from'});
+ const keepers=screen.getByRole('spinbutton',{name:'Keepers from'});
+ expect(picks).toHaveValue('4.5');expect(keepers).toHaveValue('4.0');
+ fireEvent.change(picks,{target:{value:'3.5'}});
+ expect(saved().quality.pick_min_rating).toBe(3.5);expect(saved().quality.keeper_min_rating).toBe(3.5);
+ fireEvent.change(keepers,{target:{value:'4.2'}});
+ expect(saved().quality.keeper_min_rating).toBe(4.2);expect(saved().quality.pick_min_rating).toBe(4.2);
+ fireEvent.change(picks,{target:{value:'4.8'}});
+ expect(saved().quality.keeper_min_rating).toBe(4.2);expect(saved().quality.pick_min_rating).toBe(4.8);
+ expect(saved().quality.keeper_min_stars).toBe(0);
+});

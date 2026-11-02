@@ -46,14 +46,17 @@ collision-free stem; all moves are journaled and undoable.
 
 
 ### Requirement: REQ-QC-8 Explainable genre-aware recommendations
-Cull SHALL rank analyzed photos even when the Picks folder is disabled. Profiles SHALL include auto, portrait,
+Cull SHALL rank analyzed photos. Profiles SHALL include auto, portrait,
 fashion, landscape and general. The score SHALL combine technical focus/clipping/noise, expression when relevant,
 composition, light and semantic presentation, with absolute and relative shoot/scene quality. Group and main-subject
 preferences SHALL apply to both expressions and per-face eye-region focus. Fashion SHALL not require eye contact
 or a smile. Mean brightness alone SHALL not penalize low-key work.
 
 Top picks SHALL exclude enabled technical rejects, candidates below minimum recommendation quality and near-duplicates.
-The requested percentage SHALL be an upper bound. Scene coverage SHALL favor useful variety. Review SHALL support
+Picks SHALL require at least 4.5/5 and Keepers 4.0–under 4.5/5 by default; Quick settings SHALL allow both
+thresholds to be adjusted while keeping the lower threshold no higher than the upper. High-rated redundant frames
+SHALL go to Similar alternatives. Folder grids SHALL sort by score descending by default with an ascending option.
+Scene coverage SHALL favor useful variety. Review SHALL support
 recommendation sorting and Top picks filtering; the viewer SHALL expose profile, components and reasons.
 
 #### Scenario: Group photo with an out-of-focus important face

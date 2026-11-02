@@ -429,7 +429,7 @@ THEMES: list[tuple[str, str]] = [
 RECIPES: list[dict] = [
     {"id": "camera-roll", "emoji": "📱", "strategy": "preset", "set_id": "lifestyle", "options": {}},
     {"id": "photoshoot", "emoji": "📸", "strategy": "cull",
-     "options": {"quality": {"blur": True, "eyes_closed": True, "exposure": True, "smiles": True, "bursts": True, "picks_percent": 20}}},
+     "options": {"quality": {"blur": True, "eyes_closed": True, "exposure": True, "smiles": True, "bursts": True, "pick_min_rating": 4.5, "keeper_min_rating": 4.0}}},
     {"id": "wedding", "emoji": "💍", "strategy": "preset", "set_id": "wedding-day",
      "options": {"quality": {"enabled": True, "action": "tag", "blur": True, "eyes_closed": True, "exposure": True}}},
     {"id": "boudoir", "emoji": "🖤", "strategy": "preset", "set_id": "boudoir",

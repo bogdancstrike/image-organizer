@@ -30,18 +30,20 @@ Tips:
 ## Culling (Cull mode, or quality checks with any mode)
 See [quality-culling spec](openspec/specs/quality-culling/spec.md). Folders: Keepers · Smiling · Maybe · Blurry · Eyes closed ·
 Too dark · Too bright · Burst extras. Tune sharpness, blink and smile thresholds, exposure limits, whose face counts (any vs main
-subject), burst window and similarity, and the minimum stars for a keeper. With other modes, rejects go to `_Rejects/<reason>` (or are
+subject), burst window and similarity, and the decimal rating thresholds for Picks and Keepers. With other modes, rejects go to `_Rejects/<reason>` (or are
 only tagged).
 
 ### Keeper and top-pick recommendations
 
-Cull ranks every analyzed photo even when the Picks folder is off. Choose Auto, Portrait, Fashion/modeling,
+Cull ranks every analyzed photo. Choose Auto, Portrait, Fashion/modeling,
 Landscape or General as the recommendation profile. Scores combine technical quality, relevant face expressions,
 composition, lighting and semantic presentation; group shots consider sizable faces together or your main subject.
 Face focus uses each detected face's eye region. Low-key lighting is not penalized only for its average brightness.
 
-The absolute score and within-shoot/scene ranking drive the keeper star threshold. Top picks favor scene variety,
-exclude technically rejected frames, and skip near-duplicates; the requested percentage is an upper bound.
+Absolute quality and within-shoot/scene comparisons drive decimal ratings. Picks start at 4.5/5 and Keepers at
+4.0/5 by default, with both thresholds adjustable in Quick settings. Lower-rated photos go to Maybe.
+High-rated redundant photos go to Similar alternatives. Top picks exclude technical rejects and favor distinct scenes.
+Folder grids sort highest score first, with an ascending option; the viewer follows the same order.
 Review can sort by Recommendation and filter Top picks. The viewer explains the score and its components.
 XMP uses the same stars (Green pick label, Red reject label), and manual reassignment updates the marker/label.
 See [research and limitations](culling-research.md).

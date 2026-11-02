@@ -71,6 +71,8 @@ export const DEFAULT_SETTINGS: UiSettings = {
     burst_seconds: 2,
     burst_similarity: 0.9,
     keeper_min_stars: 0,
+    pick_min_rating: 4.5,
+    keeper_min_rating: 4.0,
     noise_check: false,
     noise_threshold: 0.045,
     tilt_check: false,
@@ -105,11 +107,16 @@ export const QUALITY_VERSION = 2;
 
 export function migrateSettings(saved: Partial<UiSettings> & { qualityVersion?: number }): UiSettings {
   const fresh = (saved.qualityVersion ?? 1) < QUALITY_VERSION;
+  const quality = fresh ? { ...DEFAULT_SETTINGS.quality } : { ...DEFAULT_SETTINGS.quality, ...(saved.quality ?? {}) };
+  if (!fresh && saved.quality?.keeper_min_rating === undefined && quality.keeper_min_stars > 0) {
+    quality.keeper_min_rating = Math.min(quality.pick_min_rating, quality.keeper_min_stars);
+  }
+  quality.keeper_min_stars = 0;
   return {
     ...DEFAULT_SETTINGS,
     ...saved,
     qualityVersion: QUALITY_VERSION,
-    quality: fresh ? DEFAULT_SETTINGS.quality : { ...DEFAULT_SETTINGS.quality, ...(saved.quality ?? {}) },
+    quality,
     ai: { ...DEFAULT_SETTINGS.ai, ...(saved.ai ?? {}) },
   } as UiSettings;
 }

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Button, Drawer, Empty, Input, Tooltip } from "antd";
+import { useMemo, useState } from "react";
+import { Button, Drawer, Empty, Input, Select, Tooltip } from "antd";
 import { useI18n } from "@/i18n";
 import { Film, Paperclip } from "lucide-react";
 import type { PlanItem } from "@/api";
@@ -52,7 +52,16 @@ export function FilesDrawer({
   onClose: () => void;
   onRename?: (name: string) => Promise<void>;
 }) {
-  const viewer = useMediaViewer(items);
+  const [order, setOrder] = useState<"desc" | "asc">("desc");
+  const sortedItems = useMemo(() => [...items].sort((a, b) => {
+    const av = a.pick?.score ?? a.quality?.score;
+    const bv = b.pick?.score ?? b.quality?.score;
+    if (av === undefined && bv === undefined) return a.name.localeCompare(b.name);
+    if (av === undefined) return 1;
+    if (bv === undefined) return -1;
+    return (order === "desc" ? bv - av : av - bv) || a.name.localeCompare(b.name);
+  }), [items, order]);
+  const viewer = useMediaViewer(sortedItems);
   const { t } = useI18n();
   const [name, setName] = useState("");
   return (
@@ -67,8 +76,10 @@ export function FilesDrawer({
         </div>
       )}
       {items[0] && <div className="mb-3 truncate text-xs text-plum/55">→ {items[0].destination}/ · click a photo to view it large</div>}
+      {items.length > 0 && <Select aria-label="Sort photos by score" className="mb-3 w-full" value={order}
+        onChange={setOrder} options={[{ value: "desc", label: "Score · highest first" }, { value: "asc", label: "Score · lowest first" }]} />}
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-        {items.map((p) => (
+        {sortedItems.map((p) => (
           <Thumb key={p.file_id} p={p} onOpen={() => viewer.open(p)} />
         ))}
       </div>

@@ -118,3 +118,13 @@ it('recipe recommendations are selectable and all options can be expanded',()=>{
  fireEvent.click(screen.getByRole('button',{name:'Show all options'}));expect(screen.getByText('By date')).toBeInTheDocument();
  fireEvent.click(screen.getByRole('button',{name:'Fewer options'}));expect(screen.queryByText('By date')).not.toBeInTheDocument();
 });
+
+it('sorts folder photos by descending score by default and switches to ascending',async()=>{
+ const make=(name:string,score?:number)=>({...plan[0],file_id:name,name,pick:score===undefined?null:{score,reasons:[],picked:false},quality:null});
+ renderUI(<FilesDrawer title="Ratings" items={[make('low.jpg',.7),make('high.jpg',.95),make('unknown.jpg'),make('middle.jpg',.8)]} onClose={()=>{}}/>);
+ const order=()=>screen.getAllByRole('button',{name:/^Open .*\.jpg$/}).map(b=>b.getAttribute('aria-label'));
+ expect(order()).toEqual(['Open high.jpg','Open middle.jpg','Open low.jpg','Open unknown.jpg']);
+ fireEvent.mouseDown(screen.getByRole('combobox',{name:'Sort photos by score'}));
+ fireEvent.click(await screen.findByText('Score · lowest first'));
+ expect(order()).toEqual(['Open low.jpg','Open middle.jpg','Open high.jpg','Open unknown.jpg']);
+});

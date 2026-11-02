@@ -54,6 +54,7 @@ def subject_focus(q: Quality, rules: QualityRules | None = None) -> float:
 
 def technical(q: Quality, rules: QualityRules | None = None) -> float:
     sharp = min(1.0, max(0.0, (subject_focus(q, rules) - 0.3) / 0.5))
+    sharp *= .85 + .15 * q.features.get("detail", 1.0)
     # Mean brightness alone cannot distinguish bad exposure from intentional low/high-key lighting.
     exposure = 1 - min(0.9, 0.55 * q.dark_clip + 0.9 * q.bright_clip)
     noise = 1 - min(1.0, q.noise / 0.09)
@@ -202,7 +203,10 @@ def rank(ids: list[str], quality: dict[str, Quality], E: np.ndarray, embedder, r
         expr = expression(q, rules, kind)
         raw["tech"][i] = technical(q, rules)
         raw["expr"][i] = .5 if expr is None else expr
-        raw["comp"][i] = .5 * composition(q) + .5 * semantic[i, -1]
+        geometry = composition(q)
+        balance = q.features.get("balance", geometry)
+        separation = q.features.get("separation", .5)
+        raw["comp"][i] = .30 * geometry + .40 * semantic[i, -1] + .20 * balance + .10 * separation
         raw["light"][i] = semantic[i, -2]
         raw["aes"][i] = semantic[i, list(PRESENTATION).index(kind)]
         weights = dict(WEIGHTS[kind])
@@ -228,6 +232,7 @@ def rank(ids: list[str], quality: dict[str, Quality], E: np.ndarray, embedder, r
         parts = {k: round(float(v[i]), 3) for k, v in raw.items()}
         if not q.faces or WEIGHTS[kind]["expr"] == 0:
             parts.pop("expr")
+        parts.update({key: q.features[key] for key in ("detail", "balance", "separation") if key in q.features})
         parts["relative"] = round(float(global_rank[i]), 3)
         reasons = []
         if parts["tech"] >= .80:
@@ -250,7 +255,7 @@ def rank(ids: list[str], quality: dict[str, Quality], E: np.ndarray, embedder, r
     return Ranking(out, labels)
 
 
-def select(ids: list[str], ranking: Ranking, E: np.ndarray, n_picks: int) -> list[str]:
+def select(ids: list[str], ranking: Ranking, E: np.ndarray, n_picks: int, min_score: float = .5) -> list[str]:
     """Best frames, spread across scenes, without near-duplicates of an existing pick."""
     if n_picks <= 0 or not ids:
         return []
@@ -267,7 +272,7 @@ def select(ids: list[str], ranking: Ranking, E: np.ndarray, n_picks: int) -> lis
     chosen: list[str] = []
 
     def ok(fid: str, respect_quota: bool) -> bool:
-        if info[fid].score < .5:
+        if info[fid].score < min_score:
             return False
         lab = int(labels[pos[fid]])
         if respect_quota and taken.get(lab, 0) >= quota[lab]:

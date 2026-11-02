@@ -81,8 +81,16 @@ AI calls/tokens are included in usage. Matching failures produce `status: error`
 ## Culling recommendations
 
 `options.quality.pick_profile`: `auto` (default), `portrait`, `fashion`, `landscape`, or `general`.
-`picks_percent` requests up to 0–50% of eligible keepers. Every ranked photo gets `pick` metadata:
-`{score, profile, reasons, parts, picked}`. Parts include `tech`, `expr`, `comp`, `light`, `aes`, and `relative` (0–1).
-`quality.score` and `quality.stars` use the recommendation score; `keeper_min_stars` applies the same scale.
-With `write_xmp`, ratings match displayed stars, picks receive Green labels and rejects receive rating -1/Red.
+`pick_min_rating` defaults to 4.5 and `keeper_min_rating` to 4.0. Both accept 1–5, with Keepers no higher
+than Picks (invalid bands return 422). Picks meet the upper threshold; Keepers meet the lower threshold and stay
+below Picks; lower scores go to Maybe. Technical rejects and burst extras take precedence. Highly rated redundant
+frames go to Similar alternatives. Quick settings persists these values.
+
+Every ranked photo gets `pick` metadata: `{score, rating, profile, reasons, parts, picked}`.
+`score` is 0–1; decimal `rating = round(1 + 4 * score, 2)` is on the 1–5 scale and determines the bands.
+Parts include `tech`, relevant `expr`, `comp`, `light`, `aes`, `relative`, and measured `detail`, `balance`, `separation`.
+`quality.score`, `quality.rating` and integer `quality.stars` derive from the same recommendation.
+With `write_xmp`, integer ratings match `quality.stars`, picks receive Green labels and rejects receive rating -1/Red.
+`picks_percent` is deprecated and ignored; the legacy positive `keeper_min_stars` overrides the keeper threshold
+(capped at the Picks threshold). New clients should send the decimal fields and leave `keeper_min_stars: 0`.
 Enabled reject checks remain authoritative. `/api/jobs/{id}/plan` manual changes update pick markers and XMP labels.

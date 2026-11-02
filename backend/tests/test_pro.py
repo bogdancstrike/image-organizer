@@ -177,7 +177,7 @@ def test_quality_checks_are_off_by_default(settings, fake_embedder):
     Image.open(lib / "sharp.jpg").filter(ImageFilter.GaussianBlur(8)).save(lib / "soft.jpg")
     with TestClient(create_app(settings, embedder_factory=lambda: fake_embedder, llm_factory=lambda: None)) as c:
         job = wait(c, c.post("/api/jobs", json={"strategy": "cull", "options": {"near_duplicates": False}}).json()["id"])
-        assert {p["category"] for p in job["plan"]} == {"Keepers"}  # nothing is rejected unless a check is turned on
+        assert {p["category"] for p in job["plan"]} <= {"Picks ★", "Keepers", "Maybe", "Similar alternatives"}  # rating bands apply without technical rejects
 
 
 def test_picks_and_xmp_ratings_with_undo(settings, fake_embedder):
@@ -187,7 +187,7 @@ def test_picks_and_xmp_ratings_with_undo(settings, fake_embedder):
     for i in range(4):
         _noise(lib / f"k{i}.jpg", 50 + i)
     Image.open(lib / "k0.jpg").filter(ImageFilter.GaussianBlur(8)).save(lib / "soft.jpg")
-    opts = {"near_duplicates": False, "quality": {"bursts": False, "blur": True, "picks_percent": 25, "write_xmp": True}}
+    opts = {"near_duplicates": False, "quality": {"bursts": False, "blur": True, "pick_min_rating": 3, "keeper_min_rating": 2, "write_xmp": True}}
     with TestClient(create_app(settings, embedder_factory=lambda: fake_embedder, llm_factory=lambda: None)) as c:
         job = wait(c, c.post("/api/jobs", json={"strategy": "cull", "options": opts}).json()["id"])
         cats = [p["category"] for p in job["plan"]]
@@ -218,16 +218,16 @@ def test_cull_recommendations_drive_keeper_thresholds_even_without_picks(setting
         for p in job['plan']:
             assert p['pick']['profile']=='landscape' and not p['pick']['picked']
             assert p['quality']['stars']==stars(p['pick']['score'])==p['xmp']['rating']
-            assert (p['category']=='Maybe')==(p['quality']['stars']<4)
+            assert (p['category']=='Maybe')==(p['quality']['rating']<4)
 
 
 def test_manual_pick_changes_update_the_recommendation_marker_and_xmp_label(settings,fake_embedder):
     from app.main import create_app
     for i in range(4):_noise(settings.library_root/f'keep{i}.jpg',22+i)
     with TestClient(create_app(settings,embedder_factory=lambda:fake_embedder,llm_factory=lambda:None)) as c:
-        j=wait(c,c.post('/api/jobs',json={'strategy':'cull','options':{'near_duplicates':False,'quality':{'picks_percent':25,'write_xmp':True}}}).json()['id'])
+        j=wait(c,c.post('/api/jobs',json={'strategy':'cull','options':{'near_duplicates':False,'quality':{'pick_min_rating':3,'keeper_min_rating':2,'write_xmp':True}}}).json()['id'])
         picked=next(p for p in j['plan'] if p['category_id']=='picks')
-        r=c.patch(f"/api/jobs/{j['id']}/plan",json={'file_ids':[picked['file_id']],'category_id':'keepers'})
+        r=c.patch(f"/api/jobs/{j['id']}/plan",json={'file_ids':[picked['file_id']],'category_id':'alternates'})
         assert r.status_code==200,r.text
         item=r.json()['changed'][0]
         assert not item['pick']['picked'] and item['xmp']['label'] is None
@@ -243,3 +243,24 @@ def test_xmp_ratings_work_with_a_preset_without_enabling_reject_checks(settings,
         assert item['quality'] is not None
         assert item['xmp']=={'rating':item['quality']['stars'],'label':None}
         assert not item['quality']['flags']
+
+
+def test_rating_bands_use_decimal_scores_and_custom_thresholds(settings,fake_embedder,monkeypatch):
+    from app.main import create_app
+    import app.picks as picks
+    for i in range(6):_noise(settings.library_root/f'{i}.jpg',i+80)
+    scores=[.90,.875,.80,.75,.749,.74]  # 4.6, 4.5, 4.2, 4.0, 4.0 rounded
+    def rank(ids,*args,**kwargs):
+        return picks.Ranking({fid:picks.PickInfo(scores[i])for i,fid in enumerate(ids)},np.arange(len(ids)))
+    monkeypatch.setattr(picks,'rank',rank)
+    monkeypatch.setattr(picks,'select',lambda ids,*args,**kwargs:list(ids))
+    with TestClient(create_app(settings,embedder_factory=lambda:fake_embedder,llm_factory=lambda:None))as c:
+        for options in ({},{'pick_min_rating':4.2,'keeper_min_rating':3.8}):
+            j=wait(c,c.post('/api/jobs',json={'strategy':'cull','options':{'near_duplicates':False,'quality':options}}).json()['id'])
+            assert j['status']=='done',j
+            for p in j['plan']:
+                rating=p['quality']['rating'];assert rating==p['pick']['rating']
+                expected='picks' if rating>=options.get('pick_min_rating',4.5)else 'keepers' if rating>=options.get('keeper_min_rating',4)else 'maybe'
+                assert p['category_id']==expected
+        for options in ({'keeper_min_rating':4.8,'pick_min_rating':4.5},{'pick_min_rating':5.1},{'keeper_min_rating':0}):
+            assert c.post('/api/jobs',json={'strategy':'cull','options':{'quality':options}}).status_code==422

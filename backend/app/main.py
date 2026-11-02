@@ -58,10 +58,18 @@ class QualityOptions(BaseModel):
     tilt_check: bool = False  # experimental: consistent horizon lines leaning 1.5–8°
     tilt_tolerance: float = Field(1.5, ge=0.5, le=8.0)
     face_crop: bool = False
+    pick_min_rating: float = Field(4.5, ge=1, le=5)
+    keeper_min_rating: float = Field(4.0, ge=1, le=5)
     pick_profile: Literal["auto", "portrait", "fashion", "landscape", "general"] = "auto"
-    picks_percent: float = Field(0, ge=0, le=50)  # cull: top X% of keepers go to "Picks ★"
+    picks_percent: float = Field(0, ge=0, le=50)  # deprecated: accepted for older clients; decimal rating bands determine picks
     similar_any_time: bool = False  # best-of-similar regardless of time, not just bursts
     write_xmp: bool = False  # on apply, write .xmp sidecars with star rating and color label
+
+    @model_validator(mode="after")
+    def _rating_bands(self):
+        if self.keeper_min_rating > self.pick_min_rating:
+            raise ValueError("Keepers threshold must not exceed Picks threshold")
+        return self
 
 
 class AIOptions(BaseModel):
@@ -123,7 +131,6 @@ class JobRequest(BaseModel):
     strategy: Literal["preset", "custom", "auto", "date", "cull", "people", "trips", "places", "rules"] = "preset"
     set_id: str | None = "lifestyle"
     options: JobOptions = Field(default_factory=JobOptions)
-
 
     @model_validator(mode="after")
     def _rules_prompt(self):

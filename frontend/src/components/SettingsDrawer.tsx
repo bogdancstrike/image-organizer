@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { PromptRulesInput } from "./PromptRulesInput";
 import { FacePicker } from "./FacePicker";
-import { Button, Checkbox, Drawer, Input, InputNumber, Modal, Popconfirm, Radio, Rate, Segmented, Select, Slider, Switch, Tag, Tooltip } from "antd";
+import { Button, Checkbox, Drawer, Input, InputNumber, Modal, Popconfirm, Radio, Segmented, Select, Slider, Switch, Tag, Tooltip } from "antd";
 import {
   Aperture,
   CalendarDays,
@@ -663,16 +663,14 @@ export function SettingsPanel({
                 Picks favor variety and skip near-duplicates. Review the reasons in the photo viewer.
               </p>
             </Row>
-            <Check label="★ Picks folder" hint="the very best keepers" on={Q.picks_percent > 0} set={(v) => setQ({ picks_percent: v ? 20 : 0 })}>
-              <Row label="Share of keepers" hint={`top ${Q.picks_percent}%`}>
-                <Slider min={5} max={50} step={5} value={Q.picks_percent || 20} onChange={(v) => setQ({ picks_percent: v })} />
-              </Row>
-            </Check>
-            <Check label="⭐ Minimum stars for keepers" hint="others go to Maybe" on={Q.keeper_min_stars > 0} set={(v) => setQ({ keeper_min_stars: v ? 3 : 0 })}>
-              <Row label="Keepers need at least" inline>
-                <Rate value={Q.keeper_min_stars || 3} onChange={(v) => setQ({ keeper_min_stars: v || 1 })} />
-              </Row>
-            </Check>
+            <Row label="Picks from" hint="/ 5 · strongest unique photos; similar frames go to Similar alternatives">
+              <InputNumber aria-label="Picks from" min={1} max={5} step={0.1} precision={1} value={Q.pick_min_rating}
+                onChange={(v) => v !== null && setQ({ pick_min_rating: v, keeper_min_rating: Math.min(Q.keeper_min_rating, v), keeper_min_stars: 0 })} />
+            </Row>
+            <Row label="Keepers from" hint={`/ 5 · up to ${Q.pick_min_rating.toFixed(1)}, then Picks; lower ratings go to Maybe`}>
+              <InputNumber aria-label="Keepers from" min={1} max={5} step={0.1} precision={1} value={Q.keeper_min_rating}
+                onChange={(v) => v !== null && setQ({ keeper_min_rating: v, pick_min_rating: Math.max(Q.pick_min_rating, v), keeper_min_stars: 0 })} />
+            </Row>
           </>
         )}
         <Check label="🏷️ Write ratings to XMP on Apply" hint="★ + color labels for Lightroom / Capture One" on={Q.write_xmp} set={(v) => setQ({ write_xmp: v })} />

@@ -78,3 +78,9 @@ it('handles no-content responses and SSE batches, malformed messages, and closin
  es.onmessage({data:JSON.stringify({type:'phase',phase:'scanning'})});expect(events).toHaveBeenCalledWith([{type:'phase',phase:'scanning'}]);
  es.onmessage({data:'[]'});es.handlers.end();expect(end).toHaveBeenCalledOnce();stop();expect(es.close).toHaveBeenCalledTimes(2);
 });
+
+it('migrates legacy keeper stars to the visible decimal threshold',()=>{
+ const migrated=migrateSettings({qualityVersion:2,quality:{...DEFAULT_SETTINGS.quality,keeper_min_rating:undefined,keeper_min_stars:3} as never});
+ expect(migrated.quality.keeper_min_rating).toBe(3);expect(migrated.quality.pick_min_rating).toBe(4.5);
+ expect(migrated.quality.keeper_min_stars).toBe(0);
+});

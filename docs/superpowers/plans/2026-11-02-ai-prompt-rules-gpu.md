@@ -63,9 +63,28 @@ Files: `backend/tests/test_people_ocr.py`, `backend/tests/test_pro.py`, `backend
 
 ## Verified checkpoints
 
-- Backend: 132 tests passing; 90.42% line coverage without models (CI-like environment). Earlier bundled-model run: 90.64%.
-- Frontend: 67 tests passing; 92.80% lines and 90.51% statements across all TypeScript/TSX source.
+- Backend: 140 tests passing; 90.54% line coverage without models (CI-like environment). Bundled-model run: 90.76%.
+- Frontend: 70 tests passing; 93.04% lines and 90.69% statements across all TypeScript/TSX source.
 - GPU: actual CLIP (512 dimensions) and SigLIP 2 (768 dimensions) image/text inference on NVIDIA RTX 3080.
 - Live AI: three-sample prompt-rule plan, two API calls, expected landscape/other routing, no source moves.
 - Real cull/OCR/XMP: seven samples, portrait and landscape picks, invoice text read, seven copied sidecars, successful Undo.
 - Compose: CPU has no GPU reservation; GPU target reserves one NVIDIA device. CPU stays the default Docker target.
+
+## People clustering expansion (requested during implementation)
+
+- [x] Reproduce the 29-identity result on the provided 1,029-photo folder using a read-only mount/cache; inspect representative face crops and assignment sources.
+- [x] Separate reliable face anchors from occluded/partial/false face detections, then consolidate pose/lighting fragments using robust similarity evidence and same-photo identity constraints.
+- [x] Keep uncertain photos in Other people instead of inventing identities or forcing matches; add an optional expected-count hint only if useful without forcing unrelated people together.
+- [x] Add deterministic identity-fragment, false-positive, co-occurrence and ambiguity regressions; keep both coverage gates passing.
+- [x] Validate the improved grouping on the reported folder without applying moves, document limits, and commit/push to main.
+
+## Fixed rating bands and folder score ordering (requested during implementation)
+
+- [x] Add decimal recommendation ratings on the existing 1–5 scale. Picks require at least 4.5/5, Keepers require 4.0–under 4.5/5, and lower ratings go to Maybe unless a technical reject applies. Preserve integer XMP compatibility.
+- [x] Add multiscale detail reliability, saliency/border composition and subject/background separation signals with profile-specific influence; document them as heuristics and cover synthetic failure cases.
+- [x] Replace percentage-only selection with rating-qualified, diverse picks. Preserve high-rated near-duplicate alternatives explicitly rather than mislabeling them as lower-rated keepers.
+- [x] Add per-folder score direction controls (descending default, ascending optional), numeric decimal ratings and viewer order consistent with the sorted grid.
+- [x] Update API/docs and tests; keep both coverage thresholds passing and verify on real samples.
+
+- Rating thresholds are editable in Quick settings, persisted, ordered automatically, and validated server-side. Legacy integer keeper settings migrate into the visible decimal field.
+- Updated person check: four representative identities; 48 uncertain faces and 135 uncertain faceless photos go to Other people. Originals mounted read-only; no Apply.

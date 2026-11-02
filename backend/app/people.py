@@ -18,6 +18,7 @@ log = logging.getLogger(__name__)
 
 DETECT_SIZE = 1280
 MIN_FACE_PX = 36  # smaller faces carry no usable identity
+IDENTITY_VERSION = 2
 SAME_PERSON = 0.363  # SFace cosine threshold recommended by OpenCV
 
 
@@ -26,13 +27,16 @@ class FaceID:
     area: float  # share of the image
     box: tuple[float, float, float, float]  # x0, y0, x1, y1 normalized
     emb: np.ndarray  # 128-d, L2-normalized
+    reliable: bool = True  # frontal, sufficiently resolved anchor; partial faces can still be matched
+    confidence: float = 1.0
 
     def to_dict(self) -> dict:
-        return {"area": self.area, "box": list(self.box), "emb": [round(float(x), 5) for x in self.emb]}
+        return {"area": self.area, "box": list(self.box), "emb": [round(float(x), 5) for x in self.emb],
+                "reliable": self.reliable, "confidence": self.confidence}
 
     @classmethod
     def from_dict(cls, d: dict) -> "FaceID":
-        return cls(d["area"], tuple(d["box"]), np.asarray(d["emb"], dtype=np.float32))
+        return cls(d["area"], tuple(d["box"]), np.asarray(d["emb"], dtype=np.float32), d.get("reliable", True), d.get("confidence", 1.0))
 
 
 class FaceIdentifier:
@@ -75,7 +79,17 @@ class FaceIdentifier:
             emb = rec.feature(rec.alignCrop(bgr, f)).flatten().astype(np.float32)
             emb /= np.linalg.norm(emb) or 1.0
             box = (max(0.0, x / w), max(0.0, y / h), min(1.0, (x + fw) / w), min(1.0, (y + fh) / h))
-            out.append(FaceID(round(fw * fh / (w * h), 5), tuple(round(v, 4) for v in box), emb))
+            reliable = True
+            confidence = 1.0
+            if len(f) >= 15:
+                points = f[4:14].reshape(5, 2)
+                eye = points[1] - points[0]
+                span = float(np.linalg.norm(eye))
+                mid = (points[0] + points[1]) / 2
+                yaw = abs(float(np.dot(points[2] - mid, eye / (span + 1e-6)))) / (span + 1e-6)
+                confidence = float(f[-1])
+                reliable = confidence >= .90 and span / fw > .25 and yaw < .35 and min(fw, fh) >= 60
+            out.append(FaceID(round(fw * fh / (w * h), 5), tuple(round(v, 4) for v in box), emb, reliable, confidence))
         return out
 
 
@@ -92,18 +106,65 @@ def get_face_identifier() -> FaceIdentifier:
         return _ident
 
 
-def cluster_people(embs: np.ndarray, threshold: float = SAME_PERSON) -> np.ndarray:
-    """Agglomerative clustering (average linkage, cosine) cut at the same-person threshold. Returns a label per face."""
-    if len(embs) <= 1:
-        return np.zeros(len(embs), int)
+def cluster_people(embs: np.ndarray, threshold: float = SAME_PERSON, cannot_link: list[tuple[int, int]] | None = None) -> np.ndarray:
+    """Face anchors: conservative verification cut, then evidence-gated consolidation of pose fragments."""
+    n = len(embs)
+    if n <= 1:
+        return np.zeros(n, int)
     from sklearn.cluster import AgglomerativeClustering
+    from sklearn.metrics import silhouette_score
+    from scipy.cluster.hierarchy import cut_tree
     from threadpoolctl import threadpool_limits
 
+    E = embs / (np.linalg.norm(embs, axis=1, keepdims=True) + 1e-9)
     with threadpool_limits(limits=2):
-        model = AgglomerativeClustering(
-            n_clusters=None, metric="cosine", linkage="average", distance_threshold=1.0 - threshold
-        )
-        return model.fit_predict(embs).astype(int)
+        model = AgglomerativeClustering(n_clusters=None, metric="cosine", linkage="average",
+                                       distance_threshold=1.0 - threshold, compute_distances=True).fit(E)
+        base = model.labels_.astype(int)
+        count = len(np.unique(base))
+        if count < 3 or n < 12 or n > 2500 or threshold > .45:
+            return base
+        D = np.maximum(0, 1 - E @ E.T); np.fill_diagonal(D, 0)
+        # Reuse the hierarchy, rather than fitting an unrelated clustering for every candidate count.
+        sizes = np.zeros(n - 1)
+        for i, (a, b) in enumerate(model.children_):
+            sizes[i] = (1 if a < n else sizes[a - n]) + (1 if b < n else sizes[b - n])
+        tree = np.column_stack([model.children_, model.distances_, sizes])
+        counts = list(range(2, min(count, 24, n - 1) + 1))
+        cuts = cut_tree(tree, n_clusters=counts)
+        baseline = silhouette_score(D, base, metric="precomputed") if count < n else 0.0
+        candidates = []
+        for column, k in enumerate(counts):
+            labels = cuts[:, column]
+            if any(labels[a] == labels[b] for a, b in cannot_link or []):
+                continue
+            score = silhouette_score(D, labels, metric="precomputed")
+            candidates.append((score, k, labels))
+        if not candidates:
+            return base
+        best = max(s for s, _, _ in candidates)
+        # Weak/random galleries must not collapse into invented identities. Consolidate only on clear evidence.
+        if best < .35 or best < baseline + .04:
+            return base
+        return min((c for c in candidates if c[0] >= best - .012), key=lambda c: c[1])[2].astype(int)
+
+
+def match_identity(embedding: np.ndarray, galleries: list[np.ndarray], threshold: float = SAME_PERSON,
+                   margin: float = .05) -> tuple[int, float]:
+    """Match against several views of each known identity, retaining ambiguity as unknown."""
+    if not galleries:
+        return -1, 0.0
+    e = embedding / (np.linalg.norm(embedding) + 1e-9)
+    scores = []
+    for gallery in galleries:
+        G = gallery / (np.linalg.norm(gallery, axis=1, keepdims=True) + 1e-9)
+        values = np.sort(G @ e)[-min(3, len(G)):]
+        scores.append(float(values.mean()))
+    order = np.argsort(scores)[::-1]
+    best = int(order[0]); value = scores[best]
+    if value < threshold or (len(order) > 1 and value - scores[int(order[1])] < margin):
+        return -1, value
+    return best, value
 
 
 def face_crop_webp(img: Image.Image, box: tuple[float, float, float, float], size: int = 160) -> bytes:
@@ -177,17 +238,16 @@ def assign_by_appearance(Xc: np.ndarray, protos: np.ndarray, proto_man: np.ndarr
     mixed = proto_man.max() - proto_man.min() > 0.3
     sim = Xc @ protos.T
     out = []
-    sure = present if present is not None else np.zeros(len(Xc))
-    for row, pm, pr in zip(sim, p_man, sure):
+    for row, pm in zip(sim, p_man):
         cand = list(range(len(protos)))
         if mixed and abs(pm - 0.5) >= decisive:
             same = [i for i in cand if (proto_man[i] > 0.5) == (pm > 0.5)]
             cand = same or cand
         best = max(cand, key=lambda i: row[i])
-        # a decisive gender match needs only a non-negative appearance match; otherwise appearance must speak
-        # someone is clearly in the photo, or gender settles it: the closest candidate gets it
-        need = -1.0 if (pr >= 0.85 or (mixed and abs(pm - 0.5) >= decisive and len(cand) == 1)) else min_sim
-        if row[best] < need:
+        # Presence alone is not identity evidence. Even a single gender-compatible candidate needs an appearance match.
+        ordered = sorted((float(row[i]) for i in cand), reverse=True)
+        ambiguous = len(ordered) > 1 and ordered[0] - ordered[1] < .03
+        if row[best] < min_sim or ambiguous:
             out.append((-1, float(row[best]), []))
             continue
         close = [i for i in range(len(protos)) if row[i] >= min_sim and row[i] >= row[best] - 0.03]

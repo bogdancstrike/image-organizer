@@ -71,6 +71,21 @@ def test_detected_face_eye_focus_is_cached_with_the_new_analysis_version():
     analyzer=SimpleNamespace(available=True,detect=lambda rgb:[face])
     noise=np.random.default_rng(1).integers(0,255,(240,320,3),dtype=np.uint8)
     result=analyze_image(Image.fromarray(noise),analyzer)
-    assert result.v==QUALITY_VERSION==3 and result.faces[0].sharpness is not None
+    assert result.v==QUALITY_VERSION==4 and result.faces[0].sharpness is not None
     assert result.faces_checked and result.sharpness>0
     restored=type(result).from_dict(result.to_dict());assert restored.faces[0].sharpness==face.sharpness
+
+
+def test_identity_anchors_require_readable_landmarks_and_confident_detection(tmp_path,monkeypatch):
+    import cv2
+    path=tmp_path/'model';path.touch()
+    frontal=[10,10,80,90,30,40,70,40,50,60,35,80,65,80,.99]
+    profile=[10,10,80,90,30,40,40,40,55,60,35,80,45,80,.99]
+    low=frontal.copy();low[-1]=.85
+    detector=SimpleNamespace(setInputSize=lambda size:None,detect=lambda img:(None,np.array([frontal,profile,low],np.float32)))
+    recognizer=SimpleNamespace(alignCrop=lambda img,f:img,feature=lambda img:np.array([[3,4]],np.float32))
+    monkeypatch.setattr(cv2.FaceDetectorYN,'create',lambda *a:detector)
+    monkeypatch.setattr(cv2.FaceRecognizerSF,'create',lambda *a:recognizer)
+    faces=FaceIdentifier(str(path),str(path)).identify(Image.new('RGB',(200,200)))
+    assert [f.reliable for f in faces]==[True,False,False]
+    assert FaceID.from_dict(faces[1].to_dict()).reliable is False

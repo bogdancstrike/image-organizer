@@ -37,6 +37,8 @@ def test_cluster_people_threshold():
 
 
 def test_by_person_strategy_and_rename(settings, fake_embedder, monkeypatch):
+    # Color embeddings do not model semantic presence; this test isolates face identities.
+    monkeypatch.setattr(jobs_mod, "person_presence", lambda E, bank: np.zeros(len(E)))
     monkeypatch.setattr(jobs_mod, "get_face_identifier", lambda: FakeIdentifier())
     lib = settings.library_root
     for i in range(3):
@@ -206,3 +208,59 @@ def test_history_lists_every_sort_with_outcome_and_pages(settings, fake_embedder
         page = c.get("/api/history", params={"outcome": "applied", "limit": 1}).json()
         assert page["total"] == 1 and page["items"][0]["run"]["moved"] == 3
         assert c.get("/api/history", params={"outcome": "nope"}).status_code == 400
+
+
+def test_partial_faces_match_known_galleries_without_creating_new_identities():
+    from app.people import match_identity
+    a,b=_vec(1),_vec(2)
+    galleries=[np.vstack([a,a]),np.vstack([b,b])]
+    assert match_identity(a,galleries)[0]==0
+    assert match_identity(b,galleries)[0]==1
+    assert match_identity(_vec(99),galleries)[0]==-1
+    assert match_identity(a,[np.vstack([a]),np.vstack([a])])[0]==-1
+    assert match_identity(a,[])[0]==-1
+
+
+def test_partial_face_fragments_do_not_create_new_people(settings,fake_embedder,monkeypatch):
+    class Partial(FakeIdentifier):
+        def identify(self,img):
+            faces=super().identify(img)
+            if faces and img.width==205:faces[0].reliable=False
+            return faces
+    monkeypatch.setattr(jobs_mod,'get_face_identifier',lambda:Partial())
+    for i in range(3):Image.new('RGB',(200+i,200),(220,20,20)).save(settings.library_root/f'clear{i}.jpg',quality=90-i)
+    Image.new('RGB',(205,200),(220,20,20)).save(settings.library_root/'partial.png')
+    with TestClient(create_app(settings,embedder_factory=lambda:fake_embedder,llm_factory=lambda:None))as c:
+        j=wait(c,c.post('/api/jobs',json={'strategy':'people','options':{'near_duplicates':False,'people_min_photos':2}}).json()['id'])
+        assert j['status']=='done',j
+        assert len([cat for cat in j['categories']if cat['id'].startswith('person-')])==1
+        assert next(p for p in j['plan']if p['name']=='partial.png')['category_id']=='person-1'
+
+
+def test_identity_consolidation_recovers_pose_fragments_and_respects_cooccurrence():
+    # Weak individual views fragment the pair-verification cut, but the three galleries remain distinct.
+    from sklearn.cluster import AgglomerativeClustering
+    rng=np.random.default_rng(5)
+    E=np.vstack([np.eye(128)[i]+rng.normal(0,.105,(40,128))for i in range(3)])
+    E/=np.linalg.norm(E,axis=1,keepdims=True)
+    base=AgglomerativeClustering(n_clusters=None,metric="cosine",linkage="average",distance_threshold=.637).fit_predict(E)
+    assert len(set(base))>3
+    labels=cluster_people(E)
+    assert len(set(labels))==3
+    assert all(len(set(labels[start:start+40]))==1 for start in (0,40,80))
+    pair=next((0,i)for i in range(1,40)if base[0]!=base[i])
+    constrained=cluster_people(E,cannot_link=[pair])
+    assert constrained[pair[0]]!=constrained[pair[1]]
+    assert len(set(cluster_people(E,threshold=.6)))>3
+
+
+def test_random_face_embeddings_do_not_collapse_to_an_invented_identity():
+    E=np.random.default_rng(8).normal(size=(35,128)).astype(np.float32)
+    assert len(set(cluster_people(E)))>20
+
+
+def test_presence_and_gender_do_not_force_a_faceless_identity():
+    from app.people import assign_by_appearance
+    protos=np.eye(3)[:2]
+    assert assign_by_appearance(np.array([[-.6,-.5,.1]]),protos,np.array([.9,.1]),np.array([.95]),present=np.array([.99]))[0][0]==-1
+    assert assign_by_appearance(np.array([[.5,.5,.1]]),protos,np.array([.5,.5]),np.array([.5]),present=np.array([.99]))[0][0]==-1

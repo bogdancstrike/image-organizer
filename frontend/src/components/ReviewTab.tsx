@@ -139,7 +139,7 @@ export function ReviewTab({ jobId, editable, plan, categories, onChanged }: Prop
       defaultSortOrder: plan.some((p) => p.pick) ? "descend" : undefined,
       sorter: (a, b) => (a.pick?.score ?? -1) - (b.pick?.score ?? -1),
       render: (_, p) => p.pick ? <Tooltip title={`${p.pick.profile ?? "general"}: ${p.pick.reasons.join(" · ")}`}>
-        <span className="text-xs tabular-nums">{p.pick.picked ? "★ " : ""}{Math.round(p.pick.score * 100)}/100</span>
+        <span className="text-xs tabular-nums">{p.pick.picked ? "★ " : ""}{(p.pick.rating ?? 1 + p.pick.score * 4).toFixed(2)}/5</span>
       </Tooltip> : <span className="text-plum/30">–</span>,
     },
     {

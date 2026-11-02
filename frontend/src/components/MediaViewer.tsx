@@ -43,10 +43,10 @@ export function FileDetails({ p }: { p: PlanItem }) {
       )}
       {p.pick && (
         <div className="space-y-0.5 opacity-90">
-          <div>{p.pick.picked ? "★ Top pick" : "Recommendation"} · {Math.round(p.pick.score * 100)}/100 · {p.pick.profile ?? "general"}</div>
+          <div>{p.pick.picked ? "★ Top pick" : "Recommendation"} · {(p.pick.rating ?? 1 + p.pick.score * 4).toFixed(2)}/5 · {p.pick.profile ?? "general"}</div>
           {p.pick.reasons.length > 0 && <div>{p.pick.reasons.join(" · ")}</div>}
           {p.pick.parts && <div className="flex flex-wrap gap-x-2 opacity-75">
-            {Object.entries({ tech: "Technical", expr: "Expression", comp: "Composition", light: "Lighting", aes: "Presentation" }).map(([key, label]) =>
+            {Object.entries({ tech: "Technical", expr: "Expression", comp: "Composition", light: "Lighting", aes: "Presentation", detail: "Detail consistency", balance: "Visual balance", separation: "Subject separation" }).map(([key, label]) =>
               p.pick?.parts?.[key] !== undefined && <span key={key}>{label} {Math.round(p.pick.parts[key] * 100)}%</span>)}
           </div>}
         </div>

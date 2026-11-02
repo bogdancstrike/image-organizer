@@ -131,3 +131,13 @@ def test_auto_landscapes_keep_landscape_criteria_when_people_are_incidental(fake
     result=picks.rank(['hike'],{'hike':q([a,b])},np.array([[1,0,0,.05]],np.float32),fake_embedder,QualityRules())
     assert result.info['hike'].profile=='landscape'
     assert 'expr' not in result.info['hike'].parts
+
+
+def test_multiscale_detail_distinguishes_noise_from_real_edges():
+    from app.quality import perceptual_signals
+    rng=np.random.default_rng(7)
+    noise=rng.integers(0,255,(128,128),dtype=np.uint8)
+    edges=np.zeros((128,128),np.uint8);edges[32:96,32:96]=220
+    a=perceptual_signals(noise,[]);b=perceptual_signals(edges,[])
+    assert b['detail']>a['detail']
+    assert all(0<=value<=1 for value in a.values())

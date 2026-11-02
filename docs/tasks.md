@@ -77,3 +77,6 @@ Status: `[x]` done · `[ ]` open. Each task lists the specs it covers and its "d
 - [ ] Cleanup assistant and storage report.
 - [ ] Dedicated portfolio picker.
 - [ ] Licensed expert-rated culling benchmark: compare recommendations with multiple photographers per genre.
+
+- [x] T47 Reliable identity anchors, evidence-gated pose consolidation, co-occurrence safeguards and ambiguous-view matching; read-only 1,029-photo regression returned four representative people instead of 29.
+- [x] T48 Adjustable decimal Picks/Keepers bands in Quick settings (4.5/4.0 defaults), Similar alternatives, multiscale detail/balance/separation, folder score ascending/descending (descending default).

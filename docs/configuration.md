@@ -41,7 +41,8 @@ Every variable is optional.
 | `near_duplicates` | `true` | pHash ≤ 4 **and** CLIP cosine ≥ 0.90 |
 | `rules_prompt` | `""` | Required non-empty instructions for `strategy: "rules"`, up to 4,000 characters |
 | `quality.pick_profile` | `auto` | Auto, portrait, fashion, landscape or general; adapts keeper and top-pick ranking locally |
-| `quality.picks_percent` | `0` | Upper bound on top picks, 0–50%; weak/near-duplicate frames do not fill the quota |
+| `quality.pick_min_rating` | `4.5` | Picks need at least this decimal rating / 5; adjustable in Quick settings |
+| `quality.keeper_min_rating` | `4.0` | Keepers need this rating and stay below Picks; 1–5 and no higher than Picks |
 | `quality.write_xmp` | `false` | Export stars plus Green for picks/Red for rejects on Apply; computes scores even with reject checks off |
 | `ai_assist` | `false` | Needs a key |
 | `max_clusters` | `12` | Auto mode upper bound; the best k is picked by silhouette score |
@@ -62,3 +63,12 @@ For a local Python GPU environment, replace `fastembed`/`onnxruntime` with `fast
 `onnxruntime-gpu[cuda,cudnn]==1.23.2`, then set `DEVICE=gpu`. Do not install both ONNX Runtime distributions together.
 See [FastEmbed GPU](https://qdrant.github.io/fastembed/examples/FastEmbed_GPU/) and
 [ONNX Runtime CUDA](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html) for runtime requirements.
+
+## Person grouping
+
+YuNet/SFace identity anchors require sufficiently large, confident faces with readable eye/nose geometry.
+Average-link clustering starts with the documented SFace pair threshold. For 12–2,500 anchors, a silhouette
+improvement can consolidate pose/lighting fragments; reliable co-occurring faces guard against merging distinct people.
+Higher similarity settings above 0.45 retain the stricter cut. Partial faces can match an existing gallery with
+a confidence margin, but cannot create identities. Uncertain face matches stay in Other people. Appearance matching
+for faceless photos remains an optional heuristic, not proof of identity. The face cache refreshes once after upgrade.

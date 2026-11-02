@@ -34,7 +34,9 @@ model. Scores have not been calibrated against expert ratings on this applicatio
 - Treat clipped highlights and crushed shadows as evidence of exposure problems. A low-key photograph is not bad simply because its average brightness is low.
 - Use the same recommendation score for keeper star thresholds, displayed recommendations, top picks and exported XMP stars.
 - Honor enabled reject checks and the main-face/group-face preference. Scene variety never overrides a technical rejection or minimum recommendation quality.
-- Picks are an upper bound: do not fill a requested quota with unusable or near-duplicate frames. Show concise reasons and the scoring profile alongside each recommendation.
+- Map the recommendation to a decimal 1–5 rating. Default Picks start at 4.5; Keepers span 4.0–under 4.5. Both thresholds are adjustable in Quick settings. Put high-rated redundant frames in Similar alternatives.
+- Add multiscale edge persistence to discount noise masquerading as detail, gradient-centroid/border balance, and subject/background edge separation. These are weak pixel heuristics, combined with genre semantics; they do not measure depth or artistic intent directly.
+- Show concise reasons, component values and the scoring profile alongside each recommendation.
 
 ## Validation
 
@@ -43,3 +45,16 @@ landscape highlight retention, intentional dark exposure, scene diversity, rejec
 Real model/GPU smoke checks verify inference wiring; neither coverage percentages nor those smoke checks establish
 agreement with professional photographers. A future benchmark should use a licensed set with multiple independent
 photographer ratings and measure top-k agreement per genre.
+
+## Identity grouping validation
+
+[OpenCV's SFace tutorial](https://docs.opencv.org/4.11.0/d0/dd4/tutorial_dnn_face.html) gives 0.363 as a pair-verification
+threshold on LFW. Applying it as a fixed clustering cut can split the same person across poses and lighting.
+We retain that conservative starting cut, use clearer faces as anchors, and accept consolidation only when
+[cosine silhouette](https://scikit-learn.org/stable/modules/generated/sklearn.metrics.silhouette_score.html)
+shows a material improvement with adequate separation. Same-photo reliable identities constrain consolidation.
+Partial/occluded faces match multi-view galleries with an ambiguity margin rather than seeding new identities.
+
+On the reported 1,029-photo folder, a read-only rerun produced four distinct representative identities instead of
+29, with 48 uncertain face matches and 135 uncertain faceless photos retained in Other people. This is a regression observation on one library,
+not a ground-truth accuracy estimate. No expected person count was supplied or hardcoded.
