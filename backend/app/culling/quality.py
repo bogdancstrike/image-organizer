@@ -35,6 +35,7 @@ class Face:
     # expression (MediaPipe blendshapes + head pose), 0..1: gaze away from camera, mouth open (mid-word), frown, squint, head turn
     expr: dict | None = None
     sharpness: float | None = None  # focus in this face's eye region; None for unreadably small detections
+    landmarks_checked: bool = True  # false for box-only fallback; eye state/expression remain unknown
 
 
 @dataclass
@@ -60,7 +61,7 @@ class Quality:
                    d.get("noise", 0.0), d.get("tilt"), d.get("v", 1), d.get("features", {}))
 
 
-QUALITY_VERSION = 5  # 5: thumbnail clarity, crop dimensions, gradients and compression indicators
+QUALITY_VERSION = 6  # 6: fallback face detections and explicit unknown expressions
 
 
 def _expression(sc: dict, lms) -> dict:
@@ -235,7 +236,7 @@ def analyze_image(img: Image.Image, faces: FaceDetector | None) -> Quality:
     face_gray = np.asarray(ImageOps.grayscale(big))
     for face in found:
         x0, y0, x1, y1 = face.box
-        crop = face_gray[int(y0 * face_gray.shape[0]):int((y0 + (y1 - y0) * .6) * face_gray.shape[0]) + 1,
+        crop = face_gray[int(y0 * face_gray.shape[0]):int((y0 + (y1 - y0) * (.6 if face.landmarks_checked else 1.)) * face_gray.shape[0]) + 1,
                          int(x0 * face_gray.shape[1]):int(x1 * face_gray.shape[1]) + 1]
         if crop.size >= 400:
             face.sharpness = round(_norm_sharp(_lap_var(crop)), 4)
@@ -296,7 +297,8 @@ def verdict(q: Quality, r: QualityRules) -> tuple[str | None, list[str], bool]:
     if r.blur and q.sharpness < r.blur_threshold:
         flags.append("blurry")
     faces = _faces(q, r)
-    if r.eyes_closed and any(f.blink >= r.blink_threshold for f in faces):
+    measured = [f for f in faces if f.landmarks_checked]
+    if r.eyes_closed and any(f.blink >= r.blink_threshold for f in measured):
         flags.append("eyes-closed")
     if r.exposure:
         if q.brightness < r.dark_threshold and q.dark_clip > 0.25:
@@ -311,7 +313,7 @@ def verdict(q: Quality, r: QualityRules) -> tuple[str | None, list[str], bool]:
         f.area > 0.01 and (f.box[0] < 0.005 or f.box[2] > 0.995 or f.box[1] < 0.003) for f in faces
     ):
         flags.append("cropped-face")
-    smiling = bool(faces) and all(f.smile >= r.smile_threshold for f in faces)
+    smiling = bool(measured) and len(measured) == len(faces) and all(f.smile >= r.smile_threshold for f in measured)
     return (flags[0] if flags else None), flags, smiling
 
 
@@ -319,7 +321,7 @@ def score(q: Quality, r: QualityRules) -> float:
     """0..1 overall keeper score: sharpness, exposure, eyes open, smile. Rejected shots are halved."""
     sharp = min(1.0, max(0.0, (q.sharpness - 0.3) / 0.5))
     exposure = (1 - min(1.0, abs(q.brightness - 0.45) / 0.45)) * (1 - min(0.5, q.dark_clip + q.bright_clip))
-    faces = _faces(q, r)
+    faces = [f for f in _faces(q, r) if f.landmarks_checked]
     if faces:
         eyes = 1 - max(f.blink for f in faces)
         smile = sum(f.smile for f in faces) / len(faces)
@@ -363,6 +365,7 @@ def find_bursts(items: list[tuple[str, str, float, "np.ndarray"]], seconds: floa
 def summary(q: Quality, r: QualityRules) -> dict:
     reason, flags, smiling = verdict(q, r)
     sc = score(q, r)
+    measured = [f for f in _faces(q, r) if f.landmarks_checked]
     return {
         "score": sc,
         "rating": round(1 + sc * 4, 2),
@@ -370,12 +373,13 @@ def summary(q: Quality, r: QualityRules) -> dict:
         "sharpness": q.sharpness,
         "brightness": q.brightness,
         "faces": len(q.faces),
-        "faces_considered": len(_faces(q, r)),
-        "eyes_open": sum(f.blink < r.blink_threshold for f in _faces(q, r)),
+        "faces_considered": len(measured),
+        "eyes_open": sum(f.blink < r.blink_threshold for f in measured),
+        "faces_expression_unknown": sum(not f.landmarks_checked for f in q.faces),
         "aspect_ratio": q.features.get("aspect_ratio", 1.),
-        "face_regions": [{"box": list(f.box), "sharpness": f.sharpness, "blink": f.blink} for f in q.faces],
-        "blink": max((f.blink for f in q.faces), default=None),
-        "smile": min((f.smile for f in q.faces), default=None),
+        "face_regions": [{"box": list(f.box), "sharpness": f.sharpness, "blink": f.blink if f.landmarks_checked else None, "landmarks_checked": f.landmarks_checked} for f in q.faces],
+        "blink": max((f.blink for f in q.faces if f.landmarks_checked), default=None),
+        "smile": min((f.smile for f in q.faces if f.landmarks_checked), default=None),
         "flags": flags,
         "smiling": smiling,
         "faces_checked": q.faces_checked,

@@ -92,3 +92,12 @@ evaluate every nonduplicate photo through the separate CLIP tower, including pho
 warnings. Work runs in small batches with progress and cached results. Outputs are cached by file identity and model checksum. Disable the option to use
 the ordinary social signals alone. A model failure leaves those signals available with a warning.
 See [model provenance](../backend/app/infrastructure/models/laion_aesthetic/README.md).
+
+## Face quality analysis
+
+Quality analysis combines MediaPipe landmarks with YuNet box-only detections. Rotation-aware
+fallback recovers tilted/profile views. Box-only faces count as detected, but eye state and
+expression remain explicitly unknown and do not trigger blink rejection or a smiling claim.
+Known landmark eye-focus measurements remain authoritative when mixed with unmeasured profiles.
+Quality cache version 6 refreshes these results on the next sort; saved older plans retain their
+recorded scores until reanalyzed. The comparison and full-screen panels distinguish unknown states.

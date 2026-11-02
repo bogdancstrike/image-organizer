@@ -39,6 +39,7 @@ def test_face_identifier_normalizes_embeddings_clamps_boxes_and_skips_tiny_faces
     ident=FaceIdentifier(str(model),str(model));assert ident.available
     faces=ident.identify(Image.new('RGB',(100,100)))
     assert len(faces)==1 and faces[0].box==(.1,.2,.6,.8)
+    assert ident.locate(Image.new("RGB",(100,100)))==[((.1,.2,.6,.8),1.)]
     np.testing.assert_allclose(faces[0].emb,[.6,.8])
     roundtrip=FaceID.from_dict(faces[0].to_dict());assert roundtrip.box==faces[0].box
     detector.detect=lambda img:(None,None)
@@ -73,7 +74,7 @@ def test_detected_face_eye_focus_is_cached_with_the_new_analysis_version():
     analyzer=SimpleNamespace(available=True,detect=lambda rgb:[face])
     noise=np.random.default_rng(1).integers(0,255,(240,320,3),dtype=np.uint8)
     result=analyze_image(Image.fromarray(noise),analyzer)
-    assert result.v==QUALITY_VERSION==5 and result.faces[0].sharpness is not None
+    assert result.v==QUALITY_VERSION==6 and result.faces[0].sharpness is not None
     assert result.faces_checked and result.sharpness>0
     restored=type(result).from_dict(result.to_dict());assert restored.faces[0].sharpness==face.sharpness
 

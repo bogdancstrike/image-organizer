@@ -55,3 +55,9 @@ it('omits the generic quality-assignment sentence while retaining concrete evide
  expect(screen.getByRole('progressbar',{name:'Technical quality'})).toBeInTheDocument();
  expect(screen.getByText('sharp eyes')).toBeInTheDocument();
 });
+
+it('distinguishes detected faces from unmeasured expressions',()=>{
+ renderUI(<PhotoInfoPanel p={{...plan[0],quality:{...plan[0].quality!,faces:2,faces_considered:1,eyes_open:1,faces_expression_unknown:1}}}/>);
+ expect(screen.getByText(/2 detected faces/)).toBeInTheDocument();
+ expect(screen.getByText('Eye state and expression unmeasured on 1 face.')).toBeInTheDocument();
+});

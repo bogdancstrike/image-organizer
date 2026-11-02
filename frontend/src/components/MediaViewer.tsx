@@ -121,6 +121,7 @@ export function PhotoInfoPanel({ p, className = "" }: { p: PlanItem; className?:
     </section>}
     {p.quality && <section className="mt-5"><h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-plum/55">Quality checks</h3>
       <p className="text-xs">{p.quality.faces} detected face{p.quality.faces===1?"":"s"}{p.quality.faces_considered ? ` · eyes open on ${p.quality.eyes_open}/${p.quality.faces_considered}`:""}</p>
+      {!!p.quality.faces_expression_unknown && <p className="mt-1 text-xs text-plum/55">Eye state and expression unmeasured on {p.quality.faces_expression_unknown} face{p.quality.faces_expression_unknown===1?"":"s"}.</p>}
       {p.quality.flags.length ? <div className="mt-2 space-y-2">{p.quality.flags.map(flag=><InfoBadge key={flag} message={FLAG[flag]?.help??flag} className="block text-xs">{FLAG[flag]?.emoji??"!"} {FLAG[flag]?.label??flag}</InfoBadge>)}</div>
         : <p className="mt-1 text-xs text-plum/55">No enabled quality checks flagged an issue.</p>}
     </section>}

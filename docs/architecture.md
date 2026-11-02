@@ -68,7 +68,7 @@ Each step emits events (`phase`, `scanned`, `file`, `progress`, `stats`, `catego
 face expressions, geometry and paired CLIP/SigLIP presentation prompts form absolute component scores. These are
 blended with within-shoot and scene rankings. Keeper thresholds, Review stars and XMP ratings share this score.
 Selection covers scenes, suppresses near-duplicates and leaves the quota unfilled when candidates are weak.
-Quality cache version 5 stores per-face eye focus and the expanded image-quality signals. See [research notes](culling-research.md).
+Quality cache version 6 refreshes fallback detections and explicitly records unmeasured expressions alongside face focus. See [research notes](culling-research.md).
 
 ## Device selection
 

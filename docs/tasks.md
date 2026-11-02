@@ -96,3 +96,5 @@ Status: `[x]` done · `[ ]` open. Each task lists the specs it covers and its "d
 - [x] T60 Optional offline LAION aesthetic model for Social Media, exact encoder compatibility, CPU inference, versioned cache and complete batched evaluation for SigLIP jobs.
 
 - [x] T61 Remove duplicate-to-trash options and misleading card labels; migrate saved settings and unapplied legacy plans to Duplicates folders, preserving historical previews/Undo.
+
+- [x] T62 Complement landmark face detection with rotation-aware YuNet fallback, preserve unknown eye/expression states and refresh quality cache v6.

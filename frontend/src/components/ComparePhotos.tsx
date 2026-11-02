@@ -39,7 +39,7 @@ export function ComparePhotos({ items, onClose, categories = [], onAssign }: {
           <div className="relative inline-block align-top" style={{maxWidth:zoom==="fit"?"100%":undefined}}>
             <img src={previewUrl(p.preview_path ?? p.rel_path)} alt={p.name} className={zoom==="fit"?"block max-h-[50vh] max-w-full":"block max-w-none"}
               style={zoom==="200"?{zoom:2}:undefined} />
-            {faces && p.quality?.face_regions?.map((face,i)=><div key={i} title={`Face ${i+1}: focus ${face.sharpness===null?"unavailable":Math.round(face.sharpness*100)+"%"}, ${face.blink<.5?"eyes open":"check eyes"}`}
+            {faces && p.quality?.face_regions?.map((face,i)=><div key={i} title={`Face ${i+1}: focus ${face.sharpness===null?"unavailable":Math.round(face.sharpness*100)+"%"}, ${face.blink===null?"eye state unknown":face.blink<.5?"eyes open":"check eyes"}`}
               className="pointer-events-none absolute border border-cyan-300" style={{left:`${face.box[0]*100}%`,top:`${face.box[1]*100}%`,width:`${(face.box[2]-face.box[0])*100}%`,height:`${(face.box[3]-face.box[1])*100}%`}} />)}
           </div>
         </div>

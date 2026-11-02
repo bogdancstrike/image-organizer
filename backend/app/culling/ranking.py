@@ -48,7 +48,9 @@ def relevant_faces(q: Quality, rules: QualityRules | None = None) -> list[Face]:
 
 
 def subject_focus(q: Quality, rules: QualityRules | None = None) -> float:
-    scores = [f.sharpness for f in relevant_faces(q, rules) if f.sharpness is not None]
+    faces = relevant_faces(q, rules)
+    measured = [f for f in faces if f.landmarks_checked and f.sharpness is not None]
+    scores = [f.sharpness for f in (measured or faces) if f.sharpness is not None]
     return .6 * min(scores) + .4 * sum(scores) / len(scores) if scores else q.sharpness
 
 
@@ -79,7 +81,9 @@ def face_expression(f: Face, profile: str = "portrait") -> float:
 def expression(q: Quality, rules: QualityRules | None = None, profile: str = "portrait") -> float | None:
     if not q.faces:
         return None
-    sizable = relevant_faces(q, rules)
+    sizable = [f for f in relevant_faces(q, rules) if f.landmarks_checked]
+    if not sizable:
+        return None
     scores = [face_expression(f, profile) for f in sizable]
     return 0.6 * min(scores) + 0.4 * (sum(scores) / len(scores))  # one blink spoils a group shot
 
@@ -262,7 +266,7 @@ def rank(ids: list[str], quality: dict[str, Quality], E: np.ndarray, embedder, r
         if rejected:
             value = min(.24, value * .3)
         parts = {k: round(float(v[i]), 3) for k, v in raw.items()}
-        if not q.faces or WEIGHTS[kind]["expr"] == 0:
+        if not any(f.landmarks_checked for f in relevant_faces(q, rules)) or WEIGHTS[kind]["expr"] == 0:
             parts.pop("expr")
         parts.update({key: q.features[key] for key in ("detail", "balance", "separation", "tenengrad", "directionality", "blocking", "thumbnail") if key in q.features})
         parts.update(social.get(fid, {}))

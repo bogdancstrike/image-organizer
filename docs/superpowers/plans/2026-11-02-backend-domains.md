@@ -112,3 +112,10 @@
 
 - Removed the duplicate-trash UI option, API policy and always-on misleading card suffix/icon. Old saved UI choices and incoming legacy requests normalize to a Duplicates folder. Unapplied legacy plans migrate before Apply; applied legacy runs keep their journals, previews and Undo.
 - Backend tests cover both legacy plan migration and historical trash-preview restoration. Current implementation never sends new duplicate plans to trash.
+
+## Face detection regression checkpoint
+
+- YuNet detection-only adapter complements MediaPipe; 90/270/180-degree retries recover previously missed tilted profiles. Boxes map back to the original image, duplicate detections are merged, and optional fallback failure preserves known landmark faces.
+- Box-only detections never invent eye/smile/expression readings; mixed unmeasured profiles do not lower verified eye focus. Unknown expression state appears in full-screen/compare panels. Cache version 6 refreshes on reanalysis.
+- Real reported examples: DSCF1773 now detects one tilted-profile face; DSCF2336 detects both faces (one expression unknown), with no blur flag. All three preferred photo examples remain unflagged in fresh analysis.
+- Backend 221 tests / 91.39%; frontend 91 tests / 93.34% lines and 90.74% statements; build passes.

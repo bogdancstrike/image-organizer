@@ -31,16 +31,30 @@ class FaceIdentifier:
             self._local.rec = cv2.FaceRecognizerSF.create(self.recognizer, "")
         return self._local.det, self._local.rec
 
-    def identify(self, img: Image.Image) -> list[FaceID]:
+    def _detect(self, img: Image.Image):
         import cv2
 
         rgb = img.convert("RGB")
         rgb.thumbnail((DETECT_SIZE, DETECT_SIZE))
         bgr = cv2.cvtColor(np.asarray(rgb), cv2.COLOR_RGB2BGR)
         h, w = bgr.shape[:2]
-        det, rec = self._models()
+        det, _ = self._models()
         det.setInputSize((w, h))
         _, faces = det.detect(bgr)
+        return bgr, faces if faces is not None else []
+
+    def locate(self, img: Image.Image) -> list[tuple[tuple[float, float, float, float], float]]:
+        """Detection only: quality analysis does not need identity embeddings."""
+        bgr, faces = self._detect(img)
+        h, w = bgr.shape[:2]
+        return [((max(0.,float(f[0])/w),max(0.,float(f[1])/h),
+                  min(1.,float(f[0]+f[2])/w),min(1.,float(f[1]+f[3])/h)),float(f[-1]) if len(f)>=15 else 1.)
+                for f in faces if min(f[2],f[3]) >= MIN_FACE_PX]
+
+    def identify(self, img: Image.Image) -> list[FaceID]:
+        bgr, faces = self._detect(img)
+        h, w = bgr.shape[:2]
+        _, rec = self._models()
         out = []
         for f in faces if faces is not None else []:
             x, y, fw, fh = (float(v) for v in f[:4])

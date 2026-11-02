@@ -94,8 +94,9 @@ export interface PlanItem {
 export interface QualitySummary {
   eyes_open?: number;
   faces_considered?: number;
+  faces_expression_unknown?: number;
   aspect_ratio?: number;
-  face_regions?: { box: number[]; sharpness: number | null; blink: number }[];
+  face_regions?: { box: number[]; sharpness: number | null; blink: number | null; landmarks_checked?: boolean }[];
   rating?: number;
   score: number;
   stars: number;

@@ -91,9 +91,33 @@ class FaceAnalyzer:
                     for (bx0, by0, bx1, by1), blink, smile, expr in self._detect_one(np.asarray(tile)):
                         cw, ch = x1 - x0, y1 - y0
                         add(((x0 + bx0 * cw) / W, (y0 + by0 * ch) / H, (x0 + bx1 * cw) / W, (y0 + by1 * ch) / H), blink, smile, expr)
+        # YuNet complements the short-range landmark detector. Rotation recovers tilted/profile faces.
+        from app.infrastructure.identity import get_face_identifier
+        try:
+            identifier = get_face_identifier()
+            if identifier.available:
+                detected = identifier.locate(full)
+                if not found and not detected:
+                    for angle in (90, 270, 180):
+                        rotated = identifier.locate(full.rotate(angle, expand=True))
+                        if rotated:
+                            detected = [(unrotate_box(box, angle), confidence) for box, confidence in rotated]
+                            break
+                for box, confidence in detected:
+                    area = (box[2]-box[0])*(box[3]-box[1])
+                    if confidence < .8 or area < MIN_FACE_AREA or any(_iou(face.box, box) > .3 for face in found):
+                        continue
+                    found.append(Face(0., 0., round(area,5), box, landmarks_checked=False))
+        except Exception as exc:  # Optional fallback must not discard valid landmark detections.
+            log.warning("fallback face detection failed: %s", exc)
         for f in found:
             f.box = tuple(round(v, 4) for v in f.box)
         return found
+
+
+def unrotate_box(box, angle):
+    x0,y0,x1,y1 = box
+    return {90:(1-y1,x0,1-y0,x1),270:(y0,1-x1,y1,1-x0),180:(1-x1,1-y1,1-x0,1-y0)}[angle]
 
 
 def _iou(a, b) -> float:
